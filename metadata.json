@@ -1,0 +1,5 @@
+{
+  "name": "AI Slide Architect",
+  "description": "An application to automatically generate structured slide text and layout suggestions from a source document and teacher instructions. It produces a draft slideshow for easy editing in Canva, PowerPoint, or Google Slides.",
+  "requestFramePermissions": []
+}
