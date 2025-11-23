@@ -1,63 +1,138 @@
-
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { GenerateIcon } from './icons';
+import { FileUploader } from './FileUploader';
 
 interface InputFormProps {
-  sourceText: string;
-  setSourceText: (text: string) => void;
-  instructions: string;
-  setInstructions: (text: string) => void;
+  topic: string;
+  setTopic: (text: string) => void;
+  gradeLevel: string;
+  setGradeLevel: (text: string) => void;
+  subject: string;
+  setSubject: (text: string) => void;
+  onFilesSelected: (files: { name: string; content: string }[]) => void;
   numSlides: number;
   setNumSlides: (num: number) => void;
+  useWebSearch: boolean;
+  setUseWebSearch: (use: boolean) => void;
   onSubmit: () => void;
   isLoading: boolean;
 }
 
+const PLACEHOLDER_PAIRS = [
+  { topic: "The process of photosynthesis", gradeLevel: "9th Grade", subject: "Biology" },
+  { topic: "Causes of the American Civil War", gradeLevel: "8th Grade", subject: "History" },
+  { topic: "Themes in 'To Kill a Mockingbird'", gradeLevel: "10th Grade", subject: "English" },
+  { topic: "Properties of chemical bonds", gradeLevel: "11th Grade", subject: "Chemistry" },
+  { topic: "Concept of linear equations", gradeLevel: "7th Grade", subject: "Math" },
+  { topic: "Impact of climate change", gradeLevel: "12th Grade", subject: "Science" },
+  { topic: "Principles of supply and demand", gradeLevel: "12th Grade", subject: "Economics" },
+  { topic: "Structure of the human heart", gradeLevel: "7th Grade", subject: "Science" },
+  { topic: "Renaissance art techniques", gradeLevel: "9th Grade", subject: "Art" },
+  { topic: "Laws of motion", gradeLevel: "8th Grade", subject: "Physics" }
+];
+
 export const InputForm: React.FC<InputFormProps> = ({
-  sourceText,
-  setSourceText,
-  instructions,
-  setInstructions,
+  topic,
+  setTopic,
+  gradeLevel,
+  setGradeLevel,
+  subject,
+  setSubject,
+  onFilesSelected,
   numSlides,
   setNumSlides,
+  useWebSearch,
+  setUseWebSearch,
   onSubmit,
   isLoading,
 }) => {
+  const [placeholders, setPlaceholders] = useState(PLACEHOLDER_PAIRS[0]);
+
+  useEffect(() => {
+    setPlaceholders(PLACEHOLDER_PAIRS[Math.floor(Math.random() * PLACEHOLDER_PAIRS.length)]);
+  }, []);
+
   return (
     <div className="flex flex-col space-y-6 h-full">
       <div className="hidden md:block">
         <h1 className="text-3xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500 mb-2">
-          Teacher Slide Builder
+          AI Slide Builder
         </h1>
-        <p className="text-slate-400">Create classroom presentations from your content.</p>
+        <p className="text-slate-400">Create a presentation on any topic</p>
       </div>
 
       <div>
-        <label htmlFor="sourceText" className="block text-sm font-medium text-slate-300 mb-2">
-          Source Document
+        <label htmlFor="topic" className="block text-sm font-medium text-slate-300 mb-2">
+          Topic
         </label>
-        <textarea
-          id="sourceText"
-          value={sourceText}
-          onChange={(e) => setSourceText(e.target.value)}
-          placeholder="Paste your long document, article, or notes here..."
-          className="w-full h-40 p-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150 resize-y"
+        <input
+          type="text"
+          id="topic"
+          value={topic}
+          onChange={(e) => setTopic(e.target.value)}
+          placeholder={`e.g., ${placeholders.topic}`}
+          className="w-full p-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150"
           disabled={isLoading}
         />
       </div>
+
+
+
       <div>
-        <label htmlFor="instructions" className="block text-sm font-medium text-slate-300 mb-2">
-          Instructions
+        <label htmlFor="gradeLevel" className="block text-sm font-medium text-slate-300 mb-2">
+          Grade Level
         </label>
-        <textarea
-          id="instructions"
-          value={instructions}
-          onChange={(e) => setInstructions(e.target.value)}
-          placeholder="e.g., Create a 5-slide presentation for 10th graders about the causes of WWI. Focus on..."
-          className="w-full h-32 p-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150 resize-y"
+        <input
+          type="text"
+          id="gradeLevel"
+          value={gradeLevel}
+          onChange={(e) => setGradeLevel(e.target.value)}
+          placeholder={`e.g., ${placeholders.gradeLevel}`}
+          className="w-full p-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150"
           disabled={isLoading}
         />
       </div>
+
+      <div>
+        <label htmlFor="subject" className="block text-sm font-medium text-slate-300 mb-2">
+          Subject
+        </label>
+        <input
+          type="text"
+          id="subject"
+          value={subject}
+          onChange={(e) => setSubject(e.target.value)}
+          placeholder={`e.g., ${placeholders.subject}`}
+          className="w-full p-3 bg-slate-700 border border-slate-600 rounded-md focus:ring-2 focus:ring-sky-500 focus:border-sky-500 transition duration-150"
+          disabled={isLoading}
+        />
+      </div>
+
+      <FileUploader onFilesSelected={onFilesSelected} isLoading={isLoading} />
+
+      <div className="flex items-center justify-between bg-slate-700/50 p-3 rounded-md border border-slate-600/50">
+        <div className="flex flex-col">
+          <label htmlFor="webSearch" className="font-medium text-slate-200 cursor-pointer" onClick={() => setUseWebSearch(!useWebSearch)}>Enable Web Search</label>
+          <p className="text-slate-400 text-xs">Ground content in real-time Google Search results</p>
+        </div>
+        <button
+          id="webSearch"
+          type="button"
+          role="switch"
+          aria-checked={useWebSearch}
+          onClick={() => setUseWebSearch(!useWebSearch)}
+          disabled={isLoading}
+          className={`relative inline-flex h-6 w-11 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-sky-500 focus:ring-offset-2 focus:ring-offset-slate-900 ${useWebSearch ? 'bg-sky-600' : 'bg-slate-600'
+            } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+        >
+          <span
+            aria-hidden="true"
+            className={`pointer-events-none inline-block h-5 w-5 transform rounded-full bg-white shadow ring-0 transition duration-200 ease-in-out ${useWebSearch ? 'translate-x-5' : 'translate-x-0'
+              }`}
+          />
+        </button>
+      </div>
+
       <div>
         <label htmlFor="numSlides" className="block text-sm font-medium text-slate-300 mb-2">
           Number of Slides
@@ -76,7 +151,7 @@ export const InputForm: React.FC<InputFormProps> = ({
       <div className="pt-2">
         <button
           onClick={onSubmit}
-          disabled={isLoading || !sourceText || !instructions}
+          disabled={isLoading || !topic || !gradeLevel || !subject}
           className="w-full flex items-center justify-center py-3 px-4 bg-sky-600 hover:bg-sky-700 disabled:bg-slate-500 disabled:cursor-not-allowed text-white font-bold rounded-md shadow-lg transition-transform transform hover:scale-105 duration-300"
         >
           {isLoading ? (
@@ -95,6 +170,6 @@ export const InputForm: React.FC<InputFormProps> = ({
           )}
         </button>
       </div>
-    </div>
+    </div >
   );
 };

@@ -4,4 +4,5 @@ export interface Slide {
   content: string[];
   layout: string;
   imagePrompt: string;
+  speakerNotes: string;
 }
