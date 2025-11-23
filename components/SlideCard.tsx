@@ -29,6 +29,14 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
     );
 };
 
+export const cleanText = (text: string): string => {
+    return text.replace(/\*\*(.*?)\*\*/g, '$1') // Bold
+        .replace(/\*(.*?)\*/g, '$1')     // Italic
+        .replace(/__(.*?)__/g, '$1')     // Bold
+        .replace(/_(.*?)_/g, '$1')       // Italic
+        .replace(/`([^`]+)`/g, '$1')    // Code
+        .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
+};
 
 export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
@@ -162,7 +170,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     <>
                         <ul className="space-y-2 list-disc list-inside text-slate-300">
                             {slide.content.map((item, index) => (
-                                <li key={index}>{item}</li>
+                                <li key={index}>{cleanText(item)}</li>
                             ))}
                         </ul>
                         <button

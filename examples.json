@@ -1,0 +1,502 @@
+[
+  {
+    "grade": "6th Grade",
+    "subject": "Mathematics",
+    "topic": "Ratios and Proportions"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Mathematics",
+    "topic": "Dividing Fractions"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Mathematics",
+    "topic": "Area and Surface Area"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Mathematics",
+    "topic": "Introduction to Integers"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Science",
+    "topic": "Earth's Systems"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Science",
+    "topic": "Weather and Climate"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Science",
+    "topic": "Cells and Organisms"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Science",
+    "topic": "Energy Transfer"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "English Language Arts",
+    "topic": "Narrative Writing"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "English Language Arts",
+    "topic": "Argumentative Essays"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "English Language Arts",
+    "topic": "Greek Mythology"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "English Language Arts",
+    "topic": "Figurative Language"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Social Studies",
+    "topic": "Ancient Civilizations"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Social Studies",
+    "topic": "World Geography"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Social Studies",
+    "topic": "The Roman Empire"
+  },
+  {
+    "grade": "6th Grade",
+    "subject": "Social Studies",
+    "topic": "Early Humans"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Mathematics",
+    "topic": "Proportional Relationships"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Mathematics",
+    "topic": "Rational Numbers"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Mathematics",
+    "topic": "Expressions and Equations"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Mathematics",
+    "topic": "Probability and Statistics"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Science",
+    "topic": "Matter and Its Interactions"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Science",
+    "topic": "Ecosystems"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Science",
+    "topic": "Photosynthesis"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Science",
+    "topic": "Plate Tectonics"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "English Language Arts",
+    "topic": "Analyzing Poetry"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "English Language Arts",
+    "topic": "Persuasive Writing"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "English Language Arts",
+    "topic": "The Giver (Novel Study)"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "English Language Arts",
+    "topic": "Elements of Drama"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Social Studies",
+    "topic": "The Middle Ages"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Social Studies",
+    "topic": "The Renaissance"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Social Studies",
+    "topic": "Age of Exploration"
+  },
+  {
+    "grade": "7th Grade",
+    "subject": "Social Studies",
+    "topic": "The Reformation"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Mathematics",
+    "topic": "Linear Equations"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Mathematics",
+    "topic": "Functions"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Mathematics",
+    "topic": "The Pythagorean Theorem"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Mathematics",
+    "topic": "Transformations"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Science",
+    "topic": "Forces and Motion"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Science",
+    "topic": "Waves and Electromagnetic Radiation"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Science",
+    "topic": "Natural Selection"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Science",
+    "topic": "Space Systems"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "English Language Arts",
+    "topic": "To Kill a Mockingbird"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "English Language Arts",
+    "topic": "Informational Text Analysis"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "English Language Arts",
+    "topic": "Debate Skills"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "English Language Arts",
+    "topic": "Short Stories"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Social Studies",
+    "topic": "American Revolution"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Social Studies",
+    "topic": "The US Constitution"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Social Studies",
+    "topic": "The Civil War"
+  },
+  {
+    "grade": "8th Grade",
+    "subject": "Social Studies",
+    "topic": "Industrial Revolution"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Mathematics",
+    "topic": "Algebra I: Linear Inequalities"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Mathematics",
+    "topic": "Algebra I: Quadratics"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Mathematics",
+    "topic": "Algebra I: Exponential Functions"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Mathematics",
+    "topic": "Geometry: Congruence"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Science",
+    "topic": "Biology: DNA and Genetics"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Science",
+    "topic": "Biology: Evolution"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Science",
+    "topic": "Physical Science: Atomic Structure"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Science",
+    "topic": "Environmental Science"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "English Language Arts",
+    "topic": "Romeo and Juliet"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "English Language Arts",
+    "topic": "The Odyssey"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "English Language Arts",
+    "topic": "Literary Analysis"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "English Language Arts",
+    "topic": "Research Paper Writing"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Social Studies",
+    "topic": "World History: Imperialism"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Social Studies",
+    "topic": "World History: World War I"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Social Studies",
+    "topic": "Geography: Human Migration"
+  },
+  {
+    "grade": "9th Grade",
+    "subject": "Social Studies",
+    "topic": "Civics: Rights and Responsibilities"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Mathematics",
+    "topic": "Geometry: Similarity"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Mathematics",
+    "topic": "Geometry: Circles"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Mathematics",
+    "topic": "Algebra II: Polynomials"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Science",
+    "topic": "Chemistry: Periodic Table"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Science",
+    "topic": "Chemistry: Chemical Reactions"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Science",
+    "topic": "Biology: Ecology"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "English Language Arts",
+    "topic": "Lord of the Flies"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "English Language Arts",
+    "topic": "Rhetorical Analysis"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "English Language Arts",
+    "topic": "World Literature"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Social Studies",
+    "topic": "World History: World War II"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Social Studies",
+    "topic": "World History: The Cold War"
+  },
+  {
+    "grade": "10th Grade",
+    "subject": "Social Studies",
+    "topic": "Modern World History"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Mathematics",
+    "topic": "Algebra II: Logarithms"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Mathematics",
+    "topic": "Pre-Calculus: Unit Circle"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Mathematics",
+    "topic": "Statistics: Data Distributions"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Science",
+    "topic": "Physics: Electricity and Magnetism"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Science",
+    "topic": "Chemistry: Stoichiometry"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Science",
+    "topic": "Earth Science: Climate Change"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "English Language Arts",
+    "topic": "American Literature: The Great Gatsby"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "English Language Arts",
+    "topic": "The Crucible"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "English Language Arts",
+    "topic": "Synthesis Essay"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Social Studies",
+    "topic": "US History: The Great Depression"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Social Studies",
+    "topic": "US History: Civil Rights Movement"
+  },
+  {
+    "grade": "11th Grade",
+    "subject": "Social Studies",
+    "topic": "US History: Vietnam War"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Mathematics",
+    "topic": "Calculus: Limits"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Mathematics",
+    "topic": "Calculus: Derivatives"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Mathematics",
+    "topic": "Statistics: Hypothesis Testing"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Science",
+    "topic": "Physics: Thermodynamics"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Science",
+    "topic": "Advanced Biology"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Science",
+    "topic": "Environmental Science: Sustainability"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "English Language Arts",
+    "topic": "British Literature: Hamlet"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "English Language Arts",
+    "topic": "1984"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "English Language Arts",
+    "topic": "College Essay Writing"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Social Studies",
+    "topic": "US Government: The Judiciary"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Social Studies",
+    "topic": "Economics: Microeconomics"
+  },
+  {
+    "grade": "12th Grade",
+    "subject": "Social Studies",
+    "topic": "Psychology Basics"
+  }
+]

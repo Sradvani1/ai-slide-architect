@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import JSZip from 'jszip';
 import jsPDF from 'jspdf';
-import { SlideCard } from './SlideCard';
+import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
 import { generateImage } from '../services/geminiService';
 import type { Slide } from '../types';
@@ -76,36 +76,63 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
             const pptx = new PptxGenJS();
             pptx.layout = 'LAYOUT_16x9';
 
-            for (const slideData of slides) {
+            slides.forEach((slideData, index) => {
                 const slide = pptx.addSlide();
 
-                // Title at the top
-                slide.addText(slideData.title || 'Untitled', {
-                    x: 0.5,
-                    y: 0.3,
-                    w: 9,
-                    h: 0.7,
-                    fontSize: 32,
-                    bold: true,
-                    align: 'left',
-                    valign: 'top',
-                });
-
-                // Content below the title
-                if (slideData.content && slideData.content.length > 0) {
-                    const contentText = slideData.content.join('\n');
-                    slide.addText(contentText, {
+                if (index === 0) {
+                    // Title Slide Formatting
+                    slide.addText(slideData.title || 'Untitled', {
                         x: 0.5,
-                        y: 1.2,
+                        y: 1.0,
                         w: 9,
-                        h: 4.3,
-                        fontSize: 18,
-                        bullet: true,
+                        h: 1.5,
+                        fontSize: 44,
+                        bold: true,
+                        align: 'center',
+                        valign: 'middle',
+                    });
+
+                    if (slideData.content && slideData.content.length > 0) {
+                        const contentText = slideData.content.map(item => cleanText(item)).join('\n');
+                        slide.addText(contentText, {
+                            x: 0.5,
+                            y: 2.8,
+                            w: 9,
+                            h: 2.0,
+                            fontSize: 24,
+                            bullet: false,
+                            align: 'center',
+                            valign: 'top',
+                        });
+                    }
+                } else {
+                    // Standard Slide Formatting
+                    slide.addText(slideData.title || 'Untitled', {
+                        x: 0.5,
+                        y: 0.3,
+                        w: 9,
+                        h: 0.7,
+                        fontSize: 32,
+                        bold: true,
                         align: 'left',
                         valign: 'top',
                     });
+
+                    if (slideData.content && slideData.content.length > 0) {
+                        const contentText = slideData.content.map(item => cleanText(item)).join('\n');
+                        slide.addText(contentText, {
+                            x: 0.5,
+                            y: 1.2,
+                            w: 9,
+                            h: 4.3,
+                            fontSize: 18,
+                            bullet: true,
+                            align: 'left',
+                            valign: 'top',
+                        });
+                    }
                 }
-            }
+            });
 
             await pptx.writeFile({ fileName: 'Teacher-Presentation.pptx' });
         } catch (err) {

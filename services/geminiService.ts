@@ -22,7 +22,7 @@ const slideSchema = {
       items: {
         type: Type.STRING,
       },
-      description: "An array of strings, where each string is a bullet point or a short sentence for the slide content."
+      description: "An array of strings, where each string is a bullet point or a short sentence for the slide content. Maximum 6 items."
     },
     layout: {
       type: Type.STRING,
@@ -81,7 +81,23 @@ export const generateSlidesFromDocument = async (
   }
 
   prompt += `
-    Please generate exactly ${numSlides} slides. For each slide, provide a title, content as bullet points, a suggested layout, a prompt for an image generator, and detailed speaker notes.
+    Please generate exactly ${numSlides} slides.
+    
+    **SLIDE 1 MUST BE A TITLE SLIDE:**
+    - **Title:** Use the provided Topic: "${topic}".
+    - **Content:**
+      - A catchy, short tagline related to the topic.
+      - "Grade Level: ${gradeLevel}"
+      - "Subject: ${subject}"
+    - **Layout:** "Title Slide"
+    - **Image Prompt:** Create a prompt for a visually striking title slide image that represents the overall topic.
+    - **Speaker Notes:** Brief introductory remarks welcoming the class and introducing the topic.
+
+    **SLIDES 2 to ${numSlides}:**
+    - Generate content slides covering the topic in a logical sequence.
+    - For each slide, provide a title, content as bullet points (MAXIMUM 6 bullet points), a suggested layout, a prompt for an image generator, and detailed speaker notes.
+    - **IMPORTANT:** Do NOT use markdown formatting (like **bold** or *italic*) in the bullet points. Use plain text only.
+    - **IMPORTANT:** Do NOT use nested bullet points or sub-bullets. Each content item must be a single, standalone statement.
     
     **CRITICAL REQUIREMENT FOR IMAGE PROMPTS:**
     
