@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import JSZip from 'jszip';
-import jsPDF from 'jspdf';
+import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
 import { generateImage } from '../services/geminiService';
@@ -15,6 +15,8 @@ interface SlideDeckProps {
     isLoading: boolean;
     error: string | null;
     onUpdateSlide: (index: number, updatedSlide: Slide) => void;
+    gradeLevel: string;
+    subject: string;
 }
 
 const WelcomeMessage: React.FC = () => (
@@ -43,7 +45,96 @@ const Loader: React.FC = () => (
     </div>
 );
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide }) => {
+const generateDocx = async (slides: Slide[]) => {
+    const doc = new Document({
+        sections: [{
+            properties: {},
+            children: slides.flatMap((slide, index) => {
+                const children = [
+                    new Paragraph({
+                        text: `Slide ${index + 1}: ${slide.title}`,
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: {
+                            before: 200,
+                            after: 100,
+                        },
+                    }),
+                ];
+
+                const notes = slide.speakerNotes || "No speaker notes available.";
+                const sourcesIndex = notes.indexOf("Sources:");
+
+                let mainNotes = notes;
+                let sourcesSection = "";
+
+                if (sourcesIndex !== -1) {
+                    mainNotes = notes.substring(0, sourcesIndex).trim();
+                    sourcesSection = notes.substring(sourcesIndex).trim();
+                }
+
+                children.push(new Paragraph({
+                    text: mainNotes,
+                    spacing: {
+                        after: 200,
+                    },
+                }));
+
+                if (sourcesSection) {
+                    // Add spacing before sources
+                    children.push(new Paragraph({ text: "" }));
+
+                    // Add Sources Header
+                    children.push(new Paragraph({
+                        text: "Sources",
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { after: 100 }
+                    }));
+
+                    // Add spacing after header
+                    children.push(new Paragraph({ text: "" }));
+
+                    // Parse sources
+                    const sourceContent = sourcesSection.replace(/^Sources:?\s*/i, "");
+                    const sourceLines = sourceContent.split('\n').map(s => s.trim()).filter(s => s);
+
+                    sourceLines.forEach(line => {
+                        const urlRegex = /(https?:\/\/[^\s]+)/g;
+                        const parts = line.split(urlRegex);
+                        const paragraphChildren = [];
+
+                        parts.forEach(part => {
+                            if (part.match(urlRegex)) {
+                                paragraphChildren.push(new ExternalHyperlink({
+                                    children: [
+                                        new TextRun({
+                                            text: part,
+                                            style: "Hyperlink",
+                                        }),
+                                    ],
+                                    link: part,
+                                }));
+                            } else if (part) {
+                                paragraphChildren.push(new TextRun(part));
+                            }
+                        });
+
+                        children.push(new Paragraph({
+                            children: paragraphChildren,
+                            spacing: { after: 100 }
+                        }));
+                    });
+                }
+
+                children.push(new Paragraph({ text: "" })); // Spacing between slides
+                return children;
+            }),
+        }],
+    });
+
+    return await Packer.toBlob(doc);
+};
+
+export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide, gradeLevel, subject }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
@@ -134,7 +225,10 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                 }
             });
 
-            await pptx.writeFile({ fileName: 'Teacher-Presentation.pptx' });
+            const fileName = slides[0]?.title
+                ? `${slides[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50)}.pptx`
+                : 'presentation.pptx';
+            await pptx.writeFile({ fileName });
         } catch (err) {
             console.error("Error during PPTX file generation:", err);
             alert("An error occurred while exporting the PPTX file.");
@@ -189,50 +283,29 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
         }
     };
 
-    const handleDownloadNotes = () => {
+    const handleDownloadNotes = async () => {
         if (!slides) return;
 
         setIsDownloadingNotes(true);
         try {
-            const doc = new jsPDF();
-            let yPos = 20;
-            const margin = 20;
-            const pageWidth = doc.internal.pageSize.getWidth();
-            const maxLineWidth = pageWidth - (margin * 2);
+            const baseFileName = slides[0]?.title
+                ? slides[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50)
+                : 'speaker_notes';
 
-            // Title
-            doc.setFontSize(22);
-            doc.text("Speaker Notes", margin, yPos);
-            yPos += 15;
+            // Generate DOCX
+            const docxBlob = await generateDocx(slides);
+            const docxUrl = URL.createObjectURL(docxBlob);
+            const docxLink = document.createElement('a');
+            docxLink.href = docxUrl;
+            docxLink.download = `${baseFileName}_speaker_notes.docx`;
+            document.body.appendChild(docxLink);
+            docxLink.click();
+            document.body.removeChild(docxLink);
+            URL.revokeObjectURL(docxUrl);
 
-            slides.forEach((slide, index) => {
-                // Check if we need a new page
-                if (yPos > 250) {
-                    doc.addPage();
-                    yPos = 20;
-                }
-
-                // Slide Title
-                doc.setFontSize(16);
-                doc.setFont("helvetica", "bold");
-                doc.text(`Slide ${index + 1}: ${slide.title}`, margin, yPos);
-                yPos += 10;
-
-                // Speaker Notes
-                doc.setFontSize(12);
-                doc.setFont("helvetica", "normal");
-
-                const notes = slide.speakerNotes || "No speaker notes available.";
-                const splitNotes = doc.splitTextToSize(notes, maxLineWidth);
-
-                doc.text(splitNotes, margin, yPos);
-                yPos += (splitNotes.length * 7) + 10; // Line height + spacing
-            });
-
-            doc.save("speaker-notes.pdf");
         } catch (err) {
-            console.error("Error downloading speaker notes:", err);
-            alert("An error occurred while generating the speaker notes PDF.");
+            console.error("Error downloading notes:", err);
+            alert("An error occurred while generating the notes.");
         } finally {
             setIsDownloadingNotes(false);
         }
@@ -279,7 +352,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                     <button
                         onClick={handleDownloadNotes}
                         disabled={isDownloadingNotes || isExporting || isDownloadingImages}
-                        title="Download Speaker Notes as PDF"
+                        title="Download Speaker Notes (DOCX)"
                         className="flex items-center justify-center py-2 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-md shadow-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait"
                     >
                         {isDownloadingNotes ? (
@@ -293,7 +366,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         ) : (
                             <>
                                 <DocumentTextIcon className="mr-2" />
-                                Notes PDF
+                                Speaker Notes (DOCX)
                             </>
                         )}
                     </button>
@@ -327,6 +400,8 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         slide={slide}
                         slideNumber={index + 1}
                         onUpdateSlide={(updatedSlide) => onUpdateSlide(index, updatedSlide)}
+                        gradeLevel={gradeLevel}
+                        subject={subject}
                     />
                 ))}
             </div>

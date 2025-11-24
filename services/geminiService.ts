@@ -80,56 +80,58 @@ export const generateSlidesFromDocument = async (
     `;
   }
 
+  const totalSlides = numSlides + 1;
+
   prompt += `
-    Please generate exactly ${numSlides} slides.
+    Please generate exactly ${totalSlides} slides.
     
     **SLIDE 1 MUST BE A TITLE SLIDE:**
     - **Title:** Use the provided Topic: "${topic}".
     - **Content:**
       - A catchy, short tagline related to the topic.
-      - "Grade Level: ${gradeLevel}"
-      - "Subject: ${subject}"
+      - "${gradeLevel}"
+      - "${subject}"
     - **Layout:** "Title Slide"
     - **Image Prompt:** Create a prompt for a visually striking title slide image that represents the overall topic.
     - **Speaker Notes:** Brief introductory remarks welcoming the class and introducing the topic.
 
-    **SLIDES 2 to ${numSlides}:**
+    **SLIDES 2 to ${totalSlides}:**
     - Generate content slides covering the topic in a logical sequence.
     - For each slide, provide a title, content as bullet points (MAXIMUM 6 bullet points), a suggested layout, a prompt for an image generator, and detailed speaker notes.
-    - **IMPORTANT:** Do NOT use markdown formatting (like **bold** or *italic*) in the bullet points. Use plain text only.
-    - **IMPORTANT:** Do NOT use nested bullet points or sub-bullets. Each content item must be a single, standalone statement.
+    - ** IMPORTANT:** Do NOT use markdown formatting(like ** bold ** or * italic *) in the bullet points.Use plain text only.
+    - ** IMPORTANT:** Do NOT use nested bullet points or sub - bullets.Each content item must be a single, standalone statement.
     
-    **CRITICAL REQUIREMENT FOR IMAGE PROMPTS:**
-    
+    ** CRITICAL REQUIREMENT FOR IMAGE PROMPTS:**
+
     For each slide, you must generate an imagePrompt by analyzing the slide's title and content to determine the best visual representation of the concept. The imagePrompt should describe what visual elements would best help a teacher explain the concept to students.
-    
-    **Style Requirements:**
-    - The style must be appropriate for the **Grade Level** and **Subject**.
-    - For younger students (e.g., K-5), use styles like "colorful illustration", "simple diagram", or "cartoon style".
-    - For older students (e.g., 6-12, University), use styles like "detailed diagram", "realistic illustration", "infographic", or "educational chart".
+
+      ** Style Requirements:**
+        - The style must be appropriate for the ** Grade Level ** and ** Subject **.
+    - For younger students(e.g., K - 5), use styles like "colorful illustration", "simple diagram", or "cartoon style".
+    - For older students(e.g., 6 - 12, University), use styles like "detailed diagram", "realistic illustration", "infographic", or "educational chart".
     - The visual should be clear, accurate, and educational.
     
-    **Content Requirements:**
+    ** Content Requirements:**
     - The prompt should describe a visual representation that clearly explains the concept from the slide.
     - It must be detailed enough to be educational and helpful.
-    - **INCLUDE TEXT AND LABELS:** The illustration SHOULD include explanatory text, labels, and annotations where appropriate to enhance understanding.
+    - ** INCLUDE TEXT AND LABELS:** The illustration SHOULD include explanatory text, labels, and annotations where appropriate to enhance understanding.
     
-    **Examples of Good Prompts:**
+    ** Examples of Good Prompts:**
     - (For 1st Grade Science): "A colorful, simple illustration showing the water cycle. A smiling sun shines on a blue ocean. Fluffy white clouds are in the sky. Rain falls from a grey cloud onto green grass. Arrows show the water going up and down."
-    - (For University Biology): "A detailed, scientifically accurate cross-section diagram of a plant cell. Key structures like the cell wall, nucleus, chloroplasts, and large central vacuole are clearly illustrated and labeled. The style is educational and suitable for a textbook."
-    - (For High School History): "A realistic historical illustration depicting the signing of the Declaration of Independence. The room is filled with colonial figures in period clothing. The atmosphere is serious and momentous."
+      - (For University Biology): "A detailed, scientifically accurate cross-section diagram of a plant cell. Key structures like the cell wall, nucleus, chloroplasts, and large central vacuole are clearly illustrated and labeled. The style is educational and suitable for a textbook."
+        - (For High School History): "A realistic historical illustration depicting the signing of the Declaration of Independence. The room is filled with colonial figures in period clothing. The atmosphere is serious and momentous."
+
+          ** Examples of Bad Prompts:**
+            - "Abstract representation of concepts"(too abstract)
+            - "Minimalist icon of [concept]"(too simple, not educational)
+            - "Simple decorative graphic"(not educational)
     
-    **Examples of Bad Prompts:**
-    - "Abstract representation of concepts" (too abstract)
-    - "Minimalist icon of [concept]" (too simple, not educational)
-    - "Simple decorative graphic" (not educational)
-    
-    Ensure the output is a valid JSON array of slide objects. Each object MUST have the following properties:
-    - "title": string
+    Ensure the output is a valid JSON array of slide objects.Each object MUST have the following properties:
+  - "title": string
     - "content": array of strings
-    - "layout": string
-    - "imagePrompt": string
-    - "speakerNotes": string (Detailed speaker notes for the teacher. **IMPORTANT:** At the very end of the speaker notes, add a section titled "Sources:". List the filenames of any source documents used and the URLs of any websites used from web search. If no specific sources were used for a slide, you may omit this section for that slide.)
+      - "layout": string
+        - "imagePrompt": string
+          - "speakerNotes": string(Detailed speaker notes for the teacher. ** IMPORTANT:** At the very end of the speaker notes, add a section titled "Sources:".List the filenames of any source documents used and the URLs of any websites used from web search.If no specific sources were used for a slide, you may omit this section for that slide.)
     `;
 
   try {
@@ -233,5 +235,63 @@ PURPOSE: This illustration will be used by a teacher in a presentation slide. It
   } catch (error) {
     console.error("Error generating image with Gemini API:", error);
     throw new Error("Failed to generate image. Please try again.");
+  }
+};
+
+export const regenerateImagePrompt = async (
+  slideTitle: string,
+  slideContent: string[],
+  gradeLevel: string,
+  subject: string
+): Promise<string> => {
+  const prompt = `
+    Generate a descriptive prompt for an AI image generator to create an illustration for the following presentation slide.
+    
+    **Slide Context:**
+    - Title: "${slideTitle}"
+    - Content: ${slideContent.join('; ')}
+    - Grade Level: "${gradeLevel}"
+    - Subject: "${subject}"
+    
+    **CRITICAL STYLE & CONTENT REQUIREMENTS:**
+    
+    **1. Style Requirements:**
+    - The style must be appropriate for the **${gradeLevel}** and **${subject}**.
+    - For younger students (e.g., K-5), use styles like "colorful illustration", "simple diagram", or "cartoon style".
+    - For older students (e.g., 6-12, University), use styles like "detailed diagram", "realistic illustration", "infographic", or "educational chart".
+    - The visual should be clear, accurate, and educational.
+    
+    **2. Content Requirements:**
+    - The prompt should describe a visual representation that clearly explains the concept from the slide.
+    - It must be detailed enough to be educational and helpful.
+    - **INCLUDE TEXT AND LABELS:** The illustration SHOULD include explanatory text, labels, and annotations where appropriate to enhance understanding.
+    
+    **Examples of Good Prompts:**
+    - (For 1st Grade Science): "A colorful, simple illustration showing the water cycle. A smiling sun shines on a blue ocean. Fluffy white clouds are in the sky. Rain falls from a grey cloud onto green grass. Arrows show the water going up and down."
+    - (For University Biology): "A detailed, scientifically accurate cross-section diagram of a plant cell. Key structures like the cell wall, nucleus, chloroplasts, and large central vacuole are clearly illustrated and labeled. The style is educational and suitable for a textbook."
+    - (For High School History): "A realistic historical illustration depicting the signing of the Declaration of Independence. The room is filled with colonial figures in period clothing. The atmosphere is serious and momentous."
+
+    **Examples of Bad Prompts:**
+    - "Abstract representation of concepts" (too abstract)
+    - "Minimalist icon of [concept]" (too simple, not educational)
+    - "Simple decorative graphic" (not educational)
+
+    **Output:**
+    Return ONLY the prompt text. Do not include any conversational text or labels like "Prompt:".
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-pro",
+      contents: prompt,
+      config: {
+        temperature: 0.7,
+      },
+    });
+
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error regenerating image prompt:", error);
+    throw new Error("Failed to regenerate image prompt.");
   }
 };

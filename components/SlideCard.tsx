@@ -2,12 +2,14 @@
 import React, { useState } from 'react';
 import type { Slide } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon } from './icons';
-import { generateImage } from '../services/geminiService';
+import { generateImage, regenerateImagePrompt } from '../services/geminiService';
 
 interface SlideCardProps {
     slide: Slide;
     slideNumber: number;
     onUpdateSlide: (updatedSlide: Slide) => void;
+    gradeLevel: string;
+    subject: string;
 }
 
 const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
@@ -38,11 +40,14 @@ export const cleanText = (text: string): string => {
         .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
 };
 
-export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide }) => {
+export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, gradeLevel, subject }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
+    const [isRegeneratingPrompt, setIsRegeneratingPrompt] = useState(false);
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const [promptText, setPromptText] = useState(slide.imagePrompt);
     const textareaRef = React.useRef<HTMLTextAreaElement>(null);
+
+    const editContainerRef = React.useRef<HTMLDivElement>(null);
 
     const [isEditingContent, setIsEditingContent] = useState(false);
     const [contentText, setContentText] = useState(slide.content.join('\n'));
@@ -63,6 +68,25 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             contentRef.current.style.height = contentRef.current.scrollHeight + 'px';
         }
     }, [contentText, isEditingContent]);
+
+    // Update local prompt text if slide prop changes (e.g. after regeneration)
+    React.useEffect(() => {
+        setPromptText(slide.imagePrompt);
+    }, [slide.imagePrompt]);
+
+    // Click outside to cancel prompt edit
+    React.useEffect(() => {
+        const handleClickOutside = (event: MouseEvent) => {
+            if (isEditingPrompt && editContainerRef.current && !editContainerRef.current.contains(event.target as Node)) {
+                handleCancelEdit();
+            }
+        };
+
+        document.addEventListener('mousedown', handleClickOutside);
+        return () => {
+            document.removeEventListener('mousedown', handleClickOutside);
+        };
+    }, [isEditingPrompt]);
 
     const sanitizeFilename = (filename: string): string => {
         // Remove or replace characters that are invalid in filenames
@@ -97,6 +121,24 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             alert('Failed to generate image. Please try again.');
         } finally {
             setIsGeneratingImage(false);
+        }
+    };
+
+    const handleRegeneratePrompt = async () => {
+        setIsRegeneratingPrompt(true);
+        try {
+            const newPrompt = await regenerateImagePrompt(
+                slide.title,
+                slide.content,
+                gradeLevel,
+                subject
+            );
+            onUpdateSlide({ ...slide, imagePrompt: newPrompt });
+        } catch (error) {
+            console.error('Error regenerating prompt:', error);
+            alert('Failed to regenerate prompt. Please try again.');
+        } finally {
+            setIsRegeneratingPrompt(false);
         }
     };
 
@@ -190,7 +232,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     <ImageIcon className="mr-2 mt-1 flex-shrink-0" />
                     <div className="flex-grow">
                         {isEditingPrompt ? (
-                            <div className="w-full">
+                            <div className="w-full" ref={editContainerRef}>
                                 <textarea
                                     ref={textareaRef}
                                     value={promptText}
@@ -218,15 +260,34 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                 <p className="italic pr-8 cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setIsEditingPrompt(true)}>
                                     Image Prompt: "{slide.imagePrompt}"
                                 </p>
-                                <button
-                                    onClick={() => setIsEditingPrompt(true)}
-                                    className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity text-sky-400 hover:text-sky-300"
-                                    title="Edit Prompt"
-                                >
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                                    </svg>
-                                </button>
+                                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col space-y-1">
+                                    <button
+                                        onClick={() => setIsEditingPrompt(true)}
+                                        className="text-sky-400 hover:text-sky-300 p-1 rounded hover:bg-slate-700/50"
+                                        title="Edit Prompt"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                        </svg>
+                                    </button>
+                                    <button
+                                        onClick={handleRegeneratePrompt}
+                                        disabled={isRegeneratingPrompt}
+                                        className="text-sky-400 hover:text-sky-300 p-1 rounded hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        title="Regenerate Prompt"
+                                    >
+                                        {isRegeneratingPrompt ? (
+                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                            </svg>
+                                        ) : (
+                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                            </svg>
+                                        )}
+                                    </button>
+                                </div>
                             </div>
                         )}
                     </div>

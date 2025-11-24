@@ -82,6 +82,8 @@ function App() {
           isLoading={isLoading}
           error={error}
           onUpdateSlide={handleUpdateSlide}
+          gradeLevel={gradeLevel}
+          subject={subject}
         />
       </main>
     </div>
