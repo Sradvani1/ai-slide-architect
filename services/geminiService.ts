@@ -132,7 +132,7 @@ export const generateSlidesFromDocument = async (
     - "content": array of strings
       - "layout": string
         - "imagePrompt": string
-          - "speakerNotes": string(Detailed speaker notes for the teacher. ** IMPORTANT:** At the very end of the speaker notes, add a section titled "Sources:".List the filenames of any source documents used and the URLs of any websites used from web search.If no specific sources were used for a slide, you may omit this section for that slide.)
+          - "speakerNotes": string(Detailed speaker notes for the teacher. ** IMPORTANT:** At the very end of the speaker notes, add a section titled "Sources:". You MUST list the full URLs of any websites used from web search. Do NOT just say "Google Search" or "Web Search". List the actual links found. If using uploaded files, list the filenames. If no specific sources were used, omit this section.)
     `;
 
   try {
