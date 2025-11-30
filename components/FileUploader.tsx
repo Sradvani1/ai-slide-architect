@@ -3,18 +3,20 @@ import * as pdfjsLib from 'pdfjs-dist';
 // @ts-ignore
 import pdfWorker from 'pdfjs-dist/build/pdf.worker.min.mjs?url';
 import mammoth from 'mammoth';
+import { extractTextFromImage } from '../services/geminiService';
 
 // Set worker source for pdfjs
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface FileUploaderProps {
-    onFilesSelected: (files: { name: string; content: string }[]) => void;
+    onFilesSelected: (files: { name: string; content: string; size: number }[]) => void;
+    uploadedFiles: { name: string; content: string; size: number }[];
+    onRemoveFile: (index: number) => void;
     isLoading: boolean;
 }
 
-export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isLoading }) => {
+export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, uploadedFiles, onRemoveFile, isLoading }) => {
     const [isDragging, setIsDragging] = useState(false);
-    const [uploadedFiles, setUploadedFiles] = useState<{ name: string; size: number }[]>([]);
     const [error, setError] = useState<string | null>(null);
 
     const handleDragOver = useCallback((e: React.DragEvent) => {
@@ -47,11 +49,24 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isL
         return result.value;
     };
 
+    const convertFileToBase64 = (file: File): Promise<string> => {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.readAsDataURL(file);
+            reader.onload = () => {
+                const base64String = reader.result as string;
+                // Remove the data URL prefix (e.g., "data:image/jpeg;base64,")
+                const base64Content = base64String.split(',')[1];
+                resolve(base64Content);
+            };
+            reader.onerror = (error) => reject(error);
+        });
+    };
+
     const processFiles = async (files: FileList | null) => {
         if (!files) return;
 
-        const newFiles: { name: string; content: string }[] = [];
-        const newFileMetadata: { name: string; size: number }[] = [];
+        const newFiles: { name: string; content: string; size: number }[] = [];
         setError(null);
 
         for (let i = 0; i < files.length; i++) {
@@ -64,20 +79,21 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isL
                     content = await extractTextFromDocx(file);
                 } else if (file.type === 'text/plain') {
                     content = await file.text();
+                } else if (file.type.startsWith('image/')) {
+                    const base64Data = await convertFileToBase64(file);
+                    content = await extractTextFromImage(base64Data, file.type);
                 } else {
                     console.warn(`Unsupported file type: ${file.type}`);
                     continue;
                 }
 
-                newFiles.push({ name: file.name, content });
-                newFileMetadata.push({ name: file.name, size: file.size });
+                newFiles.push({ name: file.name, content, size: file.size });
             } catch (err) {
                 console.error(`Error processing file ${file.name}:`, err);
                 setError(`Failed to process ${file.name}`);
             }
         }
 
-        setUploadedFiles((prev) => [...prev, ...newFileMetadata]);
         onFilesSelected(newFiles);
     };
 
@@ -96,7 +112,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isL
     return (
         <div className="w-full">
             <label className="block text-sm font-medium text-slate-300 mb-2">
-                Source Material (PDF, DOCX, TXT)
+                Source Material (PDF, DOCX, TXT, Images)
             </label>
             <div
                 onDragOver={handleDragOver}
@@ -110,7 +126,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isL
                 <input
                     type="file"
                     multiple
-                    accept=".pdf,.docx,.txt"
+                    accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"
                     onChange={handleFileInput}
                     className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
                     disabled={isLoading}
@@ -133,7 +149,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isL
                     <p className="mt-1 text-sm text-slate-400">
                         <span className="font-medium text-sky-400">Upload a file</span> or drag and drop
                     </p>
-                    <p className="text-xs text-slate-500">PDF, DOCX, TXT up to 10MB</p>
+                    <p className="text-xs text-slate-500">PDF, DOCX, TXT, Images up to 10MB</p>
                 </div>
             </div>
 
@@ -144,7 +160,18 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, isL
                     {uploadedFiles.map((file, index) => (
                         <li key={index} className="flex items-center justify-between bg-slate-700/50 p-2 rounded text-sm text-slate-300">
                             <span className="truncate">{file.name}</span>
-                            <span className="text-slate-500 text-xs ml-2">{(file.size / 1024).toFixed(1)} KB</span>
+                            <div className="flex items-center space-x-2">
+                                <span className="text-slate-500 text-xs">{(file.size / 1024).toFixed(1)} KB</span>
+                                <button
+                                    onClick={() => onRemoveFile(index)}
+                                    className="text-slate-400 hover:text-red-400 focus:outline-none"
+                                    title="Remove file"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">
+                                        <path fillRule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clipRule="evenodd" />
+                                    </svg>
+                                </button>
+                            </div>
                         </li>
                     ))}
                 </ul>

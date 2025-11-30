@@ -9,13 +9,17 @@ interface InputFormProps {
   setGradeLevel: (text: string) => void;
   subject: string;
   setSubject: (text: string) => void;
-  onFilesSelected: (files: { name: string; content: string }[]) => void;
+  onFilesSelected: (files: { name: string; content: string; size: number }[]) => void;
+  uploadedFiles: { name: string; content: string; size: number }[];
+  onRemoveFile: (index: number) => void;
   numSlides: number;
   setNumSlides: (num: number) => void;
   useWebSearch: boolean;
   setUseWebSearch: (use: boolean) => void;
   onSubmit: () => void;
   isLoading: boolean;
+  creativityLevel: number;
+  setCreativityLevel: (level: number) => void;
 }
 
 const PLACEHOLDER_PAIRS = [
@@ -39,12 +43,16 @@ export const InputForm: React.FC<InputFormProps> = ({
   subject,
   setSubject,
   onFilesSelected,
+  uploadedFiles,
+  onRemoveFile,
   numSlides,
   setNumSlides,
   useWebSearch,
   setUseWebSearch,
   onSubmit,
   isLoading,
+  creativityLevel,
+  setCreativityLevel,
 }) => {
   const [placeholders, setPlaceholders] = useState(PLACEHOLDER_PAIRS[0]);
 
@@ -108,7 +116,12 @@ export const InputForm: React.FC<InputFormProps> = ({
         />
       </div>
 
-      <FileUploader onFilesSelected={onFilesSelected} isLoading={isLoading} />
+      <FileUploader
+        onFilesSelected={onFilesSelected}
+        uploadedFiles={uploadedFiles}
+        onRemoveFile={onRemoveFile}
+        isLoading={isLoading}
+      />
 
       <div className="flex items-center justify-between bg-slate-700/50 p-3 rounded-md border border-slate-600/50">
         <div className="flex flex-col">
@@ -131,6 +144,31 @@ export const InputForm: React.FC<InputFormProps> = ({
               }`}
           />
         </button>
+      </div>
+
+      <div className="flex flex-col space-y-2">
+        <label className="block text-sm font-medium text-slate-300">
+          Creativity Level
+        </label>
+        <div className="flex items-center justify-between bg-slate-700/50 p-3 rounded-md border border-slate-600/50">
+          <div className="flex flex-col w-full">
+            <input
+              type="range"
+              min="0.5"
+              max="0.9"
+              step="0.2"
+              value={creativityLevel}
+              onChange={(e) => setCreativityLevel(parseFloat(e.target.value))}
+              className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
+              disabled={isLoading}
+            />
+            <div className="flex justify-between text-xs text-slate-400 mt-2">
+              <span className={creativityLevel === 0.5 ? "text-sky-400 font-bold" : ""}>Low (Precise)</span>
+              <span className={creativityLevel === 0.7 ? "text-sky-400 font-bold" : ""}>Medium (Balanced)</span>
+              <span className={creativityLevel === 0.9 ? "text-sky-400 font-bold" : ""}>High (Creative)</span>
+            </div>
+          </div>
+        </div>
       </div>
 
       <div>

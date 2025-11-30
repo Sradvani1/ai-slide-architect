@@ -17,6 +17,7 @@ interface SlideDeckProps {
     onUpdateSlide: (index: number, updatedSlide: Slide) => void;
     gradeLevel: string;
     subject: string;
+    creativityLevel: number;
 }
 
 const WelcomeMessage: React.FC = () => (
@@ -134,7 +135,7 @@ const generateDocx = async (slides: Slide[]) => {
     return await Packer.toBlob(doc);
 };
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide, gradeLevel, subject }) => {
+export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide, gradeLevel, subject, creativityLevel }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
@@ -254,7 +255,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
             for (let i = 0; i < slides.length; i++) {
                 const slide = slides[i];
                 try {
-                    const blob = await generateImage(slide.imagePrompt);
+                    const blob = await generateImage(slide.imagePrompt, creativityLevel);
                     const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
                     const filename = `slide-${i + 1}-${sanitizedTitle}.png`;
                     folder.file(filename, blob);
@@ -402,6 +403,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         onUpdateSlide={(updatedSlide) => onUpdateSlide(index, updatedSlide)}
                         gradeLevel={gradeLevel}
                         subject={subject}
+                        creativityLevel={creativityLevel}
                     />
                 ))}
             </div>

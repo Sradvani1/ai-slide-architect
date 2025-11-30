@@ -46,7 +46,8 @@ export const generateSlidesFromDocument = async (
   subject: string,
   sourceMaterial: string,
   numSlides: number,
-  useWebSearch: boolean = false
+  useWebSearch: boolean = false,
+  temperature: number = 0.7
 ): Promise<Slide[]> => {
   let prompt = `
     Based on the following topic, grade level, and subject, generate a slide deck presentation.
@@ -141,7 +142,7 @@ export const generateSlidesFromDocument = async (
     }
 
     const config: any = {
-      temperature: 0.7,
+      temperature: temperature,
       tools: tools.length > 0 ? tools : undefined,
     };
 
@@ -184,7 +185,7 @@ export const generateSlidesFromDocument = async (
   }
 };
 
-export const generateImage = async (prompt: string): Promise<Blob> => {
+export const generateImage = async (prompt: string, temperature: number = 0.3): Promise<Blob> => {
   try {
     // Use the provided prompt directly, as it should now contain specific style instructions
     const enhancedPrompt = `${prompt}
@@ -200,7 +201,7 @@ PURPOSE: This illustration will be used by a teacher in a presentation slide. It
       model: "gemini-3-pro-image-preview",
       contents: enhancedPrompt,
       config: {
-        temperature: 0.3,
+        temperature: temperature,
       },
     });
 
@@ -242,7 +243,8 @@ export const regenerateImagePrompt = async (
   slideTitle: string,
   slideContent: string[],
   gradeLevel: string,
-  subject: string
+  subject: string,
+  temperature: number = 0.7
 ): Promise<string> => {
   const prompt = `
     Generate a descriptive prompt for an AI image generator to create an illustration for the following presentation slide.
@@ -285,7 +287,7 @@ export const regenerateImagePrompt = async (
       model: "gemini-2.5-pro",
       contents: prompt,
       config: {
-        temperature: 0.7,
+        temperature: temperature,
       },
     });
 
@@ -293,5 +295,38 @@ export const regenerateImagePrompt = async (
   } catch (error) {
     console.error("Error regenerating image prompt:", error);
     throw new Error("Failed to regenerate image prompt.");
+  }
+};
+
+export const extractTextFromImage = async (base64Data: string, mimeType: string): Promise<string> => {
+  const prompt = `
+    Analyze this image and extract all visible text. 
+    Also, provide a brief description of any diagrams, charts, or visual elements that convey information.
+    Combine the extracted text and the visual description into a single coherent text block.
+  `;
+
+  try {
+    const response = await ai.models.generateContent({
+      model: "gemini-2.5-pro",
+      contents: [
+        {
+          role: "user",
+          parts: [
+            { text: prompt },
+            {
+              inlineData: {
+                mimeType: mimeType,
+                data: base64Data
+              }
+            }
+          ]
+        }
+      ]
+    });
+
+    return response.text.trim();
+  } catch (error) {
+    console.error("Error extracting text from image:", error);
+    throw new Error("Failed to process image content.");
   }
 };

@@ -10,6 +10,7 @@ interface SlideCardProps {
     onUpdateSlide: (updatedSlide: Slide) => void;
     gradeLevel: string;
     subject: string;
+    creativityLevel: number;
 }
 
 const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
@@ -40,7 +41,7 @@ export const cleanText = (text: string): string => {
         .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
 };
 
-export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, gradeLevel, subject }) => {
+export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, gradeLevel, subject, creativityLevel }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isRegeneratingPrompt, setIsRegeneratingPrompt] = useState(false);
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
@@ -112,7 +113,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const handleGenerateImage = async () => {
         setIsGeneratingImage(true);
         try {
-            const imageBlob = await generateImage(slide.imagePrompt);
+            const imageBlob = await generateImage(slide.imagePrompt, creativityLevel);
             const sanitizedTitle = sanitizeFilename(slide.title);
             const filename = `${slideNumber}-${sanitizedTitle}.png`;
             downloadBlob(imageBlob, filename);
@@ -131,7 +132,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 slide.title,
                 slide.content,
                 gradeLevel,
-                subject
+                subject,
+                creativityLevel
             );
             onUpdateSlide({ ...slide, imagePrompt: newPrompt });
         } catch (error) {
