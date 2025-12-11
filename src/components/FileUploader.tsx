@@ -111,16 +111,16 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
 
     return (
         <div className="w-full">
-            <label className="block text-sm font-medium text-slate-300 mb-2">
-                Source Material (PDF, DOCX, TXT, Images)
+            <label className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-2">
+                Reference Material
             </label>
             <div
                 onDragOver={handleDragOver}
                 onDragLeave={handleDragLeave}
                 onDrop={handleDrop}
-                className={`relative border-2 border-dashed rounded-lg p-6 transition-colors duration-200 ease-in-out ${isDragging
-                    ? 'border-sky-500 bg-sky-500/10'
-                    : 'border-slate-600 hover:border-slate-500 bg-slate-700/30'
+                className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 group ${isDragging
+                    ? 'border-primary bg-primary/10'
+                    : 'border-slate-700 hover:border-primary/50 bg-slate-900/30'
                     } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
                 <input
@@ -128,43 +128,50 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                     multiple
                     accept=".pdf,.docx,.txt,.png,.jpg,.jpeg,.webp"
                     onChange={handleFileInput}
-                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer"
+                    className="absolute inset-0 w-full h-full opacity-0 cursor-pointer z-10"
                     disabled={isLoading}
                 />
                 <div className="text-center">
-                    <svg
-                        className="mx-auto h-12 w-12 text-slate-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                        aria-hidden="true"
-                    >
-                        <path
-                            d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                            strokeWidth={2}
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                        />
-                    </svg>
-                    <p className="mt-1 text-sm text-slate-400">
-                        <span className="font-medium text-sky-400">Upload a file</span> or drag and drop
+                    <div className={`mx-auto h-12 w-12 rounded-full flex items-center justify-center mb-3 transition-colors ${isDragging ? 'bg-primary/20 text-primary' : 'bg-slate-800 text-slate-400 group-hover:text-primary group-hover:bg-slate-800/80'
+                        }`}>
+                        <svg
+                            className="h-6 w-6"
+                            stroke="currentColor"
+                            fill="none"
+                            viewBox="0 0 24 24"
+                        >
+                            <path
+                                d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                                strokeWidth={2}
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                            />
+                        </svg>
+                    </div>
+                    <p className="mt-1 text-sm text-slate-300 font-medium">
+                        Click or drag files here
                     </p>
-                    <p className="text-xs text-slate-500">PDF, DOCX, TXT, Images up to 10MB</p>
+                    <p className="text-xs text-slate-500 mt-1">PDF, DOCX, TXT, Images</p>
                 </div>
             </div>
 
-            {error && <p className="mt-2 text-sm text-red-400">{error}</p>}
+            {error && <p className="mt-2 text-xs text-red-400 flex items-center"><span className="w-1.5 h-1.5 rounded-full bg-red-400 mr-2"></span>{error}</p>}
 
             {uploadedFiles.length > 0 && (
                 <ul className="mt-4 space-y-2">
                     {uploadedFiles.map((file, index) => (
-                        <li key={index} className="flex items-center justify-between bg-slate-700/50 p-2 rounded text-sm text-slate-300">
-                            <span className="truncate">{file.name}</span>
-                            <div className="flex items-center space-x-2">
-                                <span className="text-slate-500 text-xs">{(file.size / 1024).toFixed(1)} KB</span>
+                        <li key={index} className="flex items-center justify-between bg-slate-900/40 p-2.5 rounded-lg border border-white/5 group hover:border-white/10 transition-colors">
+                            <div className="flex items-center flex-1 min-w-0 mr-2">
+                                <svg className="w-4 h-4 text-slate-500 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                                </svg>
+                                <span className="truncate text-sm text-slate-300">{file.name}</span>
+                            </div>
+                            <div className="flex items-center space-x-3">
+                                <span className="text-slate-600 text-[10px] uppercase font-bold tracking-wide">{(file.size / 1024).toFixed(0)} KB</span>
                                 <button
                                     onClick={() => onRemoveFile(index)}
-                                    className="text-slate-400 hover:text-red-400 focus:outline-none"
+                                    className="text-slate-500 hover:text-red-400 focus:outline-none transition-colors p-1 hover:bg-red-400/10 rounded"
                                     title="Remove file"
                                 >
                                     <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 20 20" fill="currentColor">

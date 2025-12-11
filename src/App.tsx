@@ -117,10 +117,14 @@ function App() {
   }
 
   return (
-    <div className="min-h-screen flex flex-col md:flex-row bg-slate-900 text-slate-200 font-sans">
-      <header className="md:hidden flex items-center justify-between p-4 bg-slate-800 border-b border-slate-700 shadow-md">
-        <h1 className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500">
-          AI Slide Builder
+    <div className="min-h-screen bg-background text-slate-100 font-sans selection:bg-primary/30 overflow-hidden flex flex-col relative">
+      <div className="fixed inset-0 bg-hero-glow opacity-20 blur-[100px] pointer-events-none" />
+      <div className="absolute inset-0 bg-slate-950/50 pointer-events-none" />
+
+      {/* Mobile Header */}
+      <header className="md:hidden flex items-center justify-between p-4 bg-surface/80 backdrop-blur-md border-b border-white/5 sticky top-0 z-50">
+        <h1 className="text-xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+          AI Slide Architect
         </h1>
         <button
           onClick={handleSignOut}
@@ -129,48 +133,60 @@ function App() {
           Sign Out
         </button>
       </header>
-      <aside className="w-full md:w-1/3 md:max-w-md lg:max-w-lg p-4 md:p-6 bg-slate-800/50 md:min-h-screen relative">
-        <div className="absolute top-4 right-4 hidden md:block">
-          <button
-            onClick={handleSignOut}
-            className="text-xs text-slate-400 hover:text-white transition-colors border border-slate-700 rounded px-2 py-1 hover:bg-slate-700"
-          >
-            Sign Out
-          </button>
-        </div>
-        <div className="sticky top-6">
-          <InputForm
-            topic={topic}
-            setTopic={setTopic}
-            gradeLevel={gradeLevel}
-            setGradeLevel={setGradeLevel}
-            subject={subject}
-            setSubject={setSubject}
-            onFilesSelected={handleFilesSelected}
-            uploadedFiles={uploadedFiles}
-            onRemoveFile={handleRemoveFile}
-            numSlides={numSlides}
-            setNumSlides={setNumSlides}
-            useWebSearch={useWebSearch}
-            setUseWebSearch={setUseWebSearch}
-            onSubmit={handleGenerateSlides}
-            isLoading={isLoading}
-            creativityLevel={creativityLevel}
-            setCreativityLevel={setCreativityLevel}
-          />
-        </div>
-      </aside>
-      <main className="flex-1 p-4 md:p-8">
-        <SlideDeck
-          slides={slides}
-          isLoading={isLoading}
-          error={error}
-          onUpdateSlide={handleUpdateSlide}
-          gradeLevel={gradeLevel}
-          subject={subject}
-          creativityLevel={creativityLevel}
-        />
-      </main>
+
+      <div className="flex flex-1 overflow-hidden relative z-10">
+        {/* Sidebar */}
+        <aside className="hidden md:flex flex-col w-[400px] border-r border-white/5 bg-surface/30 backdrop-blur-xl h-screen sticky top-0">
+          <div className="p-6 border-b border-white/5 flex justify-between items-center">
+            <h1 className="text-2xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-primary to-accent">
+              AI Slide Architect
+            </h1>
+            <button
+              onClick={handleSignOut}
+              className="text-xs text-slate-400 hover:text-white transition-colors border border-white/10 rounded px-2 py-1 hover:bg-white/5"
+            >
+              Sign Out
+            </button>
+          </div>
+
+          <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+            <InputForm
+              topic={topic}
+              setTopic={setTopic}
+              gradeLevel={gradeLevel}
+              setGradeLevel={setGradeLevel}
+              subject={subject}
+              setSubject={setSubject}
+              onFilesSelected={handleFilesSelected}
+              uploadedFiles={uploadedFiles}
+              onRemoveFile={handleRemoveFile}
+              numSlides={numSlides}
+              setNumSlides={setNumSlides}
+              useWebSearch={useWebSearch}
+              setUseWebSearch={setUseWebSearch}
+              onSubmit={handleGenerateSlides}
+              isLoading={isLoading}
+              creativityLevel={creativityLevel}
+              setCreativityLevel={setCreativityLevel}
+            />
+          </div>
+        </aside>
+
+        {/* Main Content */}
+        <main className="flex-1 overflow-y-auto w-full relative scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+          <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+            <SlideDeck
+              slides={slides}
+              isLoading={isLoading}
+              error={error}
+              onUpdateSlide={handleUpdateSlide}
+              gradeLevel={gradeLevel}
+              subject={subject}
+              creativityLevel={creativityLevel}
+            />
+          </div>
+        </main>
+      </div>
     </div>
   );
 }

@@ -9,6 +9,10 @@ AI Slide Architect is a powerful, AI-driven application designed to streamline t
 ## 🚀 Features
 
 -   **AI-Powered Generation**: Instantly generate slide decks from a simple topic or by analyzing uploaded documents (PDF, DOCX, TXT).
+-   **Secure Authentication**:
+    -   **Google Sign-In**: Simple and secure login using your Google account.
+    -   **Cloud Storage**: Your projects are automatically saved to the cloud (Firestore) and linked to your account.
+    -   **Auto-Save**: Never lose your work with built-in auto-saving functionality.
 -   **Customizable Context**: Tailor content by specifying the target **Grade Level** and **Subject** to ensure relevance and appropriate complexity.
 -   **Smart Content Creation**:
     -   Automatic generation of slide titles, bullet points, and speaker notes.
@@ -28,6 +32,9 @@ AI Slide Architect is a powerful, AI-driven application designed to streamline t
 -   **Frontend**: [React](https://react.dev/)
 -   **Build Tool**: [Vite](https://vitejs.dev/)
 -   **AI Model**: [Google Gemini](https://deepmind.google/technologies/gemini/) (via `@google/genai`)
+-   **Backend & Auth**: [Firebase](https://firebase.google.com/)
+    -   **Authentication**: Google Sign-In
+    -   **Firestore**: Real-time database for user and project storage
 -   **Document Handling**:
     -   `pptxgenjs`: For generating PowerPoint files.
     -   `docx`: For creating Word documents.
@@ -44,6 +51,9 @@ Follow these steps to run the application locally.
 -   **Node.js** (v18 or higher recommended)
 -   **npm** or **yarn**
 -   A **Google Gemini API Key** (Get one [here](https://aistudio.google.com/app/apikey))
+-   A **Firebase Project** (Create one [here](https://console.firebase.google.com/)) with:
+    -   **Authentication** enabled (Google Provider).
+    -   **Firestore Database** enabled.
 
 ### Installation
 
@@ -59,9 +69,20 @@ Follow these steps to run the application locally.
     ```
 
 3.  **Configure Environment Variables:**
-    Create a `.env.local` file in the root directory and add your Gemini API key:
+    Create a `.env.local` file in the root directory and add your API keys:
+
     ```env
-    GEMINI_API_KEY=your_api_key_here
+    # Google Gemini AI
+    GEMINI_API_KEY=your_gemini_api_key
+
+    # Firebase Configuration
+    VITE_FIREBASE_API_KEY=your_firebase_api_key
+    VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
+    VITE_FIREBASE_PROJECT_ID=your_project_id
+    VITE_FIREBASE_STORAGE_BUCKET=your_project.appspot.com
+    VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
+    VITE_FIREBASE_APP_ID=your_app_id
+    VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
     ```
 
 4.  **Run the Development Server:**
@@ -85,7 +106,7 @@ This project is optimized for deployment on [Vercel](https://vercel.com/).
     -   **Output Directory**: `dist` (default)
 4.  **Environment Variables**:
     -   Expand the **"Environment Variables"** section.
-    -   Add `GEMINI_API_KEY` with your actual API key value.
+    -   Add `GEMINI_API_KEY` and all `VITE_FIREBASE_...` variables from your `.env.local` file.
 5.  **Deploy**: Click **"Deploy"**.
 
 Your application will be live in a few moments!

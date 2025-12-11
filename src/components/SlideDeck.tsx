@@ -21,28 +21,29 @@ interface SlideDeckProps {
 }
 
 const WelcomeMessage: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-slate-800/50 rounded-lg border-2 border-dashed border-slate-700">
-        <div className="w-16 h-16 mb-4 text-sky-500">
-            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor">
+    <div className="flex flex-col items-center justify-center h-full text-center p-12 glass-panel rounded-2xl border border-white/5 bg-surface/30 backdrop-blur-sm max-w-2xl mx-auto mt-20">
+        <div className="w-20 h-20 mb-6 text-primary bg-primary/10 rounded-full flex items-center justify-center">
+            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" />
             </svg>
         </div>
-        <h2 className="text-2xl font-bold text-slate-100">Ready to Create Your Presentation?</h2>
-        <p className="mt-2 text-slate-400 max-w-md">
-            Add your source material and instructions, then click "Create Presentation" to generate a ready-to-use slide deck for your classroom.
+        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 mb-4">Ready to Create?</h2>
+        <p className="text-lg text-slate-400 max-w-lg leading-relaxed">
+            Fill in the details on the left, upload your source materials, and let our AI architect the perfect slide deck for you.
         </p>
     </div>
 );
 
 const Loader: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-full text-center">
-        <svg className="animate-spin h-12 w-12 text-sky-500 mb-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-        </svg>
-        <p className="text-xl font-semibold text-slate-300">Creating your presentation...</p>
-        <p className="text-slate-400">This may take a moment.</p>
+    <div className="flex flex-col items-center justify-center h-full text-center mt-20">
+        <div className="relative w-24 h-24 mb-8">
+            <div className="absolute inset-0 border-4 border-slate-700/50 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
+            <div className="absolute inset-4 border-4 border-accent rounded-full border-b-transparent animate-spin-reverse opacity-70"></div>
+        </div>
+        <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mb-2">Architecting Presentation...</p>
+        <p className="text-slate-500 animate-pulse">Analyzing content & designing slides</p>
     </div>
 );
 
@@ -317,7 +318,17 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
     }
 
     if (error) {
-        return <div className="flex items-center justify-center h-full text-center p-8 bg-red-900/20 text-red-300 rounded-lg border border-red-500/50">{error}</div>;
+        return (
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20 mt-20">
+                <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
+                    </svg>
+                </div>
+                <h3 className="text-xl font-bold mb-2">Generation Failed</h3>
+                <p className="max-w-md">{error}</p>
+            </div>
+        );
     }
 
     if (!slides) {
@@ -325,76 +336,78 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
     }
 
     return (
-        <div className="flex flex-col h-full">
-            <div className="flex justify-between items-center mb-6">
-                <h2 className="text-2xl font-bold text-slate-100">Your Presentation</h2>
-                <div className="flex items-center space-x-3">
+        <div className="flex flex-col h-full animate-fade-in">
+            <div className="flex justify-end items-center mb-6 pt-4">
+                <div className="flex flex-wrap items-center gap-3 bg-surface/30 p-2 rounded-xl backdrop-blur-md border border-white/5">
                     <button
                         onClick={handleDownloadAllImages}
                         disabled={isDownloadingImages || isExporting}
-                        title="Download All Images as Zip"
-                        className="flex items-center justify-center py-2 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-md shadow-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait"
+                        className="group relative flex items-center space-x-2 px-5 py-2.5 rounded-lg overflow-hidden transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Download Images"
                     >
-                        {isDownloadingImages ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-slate-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="absolute inset-0 border border-white/10 rounded-lg group-hover:border-primary/30 transition-colors duration-300"></div>
+
+                        <div className="relative z-10 flex items-center space-x-2 text-slate-200 group-hover:text-white transition-colors">
+                            {isDownloadingImages ? (
+                                <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Generating...
-                            </>
-                        ) : (
-                            <>
-                                <ImageIcon className="mr-2" />
-                                Download Images
-                            </>
-                        )}
+                            ) : (
+                                <ImageIcon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
+                            )}
+                            <span className="font-semibold tracking-wide">Images</span>
+                        </div>
                     </button>
+
                     <button
                         onClick={handleDownloadNotes}
                         disabled={isDownloadingNotes || isExporting || isDownloadingImages}
-                        title="Download Speaker Notes (DOCX)"
-                        className="flex items-center justify-center py-2 px-4 bg-slate-700 hover:bg-slate-600 text-slate-200 font-semibold rounded-md shadow-md transition-colors duration-200 disabled:opacity-50 disabled:cursor-wait"
+                        className="group relative flex items-center space-x-2 px-5 py-2.5 rounded-lg overflow-hidden transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        title="Download Notes"
                     >
-                        {isDownloadingNotes ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-2 h-5 w-5 text-slate-200" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <div className="absolute inset-0 bg-gradient-to-r from-secondary/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="absolute inset-0 border border-white/10 rounded-lg group-hover:border-secondary/30 transition-colors duration-300"></div>
+
+                        <div className="relative z-10 flex items-center space-x-2 text-slate-200 group-hover:text-white transition-colors">
+                            {isDownloadingNotes ? (
+                                <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Generating...
-                            </>
-                        ) : (
-                            <>
-                                <DocumentTextIcon className="mr-2" />
-                                Speaker Notes (DOCX)
-                            </>
-                        )}
+                            ) : (
+                                <DocumentTextIcon className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform duration-300" />
+                            )}
+                            <span className="font-semibold tracking-wide">Notes</span>
+                        </div>
                     </button>
+
                     <button
                         onClick={handleExportPPTX}
                         disabled={isExporting || !PptxGenJS || isDownloadingImages}
-                        title={PptxGenJS ? "Download PowerPoint Presentation" : "Presentation library is loading..."}
-                        className="flex items-center justify-center py-2 px-6 bg-sky-600 hover:bg-sky-700 text-white font-semibold rounded-md shadow-md transition-colors duration-200 disabled:bg-slate-500 disabled:cursor-wait"
+                        className="group relative flex items-center space-x-2 px-5 py-2.5 rounded-lg overflow-hidden transition-all disabled:opacity-50 disabled:cursor-wait"
+                        title="Download Slides"
                     >
-                        {isExporting ? (
-                            <>
-                                <svg className="animate-spin -ml-1 mr-3 h-5 w-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="absolute inset-0 border border-white/10 rounded-lg group-hover:border-accent/30 transition-colors duration-300"></div>
+
+                        <div className="relative z-10 flex items-center space-x-2 text-slate-200 group-hover:text-white transition-colors">
+                            {isExporting ? (
+                                <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
-                                Creating PPTX...
-                            </>
-                        ) : (
-                            <>
-                                <PptxIcon className="mr-2" />
-                                Download PPTX
-                            </>
-                        )}
+                            ) : (
+                                <PptxIcon className="w-5 h-5 text-accent group-hover:scale-110 transition-transform duration-300" />
+                            )}
+                            <span className="font-semibold tracking-wide">Slides</span>
+                        </div>
                     </button>
                 </div>
             </div>
-            <div className="space-y-6 overflow-y-auto pr-2" style={{ maxHeight: 'calc(100vh - 12rem)' }}>
+
+            <div className="grid grid-cols-1 gap-8 pb-12">
                 {slides.map((slide, index) => (
                     <SlideCard
                         key={index}

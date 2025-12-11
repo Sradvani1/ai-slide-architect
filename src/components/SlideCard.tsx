@@ -174,144 +174,156 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     };
 
     return (
-        <div className="bg-slate-800 rounded-lg shadow-lg border border-slate-700 overflow-hidden transition-all duration-300 hover:border-sky-500/50 hover:shadow-sky-500/10">
-            <header className="p-4 bg-slate-700/50 flex justify-between items-center border-b border-slate-700">
-                <div className="flex items-baseline">
-                    <span className="text-sm font-bold text-sky-400 mr-3">SLIDE {slideNumber}</span>
-                    <h3 className="text-lg font-bold text-slate-100">{slide.title}</h3>
+        <div className="glass-card rounded-2xl overflow-hidden group">
+            {/* Header */}
+            <header className="p-5 flex justify-between items-start border-b border-white/5 bg-slate-900/30">
+                <div className="flex-1 min-w-0 mr-4">
+                    <div className="flex items-center space-x-3 mb-1">
+                        <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full">Slide {slideNumber}</span>
+                        <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">{slide.layout}</span>
+                    </div>
+                    <h3 className="text-xl font-bold text-slate-100 truncate">{slide.title}</h3>
                 </div>
-                <div className="flex items-center space-x-2">
-                    <span className="text-xs bg-slate-700 text-slate-300 px-2 py-1 rounded-full">{slide.layout}</span>
+
+                <div className="flex items-center space-x-1 opacity-50 group-hover:opacity-100 transition-opacity">
                     <CopyButton textToCopy={contentToCopy} />
                 </div>
             </header>
-            <div className="p-5 relative group/content">
+
+            {/* Content Area */}
+            <div className="p-6 relative group/content">
                 {isEditingContent ? (
-                    <div className="w-full">
+                    <div className="w-full animate-fade-in">
                         <textarea
                             ref={contentRef}
                             value={contentText}
                             onChange={handleContentChange}
-                            className="w-full bg-slate-900 text-slate-200 border border-slate-600 rounded p-2 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none text-base resize-none overflow-hidden leading-relaxed"
+                            className="input-field min-h-[150px] leading-relaxed resize-none focus:bg-slate-900/80"
                             rows={slide.content.length || 3}
                         />
-                        <div className="flex justify-end space-x-2 mt-2">
+                        <div className="flex justify-end space-x-2 mt-3">
                             <button
                                 onClick={handleCancelContentEdit}
-                                className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors"
+                                className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSaveContent}
-                                className="px-3 py-1 text-xs bg-sky-600 hover:bg-sky-500 text-white rounded transition-colors"
+                                className="px-3 py-1.5 text-xs font-bold bg-primary hover:bg-primary/90 text-white rounded-md shadow-lg shadow-primary/20 transition-all"
                             >
-                                Save
+                                Save Changes
                             </button>
                         </div>
                     </div>
                 ) : (
-                    <>
-                        <ul className="space-y-2 list-disc list-inside text-slate-300">
+                    <div className="relative pl-4 border-l-2 border-slate-700/50 hover:border-primary/50 transition-colors">
+                        <ul className="space-y-3 text-slate-300">
                             {slide.content.map((item, index) => (
-                                <li key={index}>{cleanText(item)}</li>
+                                <li key={index} className="flex items-start">
+                                    <span className="w-1.5 h-1.5 rounded-full bg-primary/50 mt-2 mr-3 flex-shrink-0"></span>
+                                    <span className="leading-relaxed">{cleanText(item)}</span>
+                                </li>
                             ))}
                         </ul>
+
                         <button
                             onClick={() => setIsEditingContent(true)}
-                            className="absolute top-2 right-2 opacity-0 group-hover/content:opacity-100 transition-opacity text-sky-400 hover:text-sky-300 p-1 rounded hover:bg-slate-700/50"
+                            className="absolute top-0 right-0 p-2 text-slate-500 hover:text-primary opacity-0 group-hover/content:opacity-100 transition-all bg-slate-900/50 rounded-lg backdrop-blur-sm"
                             title="Edit Content"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                             </svg>
                         </button>
-                    </>
+                    </div>
                 )}
             </div>
-            <footer className="px-5 py-3 bg-slate-800/50 border-t border-slate-700 flex flex-col space-y-3 text-sm">
-                <div className="flex items-start text-slate-400 w-full">
-                    <ImageIcon className="mr-2 mt-1 flex-shrink-0" />
-                    <div className="flex-grow">
-                        {isEditingPrompt ? (
-                            <div className="w-full" ref={editContainerRef}>
-                                <textarea
-                                    ref={textareaRef}
-                                    value={promptText}
-                                    onChange={handlePromptChange}
-                                    className="w-full bg-slate-900 text-slate-200 border border-slate-600 rounded p-2 focus:border-sky-500 focus:ring-1 focus:ring-sky-500 outline-none text-sm resize-none overflow-hidden"
-                                    rows={1}
-                                />
-                                <div className="flex justify-end space-x-2 mt-2">
-                                    <button
-                                        onClick={handleCancelEdit}
-                                        className="px-3 py-1 text-xs bg-slate-700 hover:bg-slate-600 text-slate-300 rounded transition-colors"
-                                    >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSavePrompt}
-                                        className="px-3 py-1 text-xs bg-sky-600 hover:bg-sky-500 text-white rounded transition-colors"
-                                    >
-                                        Save
-                                    </button>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="group relative">
-                                <p className="italic pr-8 cursor-pointer hover:text-slate-300 transition-colors" onClick={() => setIsEditingPrompt(true)}>
-                                    Image Prompt: "{slide.imagePrompt}"
-                                </p>
-                                <div className="absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-opacity flex flex-col space-y-1">
+
+            {/* Footer / Image Prompt */}
+            <footer className="px-5 py-4 bg-slate-900/30 border-t border-white/5 flex flex-col gap-3">
+                <div className="flex items-start gap-3 w-full">
+                    <div className="mt-1 p-1.5 bg-slate-800 rounded-lg text-slate-400">
+                        <ImageIcon className="w-4 h-4" />
+                    </div>
+
+                    <div className="flex-grow min-w-0">
+                        <div className="flex items-center justify-between mb-1">
+                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Image Prompt</span>
+                            {!isEditingPrompt && (
+                                <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
                                         onClick={() => setIsEditingPrompt(true)}
-                                        className="text-sky-400 hover:text-sky-300 p-1 rounded hover:bg-slate-700/50"
+                                        className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-primary transition-colors"
                                         title="Edit Prompt"
                                     >
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
                                         </svg>
                                     </button>
                                     <button
                                         onClick={handleRegeneratePrompt}
                                         disabled={isRegeneratingPrompt}
-                                        className="text-sky-400 hover:text-sky-300 p-1 rounded hover:bg-slate-700/50 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-accent transition-colors disabled:opacity-50"
                                         title="Regenerate Prompt"
                                     >
-                                        {isRegeneratingPrompt ? (
-                                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                            </svg>
-                                        ) : (
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
-                                            </svg>
-                                        )}
+                                        <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${isRegeneratingPrompt ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                        </svg>
+                                    </button>
+                                </div>
+                            )}
+                        </div>
+
+                        {isEditingPrompt ? (
+                            <div className="w-full animate-fade-in" ref={editContainerRef}>
+                                <textarea
+                                    ref={textareaRef}
+                                    value={promptText}
+                                    onChange={handlePromptChange}
+                                    className="input-field text-sm min-h-[80px]"
+                                    rows={2}
+                                />
+                                <div className="flex justify-end space-x-2 mt-2">
+                                    <button
+                                        onClick={handleCancelEdit}
+                                        className="px-2 py-1 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSavePrompt}
+                                        className="px-2 py-1 text-xs font-bold bg-primary text-white rounded hover:bg-primary/90 transition-colors"
+                                    >
+                                        Update Prompt
                                     </button>
                                 </div>
                             </div>
+                        ) : (
+                            <p className="text-sm text-slate-400 italic cursor-pointer hover:text-slate-300 transition-colors line-clamp-2" onClick={() => setIsEditingPrompt(true)}>
+                                {slide.imagePrompt}
+                            </p>
                         )}
                     </div>
                 </div>
 
-                <div className="flex justify-end items-center space-x-2 pt-2 border-t border-slate-700/50 w-full">
+                <div className="flex justify-end items-center pt-2 w-full gap-2">
                     <button
                         onClick={handleGenerateImage}
                         disabled={isGeneratingImage}
-                        className="p-1.5 rounded-md text-slate-400 hover:bg-slate-600 hover:text-slate-100 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center"
-                        title="Generate Image"
+                        className="flex items-center space-x-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all border border-white/5 disabled:opacity-50"
                     >
                         {isGeneratingImage ? (
-                            <svg className="animate-spin h-5 w-5" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                         ) : (
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                 <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
                             </svg>
                         )}
+                        <span>Generate Image</span>
                     </button>
                     <CopyButton textToCopy={slide.imagePrompt} />
                 </div>
