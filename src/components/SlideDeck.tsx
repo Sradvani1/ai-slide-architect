@@ -21,15 +21,15 @@ interface SlideDeckProps {
 }
 
 const WelcomeMessage: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-full text-center p-12 glass-panel rounded-2xl border border-white/5 bg-surface/30 backdrop-blur-sm max-w-2xl mx-auto mt-20">
+    <div className="flex flex-col items-center justify-center h-full text-center p-12 glass-panel rounded-2xl border border-slate-200/50 bg-surface/60 backdrop-blur-md max-w-2xl mx-auto mt-20 shadow-xl shadow-slate-200/50">
         <div className="w-20 h-20 mb-6 text-primary bg-primary/10 rounded-full flex items-center justify-center">
             <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-10 h-10">
                 <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6a7.5 7.5 0 1 0 7.5 7.5h-7.5V6Z" />
                 <path strokeLinecap="round" strokeLinejoin="round" d="M13.5 10.5H21A7.5 7.5 0 0 0 13.5 3v7.5Z" />
             </svg>
         </div>
-        <h2 className="text-3xl font-bold bg-clip-text text-transparent bg-gradient-to-r from-white to-slate-400 mb-4">Ready to Create?</h2>
-        <p className="text-lg text-slate-400 max-w-lg leading-relaxed">
+        <h2 className="text-3xl font-bold text-primary-text mb-4 tracking-tight">Ready to Create?</h2>
+        <p className="text-lg text-secondary-text max-w-lg leading-relaxed">
             Fill in the details on the left, upload your source materials, and let our AI architect the perfect slide deck for you.
         </p>
     </div>
@@ -38,12 +38,12 @@ const WelcomeMessage: React.FC = () => (
 const Loader: React.FC = () => (
     <div className="flex flex-col items-center justify-center h-full text-center mt-20">
         <div className="relative w-24 h-24 mb-8">
-            <div className="absolute inset-0 border-4 border-slate-700/50 rounded-full"></div>
+            <div className="absolute inset-0 border-4 border-slate-200 rounded-full"></div>
             <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
             <div className="absolute inset-4 border-4 border-accent rounded-full border-b-transparent animate-spin-reverse opacity-70"></div>
         </div>
-        <p className="text-2xl font-bold text-transparent bg-clip-text bg-gradient-to-r from-primary to-accent mb-2">Architecting Presentation...</p>
-        <p className="text-slate-500 animate-pulse">Analyzing content & designing slides</p>
+        <p className="text-2xl font-bold text-primary-text mb-2">Architecting Presentation...</p>
+        <p className="text-secondary-text animate-pulse">Analyzing content & designing slides</p>
     </div>
 );
 
@@ -338,39 +338,47 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
     return (
         <div className="flex flex-col h-full animate-fade-in">
             <div className="flex justify-end items-center mb-6 pt-4">
-                <div className="flex flex-wrap items-center gap-3 bg-surface/30 p-2 rounded-xl backdrop-blur-md border border-white/5">
+                <div className="flex flex-wrap items-center gap-2">
                     <button
                         onClick={handleDownloadAllImages}
                         disabled={isDownloadingImages || isExporting}
-                        className="group relative flex items-center space-x-2 px-5 py-2.5 rounded-lg overflow-hidden transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                            ${isDownloadingImages
+                                ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
+                                : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
+                            }`}
                         title="Download Images"
                     >
-                        <div className="absolute inset-0 bg-gradient-to-r from-primary/20 to-accent/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="absolute inset-0 border border-white/10 rounded-lg group-hover:border-primary/30 transition-colors duration-300"></div>
+                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-primary/20 transition-colors duration-300"></div>
 
-                        <div className="relative z-10 flex items-center space-x-2 text-slate-200 group-hover:text-white transition-colors">
+                        <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
                             {isDownloadingImages ? (
                                 <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                             ) : (
-                                <ImageIcon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
+                                <ImageIcon className="w-5 h-5 text-secondary-text group-hover:text-primary group-hover:scale-110 transition-all duration-300" />
                             )}
-                            <span className="font-semibold tracking-wide">Images</span>
+                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Images</span>
                         </div>
                     </button>
 
                     <button
                         onClick={handleDownloadNotes}
                         disabled={isDownloadingNotes || isExporting || isDownloadingImages}
-                        className="group relative flex items-center space-x-2 px-5 py-2.5 rounded-lg overflow-hidden transition-all disabled:opacity-50 disabled:cursor-not-allowed"
+                        className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                            ${isDownloadingNotes
+                                ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
+                                : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
+                            }`}
                         title="Download Notes"
                     >
-                        <div className="absolute inset-0 bg-gradient-to-r from-secondary/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="absolute inset-0 border border-white/10 rounded-lg group-hover:border-secondary/30 transition-colors duration-300"></div>
+                        <div className="absolute inset-0 bg-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-secondary/20 transition-colors duration-300"></div>
 
-                        <div className="relative z-10 flex items-center space-x-2 text-slate-200 group-hover:text-white transition-colors">
+                        <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-secondary transition-colors">
                             {isDownloadingNotes ? (
                                 <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -379,20 +387,24 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                             ) : (
                                 <DocumentTextIcon className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform duration-300" />
                             )}
-                            <span className="font-semibold tracking-wide">Notes</span>
+                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Notes</span>
                         </div>
                     </button>
 
                     <button
                         onClick={handleExportPPTX}
                         disabled={isExporting || !PptxGenJS || isDownloadingImages}
-                        className="group relative flex items-center space-x-2 px-5 py-2.5 rounded-lg overflow-hidden transition-all disabled:opacity-50 disabled:cursor-wait"
+                        className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-wait
+                            ${isExporting
+                                ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
+                                : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
+                            }`}
                         title="Download Slides"
                     >
-                        <div className="absolute inset-0 bg-gradient-to-r from-accent/20 to-primary/20 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="absolute inset-0 border border-white/10 rounded-lg group-hover:border-accent/30 transition-colors duration-300"></div>
+                        <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
+                        <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-accent/20 transition-colors duration-300"></div>
 
-                        <div className="relative z-10 flex items-center space-x-2 text-slate-200 group-hover:text-white transition-colors">
+                        <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-accent transition-colors">
                             {isExporting ? (
                                 <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
@@ -401,7 +413,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                             ) : (
                                 <PptxIcon className="w-5 h-5 text-accent group-hover:scale-110 transition-transform duration-300" />
                             )}
-                            <span className="font-semibold tracking-wide">Slides</span>
+                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Slides</span>
                         </div>
                     </button>
                 </div>

@@ -7,16 +7,28 @@ export default {
     theme: {
         extend: {
             colors: {
-                background: '#0f172a', // Slate 900
-                surface: '#1e293b',    // Slate 800
-                primary: '#0ea5e9',    // Sky 500
-                secondary: '#6366f1',  // Indigo 500
-                accent: '#8b5cf6',     // Violet 500
+                background: '#FAFAF8', // Warm Off-White
+                surface: '#FFFFFF',    // Pure White
+                primary: '#2180EA',    // Teal Blue (Primary Action)
+                'primary-dark': '#1C6DC4', // Hover State
+                secondary: '#2B8C7E',  // Teal Green (Success/Secondary)
+                accent: '#F59E0B',     // Amber (Warning/Attention)
+                error: '#DC2626',      // Red (Error)
+                'primary-text': '#134252', // Dark Navy
+                'secondary-text': '#627C81', // Medium Gray
+                'neutral-bg': '#F5F5F5', // Very Light Gray (User Request)
+                'border-light': '#D1D5D8', // Light Gray (Borders/Tracks)
+                subtle: 'rgba(0, 0, 0, 0.08)', // Subtle border
                 glass: {
                     100: 'rgba(255, 255, 255, 0.1)',
                     200: 'rgba(255, 255, 255, 0.2)',
                     300: 'rgba(255, 255, 255, 0.3)',
                 }
+            },
+            boxShadow: {
+                'card': '0 1px 3px rgba(0,0,0,0.08)',
+                'card-hover': '0 4px 12px rgba(0,0,0,0.12)',
+                'primary-btn': '0 2px 8px rgba(33, 128, 234, 0.2)',
             },
             fontFamily: {
                 sans: ['Inter', 'sans-serif'],

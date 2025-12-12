@@ -7,10 +7,27 @@ import {
     addDoc,
     getDocs,
     getDoc,
+    deleteDoc,
     serverTimestamp,
     Timestamp
 } from 'firebase/firestore';
 import type { Slide } from '../types';
+
+// ... (other code remains unchanged)
+
+/**
+ * Deletes a project.
+ */
+export const deleteProject = async (userId: string, projectId: string) => {
+    try {
+        const projectRef = doc(db, 'users', userId, 'projects', projectId);
+        await deleteDoc(projectRef);
+        console.log(`Project ${projectId} deleted.`);
+    } catch (error) {
+        console.error(`Error deleting project ${projectId}:`, error);
+        throw error;
+    }
+};
 
 export interface ProjectData {
     id?: string;
@@ -123,3 +140,51 @@ export const saveProjectVersion = async (userId: string, projectId: string, slid
         throw error;
     }
 };
+
+/**
+ * Fetches all projects for a specific user, ordered by most recently updated.
+ */
+export const getUserProjects = async (userId: string): Promise<ProjectData[]> => {
+    try {
+        const projectsRef = collection(db, 'users', userId, 'projects');
+        // You might want to order by updatedAt desc, but that requires an index.
+        // For now, we'll fetch all and sort client-side to avoid index creation delay for the user
+        // or just rely on default order if indices are auto-created for single-field sorts.
+        const snapshot = await getDocs(projectsRef);
+
+        const projects = snapshot.docs.map(doc => ({
+            id: doc.id,
+            ...doc.data()
+        })) as ProjectData[];
+
+        // Sort by updatedAt desc
+        return projects.sort((a, b) => {
+            const timeA = a.updatedAt?.toMillis() || 0;
+            const timeB = b.updatedAt?.toMillis() || 0;
+            return timeB - timeA;
+        });
+    } catch (error) {
+        console.error("Error fetching user projects:", error);
+        return [];
+    }
+};
+
+/**
+ * Fetches a single project by ID.
+ */
+export const getProject = async (userId: string, projectId: string): Promise<ProjectData | null> => {
+    try {
+        const projectRef = doc(db, 'users', userId, 'projects', projectId);
+        const snapshot = await getDoc(projectRef);
+
+        if (snapshot.exists()) {
+            return { id: snapshot.id, ...snapshot.data() } as ProjectData;
+        }
+        return null;
+    } catch (error) {
+        console.error(`Error fetching project ${projectId}:`, error);
+        return null;
+    }
+};
+
+

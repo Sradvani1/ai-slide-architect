@@ -120,7 +120,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                 onDrop={handleDrop}
                 className={`relative border-2 border-dashed rounded-xl p-8 transition-all duration-300 group ${isDragging
                     ? 'border-primary bg-primary/10'
-                    : 'border-slate-700 hover:border-primary/50 bg-slate-900/30'
+                    : 'border-slate-300 hover:border-primary/50 bg-[#FAFAF8] hover:bg-[rgba(33,128,234,0.02)]'
                     } ${isLoading ? 'opacity-50 cursor-not-allowed' : 'cursor-pointer'}`}
             >
                 <input

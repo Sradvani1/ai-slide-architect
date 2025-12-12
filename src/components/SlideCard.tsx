@@ -25,7 +25,7 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
     return (
         <button
             onClick={handleCopy}
-            className="p-1.5 rounded-md text-slate-400 hover:bg-slate-600 hover:text-slate-100 transition-colors"
+            className="p-3 rounded-md text-secondary-text hover:bg-slate-100 hover:text-primary-text transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
         >
             {copied ? <CheckIcon /> : <CopyIcon />}
         </button>
@@ -174,15 +174,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     };
 
     return (
-        <div className="glass-card rounded-2xl overflow-hidden group">
+        <div className="glass-card rounded-2xl overflow-hidden group border border-[#rgba(0,0,0,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
             {/* Header */}
-            <header className="p-5 flex justify-between items-start border-b border-white/5 bg-slate-900/30">
+            <header className="p-5 flex justify-between items-start border-b border-slate-100 bg-surface/50">
                 <div className="flex-1 min-w-0 mr-4">
                     <div className="flex items-center space-x-3 mb-1">
                         <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full">Slide {slideNumber}</span>
-                        <span className="text-xs text-slate-500 uppercase tracking-wider font-semibold">{slide.layout}</span>
+                        <span className="text-xs text-secondary-text uppercase tracking-wider font-semibold">{slide.layout}</span>
                     </div>
-                    <h3 className="text-xl font-bold text-slate-100 truncate">{slide.title}</h3>
+                    <h3 className="text-xl font-bold text-primary-text truncate">{slide.title}</h3>
                 </div>
 
                 <div className="flex items-center space-x-1 opacity-50 group-hover:opacity-100 transition-opacity">
@@ -198,13 +198,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             ref={contentRef}
                             value={contentText}
                             onChange={handleContentChange}
-                            className="input-field min-h-[150px] leading-relaxed resize-none focus:bg-slate-900/80"
+                            className="input-field min-h-[150px] leading-relaxed resize-none focus:bg-white"
                             rows={slide.content.length || 3}
                         />
                         <div className="flex justify-end space-x-2 mt-3">
                             <button
                                 onClick={handleCancelContentEdit}
-                                className="px-3 py-1.5 text-xs font-medium text-slate-400 hover:text-white hover:bg-white/5 rounded-md transition-colors"
+                                className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text hover:bg-slate-100 rounded-md transition-colors"
                             >
                                 Cancel
                             </button>
@@ -217,19 +217,19 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         </div>
                     </div>
                 ) : (
-                    <div className="relative pl-4 border-l-2 border-slate-700/50 hover:border-primary/50 transition-colors">
-                        <ul className="space-y-3 text-slate-300">
+                    <div className="relative pl-4 border-l-2 border-primary/20 hover:border-primary/50 transition-colors">
+                        <ul className="space-y-3 text-primary-text/90">
                             {slide.content.map((item, index) => (
                                 <li key={index} className="flex items-start">
                                     <span className="w-1.5 h-1.5 rounded-full bg-primary/50 mt-2 mr-3 flex-shrink-0"></span>
-                                    <span className="leading-relaxed">{cleanText(item)}</span>
+                                    <span className="leading-relaxed text-[#627C81]">{cleanText(item)}</span>
                                 </li>
                             ))}
                         </ul>
 
                         <button
                             onClick={() => setIsEditingContent(true)}
-                            className="absolute top-0 right-0 p-2 text-slate-500 hover:text-primary opacity-0 group-hover/content:opacity-100 transition-all bg-slate-900/50 rounded-lg backdrop-blur-sm"
+                            className="absolute top-0 right-0 p-2 text-secondary-text hover:text-primary opacity-0 group-hover/content:opacity-100 transition-all bg-surface shadow-sm rounded-lg"
                             title="Edit Content"
                         >
                             <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -241,20 +241,20 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             </div>
 
             {/* Footer / Image Prompt */}
-            <footer className="px-5 py-4 bg-slate-900/30 border-t border-white/5 flex flex-col gap-3">
+            <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
                 <div className="flex items-start gap-3 w-full">
-                    <div className="mt-1 p-1.5 bg-slate-800 rounded-lg text-slate-400">
+                    <div className="mt-1 p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 shadow-sm">
                         <ImageIcon className="w-4 h-4" />
                     </div>
 
                     <div className="flex-grow min-w-0">
                         <div className="flex items-center justify-between mb-1">
-                            <span className="text-[10px] font-bold uppercase tracking-wider text-slate-500">Image Prompt</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Image Prompt</span>
                             {!isEditingPrompt && (
                                 <div className="flex items-center space-x-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                     <button
                                         onClick={() => setIsEditingPrompt(true)}
-                                        className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-primary transition-colors"
+                                        className="p-3 hover:bg-slate-100 rounded text-slate-400 hover:text-primary transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
                                         title="Edit Prompt"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -264,7 +264,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                     <button
                                         onClick={handleRegeneratePrompt}
                                         disabled={isRegeneratingPrompt}
-                                        className="p-1 hover:bg-white/5 rounded text-slate-500 hover:text-accent transition-colors disabled:opacity-50"
+                                        className="p-3 hover:bg-slate-100 rounded text-secondary-text hover:text-accent transition-colors disabled:opacity-50 min-w-[44px] min-h-[44px] flex items-center justify-center"
                                         title="Regenerate Prompt"
                                     >
                                         <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${isRegeneratingPrompt ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
@@ -281,13 +281,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                     ref={textareaRef}
                                     value={promptText}
                                     onChange={handlePromptChange}
-                                    className="input-field text-sm min-h-[80px]"
+                                    className="input-field text-sm min-h-[80px] bg-surface text-primary-text"
                                     rows={2}
                                 />
                                 <div className="flex justify-end space-x-2 mt-2">
                                     <button
                                         onClick={handleCancelEdit}
-                                        className="px-2 py-1 text-xs font-medium text-slate-400 hover:text-white transition-colors"
+                                        className="px-2 py-1 text-xs font-medium text-secondary-text hover:text-primary-text transition-colors"
                                     >
                                         Cancel
                                     </button>
@@ -300,7 +300,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-sm text-slate-400 italic cursor-pointer hover:text-slate-300 transition-colors line-clamp-2" onClick={() => setIsEditingPrompt(true)}>
+                            <p className="text-sm text-secondary-text italic cursor-pointer hover:text-primary-text transition-colors line-clamp-2" onClick={() => setIsEditingPrompt(true)}>
                                 {slide.imagePrompt}
                             </p>
                         )}
@@ -311,7 +311,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     <button
                         onClick={handleGenerateImage}
                         disabled={isGeneratingImage}
-                        className="flex items-center space-x-2 px-3 py-1.5 bg-slate-800 hover:bg-slate-700 text-slate-300 rounded-lg text-xs font-semibold transition-all border border-white/5 disabled:opacity-50"
+                        className="flex items-center space-x-2 px-3 py-1.5 bg-[#F5F5F5] hover:bg-slate-200 text-[#134252] rounded-lg text-xs font-semibold transition-all border border-border-light shadow-sm disabled:opacity-50 h-[36px]"
                     >
                         {isGeneratingImage ? (
                             <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

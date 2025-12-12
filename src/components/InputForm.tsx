@@ -23,16 +23,36 @@ interface InputFormProps {
 }
 
 const PLACEHOLDER_PAIRS = [
-  { topic: "The process of photosynthesis", gradeLevel: "9th Grade", subject: "Biology" },
-  { topic: "Causes of the American Civil War", gradeLevel: "8th Grade", subject: "History" },
-  { topic: "Themes in 'To Kill a Mockingbird'", gradeLevel: "10th Grade", subject: "English" },
-  { topic: "Properties of chemical bonds", gradeLevel: "11th Grade", subject: "Chemistry" },
+  { topic: "The process of photosynthesis", gradeLevel: "9th Grade", subject: "Science" },
+  { topic: "Causes of the American Civil War", gradeLevel: "8th Grade", subject: "Social Studies" },
+  { topic: "Themes in 'To Kill a Mockingbird'", gradeLevel: "10th Grade", subject: "Language Arts" },
+  { topic: "Properties of chemical bonds", gradeLevel: "11th Grade", subject: "Science" },
   { topic: "Concept of linear equations", gradeLevel: "7th Grade", subject: "Math" },
   { topic: "Impact of climate change", gradeLevel: "12th Grade", subject: "Science" },
-  { topic: "Principles of supply and demand", gradeLevel: "12th Grade", subject: "Economics" },
+  { topic: "Principles of supply and demand", gradeLevel: "12th Grade", subject: "Social Studies" },
   { topic: "Structure of the human heart", gradeLevel: "7th Grade", subject: "Science" },
-  { topic: "Renaissance art techniques", gradeLevel: "9th Grade", subject: "Art" },
-  { topic: "Laws of motion", gradeLevel: "8th Grade", subject: "Physics" }
+  { topic: "Renaissance art techniques", gradeLevel: "9th Grade", subject: "Arts" },
+  { topic: "Laws of motion", gradeLevel: "8th Grade", subject: "Science" }
+];
+
+const GRADE_LEVELS = [
+  "6th",
+  "7th",
+  "8th",
+  "9th",
+  "10th",
+  "11th",
+  "12th"
+];
+
+const SUBJECTS = [
+  "Language Arts",
+  "Math",
+  "Science",
+  "Social Studies",
+  "World Languages",
+  "Arts",
+  "Electives"
 ];
 
 export const InputForm: React.FC<InputFormProps> = ({
@@ -84,30 +104,36 @@ export const InputForm: React.FC<InputFormProps> = ({
             <label htmlFor="gradeLevel" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
               Grade
             </label>
-            <input
-              type="text"
+            <select
               id="gradeLevel"
               value={gradeLevel}
               onChange={(e) => setGradeLevel(e.target.value)}
-              placeholder={`e.g., ${placeholders.gradeLevel}`}
-              className="input-field"
+              className="input-field appearance-none"
               disabled={isLoading}
-            />
+            >
+              <option value="" disabled>Select Grade</option>
+              {GRADE_LEVELS.map((grade) => (
+                <option key={grade} value={grade}>{grade}</option>
+              ))}
+            </select>
           </div>
 
           <div>
             <label htmlFor="subject" className="block text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1">
               Subject
             </label>
-            <input
-              type="text"
+            <select
               id="subject"
               value={subject}
               onChange={(e) => setSubject(e.target.value)}
-              placeholder={`e.g., ${placeholders.subject}`}
-              className="input-field"
+              className="input-field appearance-none"
               disabled={isLoading}
-            />
+            >
+              <option value="" disabled>Select Subject</option>
+              {SUBJECTS.map((subj) => (
+                <option key={subj} value={subj}>{subj}</option>
+              ))}
+            </select>
           </div>
         </div>
       </div>
@@ -122,10 +148,10 @@ export const InputForm: React.FC<InputFormProps> = ({
       </div>
 
       <div className="border-t border-white/5 pt-4 space-y-4">
-        <div className="flex items-center justify-between p-3 rounded-lg bg-slate-900/30 border border-white/5 hover:border-white/10 transition-colors">
+        <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-bg border border-border-light hover:border-primary/20 transition-colors">
           <div className="flex flex-col">
-            <label htmlFor="webSearch" className="font-medium text-slate-200 cursor-pointer text-sm" onClick={() => setUseWebSearch(!useWebSearch)}>Web Search Grounding</label>
-            <p className="text-slate-500 text-xs">Improve accuracy with real-time results</p>
+            <label htmlFor="webSearch" className="font-medium text-primary-text cursor-pointer text-sm" onClick={() => setUseWebSearch(!useWebSearch)}>Web Search Grounding</label>
+            <p className="text-secondary-text text-xs">Improve accuracy with real-time results</p>
           </div>
           <button
             id="webSearch"
@@ -134,7 +160,7 @@ export const InputForm: React.FC<InputFormProps> = ({
             aria-checked={useWebSearch}
             onClick={() => setUseWebSearch(!useWebSearch)}
             disabled={isLoading}
-            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-slate-900 ${useWebSearch ? 'bg-primary' : 'bg-slate-700'
+            className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface ${useWebSearch ? 'bg-primary' : 'bg-border-light'
               } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <span
@@ -150,22 +176,22 @@ export const InputForm: React.FC<InputFormProps> = ({
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Creativity
             </label>
-            <span className="text-xs text-primary font-medium">
-              {creativityLevel === 0.5 && "Precise"}
-              {creativityLevel === 0.7 && "Balanced"}
-              {creativityLevel === 0.9 && "Creative"}
-            </span>
           </div>
           <input
             type="range"
             min="0.5"
             max="0.9"
-            step="0.2"
+            step="0.1"
             value={creativityLevel}
             onChange={(e) => setCreativityLevel(parseFloat(e.target.value))}
-            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80"
+            className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
             disabled={isLoading}
           />
+          <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+            <span className={creativityLevel === 0.5 ? "text-sky-400 font-bold" : ""}>Lower</span>
+            <span className={creativityLevel === 0.7 ? "text-sky-400 font-bold" : ""}>Balanced</span>
+            <span className={creativityLevel === 0.9 ? "text-sky-400 font-bold" : ""}>Higher</span>
+          </div>
         </div>
 
         <div>
@@ -173,18 +199,29 @@ export const InputForm: React.FC<InputFormProps> = ({
             <label htmlFor="numSlides" className="text-xs font-semibold uppercase tracking-wider text-slate-400">
               Length
             </label>
-            <span className="text-xs text-slate-300 bg-slate-800 px-2 py-0.5 rounded border border-white/5">{numSlides} Slides</span>
+            <span className="text-xs text-secondary-text bg-white px-2 py-0.5 rounded border border-border-light">{numSlides} Slides</span>
           </div>
           <input
             type="range"
             id="numSlides"
             value={numSlides}
             onChange={(e) => setNumSlides(Math.max(1, parseInt(e.target.value, 10)))}
-            min="1"
+            min="0"
             max="20"
-            className="w-full h-1.5 bg-slate-700 rounded-lg appearance-none cursor-pointer accent-primary hover:accent-primary/80"
+            className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
             disabled={isLoading}
           />
+          <div className="relative h-4 mt-2 text-xs text-slate-400">
+            {[1, 5, 10, 15, 20].map((val) => (
+              <span
+                key={val}
+                className={`absolute transform -translate-x-1/2 ${numSlides === val ? "text-sky-400 font-bold" : ""}`}
+                style={{ left: `calc(${(val / 20) * 100}% + ${8 - (val / 20) * 16}px)` }}
+              >
+                {val}
+              </span>
+            ))}
+          </div>
         </div>
       </div>
 
