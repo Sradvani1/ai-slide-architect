@@ -1,8 +1,18 @@
 
 export interface Slide {
   title: string;
-  content: string[];
-  layout: string;
+  content: string;
   imagePrompt: string;
-  speakerNotes: string;
+  backgroundImage?: string; // URL for the generated image
+  speakerNotes?: string;
+}
+
+export interface ProjectFile {
+  id: string;
+  name: string;
+  storagePath: string;
+  downloadUrl: string;
+  mimeType: string;
+  size: number;
+  extractedContent?: string;
 }

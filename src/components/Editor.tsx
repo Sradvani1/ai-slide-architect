@@ -4,8 +4,8 @@ import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
-import { createProject, updateProject, getProject } from '../services/projectService';
-import type { Slide } from '../types';
+import { createProject, updateProject, getProject, uploadFileToStorage } from '../services/projectService';
+import type { Slide, ProjectFile } from '../types';
 
 interface EditorProps {
     user: User;
@@ -18,7 +18,14 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [topic, setTopic] = useState('');
     const [gradeLevel, setGradeLevel] = useState('');
     const [subject, setSubject] = useState('');
-    const [uploadedFiles, setUploadedFiles] = useState<{ name: string; content: string; size: number }[]>([]);
+    const [uploadedFiles, setUploadedFiles] = useState<{
+        file?: File;
+        name: string;
+        content: string;
+        size: number;
+        downloadUrl?: string;
+        storagePath?: string;
+    }[]>([]);
     const [numSlides, setNumSlides] = useState<number>(5);
     const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
     const [creativityLevel, setCreativityLevel] = useState<number>(0.7);
@@ -43,7 +50,17 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setSubject(project.subject);
                     setSlides(project.slides);
                     setCurrentProjectId(project.id!);
-                    // Don't reset uploaded files here - they should persist for modifications
+
+                    // Load files if they exist
+                    if (project.files && project.files.length > 0) {
+                        setUploadedFiles(project.files.map(f => ({
+                            name: f.name,
+                            content: f.extractedContent || '', // Use stored content if available
+                            size: f.size,
+                            downloadUrl: f.downloadUrl,
+                            storagePath: f.storagePath
+                        })));
+                    }
                     // Don't reset numSlides, useWebSearch, creativityLevel - they persist as user preferences
                 } else {
                     setError("Project not found.");
@@ -64,7 +81,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         loadProject();
     }, [projectId, user.uid]);
 
-    const handleFilesSelected = (files: { name: string; content: string; size: number }[]) => {
+    const handleFilesSelected = (files: { file?: File; name: string; content: string; size: number }[]) => {
         setUploadedFiles((prev) => [...prev, ...files]);
     };
 
@@ -82,21 +99,74 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         setSlides(null);
 
         try {
+            // Upload files to storage first if they haven't been uploaded yet
+            // We need a temp ID for the path if it's a new project, or use a placeholder
+            // Strategy: Create project ID first? No, we need slides to create project.
+            // Alternative: Use a temporary ID or just use timestamp in path. 
+            // Better: If we have currentProjectId, use it. If not, generate a new ID later.
+            // For now, let's just upload. Project sorting happens in projectService. 
+            // Wait, uploadFileToStorage needs projectId.
+            // If new project, we don't have ID yet. 
+            // Solution: We'll generate a UUID for the new project structure in generic way or just use 'temp' and move? No.
+            // Simplest: Generate the slots content first (AI), then Create Project, then Upload Files, then Update Project with files.
+
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
             const generatedSlides = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide);
             setSlides(generatedSlides);
 
             if (user) {
+                // 1. Create project with slides first
                 const newProjectId = await createProject(user.uid, {
-                    title: topic, // Use topic as initial title
+                    title: topic,
                     topic,
                     gradeLevel,
                     subject,
                     slides: generatedSlides
                 });
+
                 setCurrentProjectId(newProjectId);
+
+                // 2. Upload files and update project
+                const uploadedProjectFiles: ProjectFile[] = [];
+
+                for (const fileData of uploadedFiles) {
+                    // If already has storage path (from loaded project), keep it
+                    if (fileData.storagePath && fileData.downloadUrl) {
+                        uploadedProjectFiles.push({
+                            id: crypto.randomUUID(),
+                            name: fileData.name,
+                            storagePath: fileData.storagePath,
+                            downloadUrl: fileData.downloadUrl,
+                            mimeType: 'application/octet-stream', // We might lose original type if not stored, but acceptable
+                            size: fileData.size,
+                            extractedContent: fileData.content
+                        });
+                    }
+                    // If new file (has File object), upload it
+                    else if (fileData.file) {
+                        const projectFile = await uploadFileToStorage(user.uid, newProjectId, fileData.file);
+                        projectFile.extractedContent = fileData.content; // Store extracted text for reuse
+                        uploadedProjectFiles.push(projectFile);
+                    }
+                }
+
+                // 3. Update project with file metadata
+                if (uploadedProjectFiles.length > 0) {
+                    await updateProject(user.uid, newProjectId, { files: uploadedProjectFiles });
+
+                    // Update local state to reflect uploaded status
+                    setUploadedFiles(uploadedProjectFiles.map(f => ({
+                        name: f.name,
+                        content: f.extractedContent || '',
+                        size: f.size,
+                        downloadUrl: f.downloadUrl,
+                        storagePath: f.storagePath
+                    })));
+                }
+
                 // Update URL to new project ID, replacing history so back button returns to dashboard
                 navigate(`/project/${newProjectId}`, { replace: true });
+
             }
         } catch (e) {
             console.error(e);

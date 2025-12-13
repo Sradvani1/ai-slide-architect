@@ -9,8 +9,8 @@ import { extractTextFromImage } from '../services/geminiService';
 pdfjsLib.GlobalWorkerOptions.workerSrc = pdfWorker;
 
 interface FileUploaderProps {
-    onFilesSelected: (files: { name: string; content: string; size: number }[]) => void;
-    uploadedFiles: { name: string; content: string; size: number }[];
+    onFilesSelected: (files: { file?: File; name: string; content: string; size: number }[]) => void;
+    uploadedFiles: { file?: File; name: string; content: string; size: number }[];
     onRemoveFile: (index: number) => void;
     isLoading: boolean;
 }
@@ -87,7 +87,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                     continue;
                 }
 
-                newFiles.push({ name: file.name, content, size: file.size });
+                newFiles.push({ file, name: file.name, content, size: file.size });
             } catch (err) {
                 console.error(`Error processing file ${file.name}:`, err);
                 setError(`Failed to process ${file.name}`);

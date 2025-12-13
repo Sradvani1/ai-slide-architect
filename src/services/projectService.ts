@@ -1,4 +1,4 @@
-import { db } from '../firebaseConfig';
+import { db, storage } from '../firebaseConfig';
 import {
     collection,
     doc,
@@ -11,7 +11,51 @@ import {
     serverTimestamp,
     Timestamp
 } from 'firebase/firestore';
-import type { Slide } from '../types';
+import {
+    ref,
+    uploadBytes,
+    getDownloadURL,
+    deleteObject
+} from 'firebase/storage';
+import type { Slide, ProjectFile } from '../types';
+
+/**
+ * Uploads a file to Firebase Storage and returns the file metadata.
+ */
+export const uploadFileToStorage = async (userId: string, projectId: string, file: File): Promise<ProjectFile> => {
+    try {
+        const storagePath = `users/${userId}/projects/${projectId}/files/${Date.now()}_${file.name}`;
+        const storageRef = ref(storage, storagePath);
+
+        const snapshot = await uploadBytes(storageRef, file);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+
+        return {
+            id: crypto.randomUUID(), // OR use a simpler ID if crypto not available in target env (vite uses browser API so fine)
+            name: file.name,
+            storagePath,
+            downloadUrl,
+            mimeType: file.type,
+            size: file.size
+        };
+    } catch (error) {
+        console.error("Error uploading file:", error);
+        throw error;
+    }
+};
+
+/**
+ * Deletes a file from Firebase Storage.
+ */
+export const deleteFileFromStorage = async (storagePath: string) => {
+    try {
+        const fileRef = ref(storage, storagePath);
+        await deleteObject(fileRef);
+    } catch (error) {
+        console.error("Error deleting file from storage:", error);
+        // Don't throw if file not found, just log
+    }
+};
 
 // ... (other code remains unchanged)
 
@@ -37,6 +81,7 @@ export interface ProjectData {
     gradeLevel: string;
     subject: string;
     slides: Slide[];
+    files?: ProjectFile[];
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }
