@@ -66,7 +66,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
     const processFiles = async (files: FileList | null) => {
         if (!files) return;
 
-        const newFiles: { name: string; content: string; size: number }[] = [];
+        const newFiles: { file?: File; name: string; content: string; size: number }[] = [];
         setError(null);
 
         for (let i = 0; i < files.length; i++) {
