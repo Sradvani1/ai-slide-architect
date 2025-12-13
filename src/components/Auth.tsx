@@ -2,7 +2,11 @@ import React, { useState } from 'react';
 import { auth } from '../firebaseConfig';
 import { signInWithPopup, GoogleAuthProvider } from 'firebase/auth';
 
-export function Auth() {
+interface AuthProps {
+    isModal?: boolean;
+}
+
+export function Auth({ isModal = false }: AuthProps) {
     const [loading, setLoading] = useState(false);
     const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
 
@@ -20,7 +24,7 @@ export function Auth() {
     };
 
     return (
-        <div className="flex flex-col items-center justify-center min-h-screen bg-slate-900 text-slate-200 p-4">
+        <div className={`flex flex-col items-center justify-center ${isModal ? 'p-0' : 'min-h-screen bg-slate-900'} text-slate-200 p-4`}>
             <div className="w-full max-w-md bg-slate-800 p-8 rounded-lg shadow-lg border border-slate-700">
                 <h1 className="text-3xl font-bold text-center mb-6 text-transparent bg-clip-text bg-gradient-to-r from-sky-400 to-blue-500">
                     Welcome Back

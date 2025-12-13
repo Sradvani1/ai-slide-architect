@@ -20,6 +20,8 @@ interface InputFormProps {
   isLoading: boolean;
   creativityLevel: number;
   setCreativityLevel: (level: number) => void;
+  bulletsPerSlide: number;
+  setBulletsPerSlide: (num: number) => void;
 }
 
 const PLACEHOLDER_PAIRS = [
@@ -47,12 +49,12 @@ const GRADE_LEVELS = [
 
 const SUBJECTS = [
   "Language Arts",
-  "Math",
+  "Mathematics",
   "Science",
   "Social Studies",
   "World Languages",
   "Arts",
-  "Electives"
+  "Physical Education"
 ];
 
 export const InputForm: React.FC<InputFormProps> = ({
@@ -73,6 +75,8 @@ export const InputForm: React.FC<InputFormProps> = ({
   isLoading,
   creativityLevel,
   setCreativityLevel,
+  bulletsPerSlide,
+  setBulletsPerSlide,
 }) => {
   const [placeholders, setPlaceholders] = useState(PLACEHOLDER_PAIRS[0]);
 
@@ -191,6 +195,31 @@ export const InputForm: React.FC<InputFormProps> = ({
             <span className={creativityLevel === 0.5 ? "text-sky-400 font-bold" : ""}>Lower</span>
             <span className={creativityLevel === 0.7 ? "text-sky-400 font-bold" : ""}>Balanced</span>
             <span className={creativityLevel === 0.9 ? "text-sky-400 font-bold" : ""}>Higher</span>
+          </div>
+        </div>
+
+        <div>
+          <div className="flex justify-between items-center mb-2">
+            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+              Bullets Per Slide
+            </label>
+            <span className="text-xs text-secondary-text bg-white px-2 py-0.5 rounded border border-border-light">{bulletsPerSlide}</span>
+          </div>
+          <input
+            type="range"
+            min="3"
+            max="6"
+            step="1"
+            value={bulletsPerSlide}
+            onChange={(e) => setBulletsPerSlide(parseInt(e.target.value, 10))}
+            className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
+            disabled={isLoading}
+          />
+          <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
+            <span className={bulletsPerSlide === 3 ? "text-sky-400 font-bold" : ""}>3</span>
+            <span className={bulletsPerSlide === 4 ? "text-sky-400 font-bold" : ""}>4</span>
+            <span className={bulletsPerSlide === 5 ? "text-sky-400 font-bold" : ""}>5</span>
+            <span className={bulletsPerSlide === 6 ? "text-sky-400 font-bold" : ""}>6</span>
           </div>
         </div>
 

@@ -22,6 +22,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [numSlides, setNumSlides] = useState<number>(5);
     const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
     const [creativityLevel, setCreativityLevel] = useState<number>(0.7);
+    const [bulletsPerSlide, setBulletsPerSlide] = useState<number>(4);
     const [slides, setSlides] = useState<Slide[] | null>(null);
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -34,6 +35,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         const loadProject = async () => {
             if (projectId) {
                 setIsLoading(true);
+                setError(null); // Reset error when loading a different project
                 const project = await getProject(user.uid, projectId);
                 if (project) {
                     setTopic(project.title);
@@ -41,6 +43,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setSubject(project.subject);
                     setSlides(project.slides);
                     setCurrentProjectId(project.id!);
+                    // Don't reset uploaded files here - they should persist for modifications
+                    // Don't reset numSlides, useWebSearch, creativityLevel - they persist as user preferences
                 } else {
                     setError("Project not found.");
                 }
@@ -53,6 +57,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setSlides(null);
                 setCurrentProjectId(null);
                 setUploadedFiles([]);
+                setError(null);
             }
         };
 
@@ -78,7 +83,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
         try {
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
-            const generatedSlides = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel);
+            const generatedSlides = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide);
             setSlides(generatedSlides);
 
             if (user) {
@@ -90,10 +95,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     slides: generatedSlides
                 });
                 setCurrentProjectId(newProjectId);
-                // Ideally, update URL to include new ID without reload, but for now we stay on "new" or replace history
-                // Doing a replace state might be better to avoid back button issues, 
-                // but let's just update the internal state for now.
-                // navigate(`/project/${newProjectId}`, { replace: true }); 
+                // Update URL to new project ID, replacing history so back button returns to dashboard
+                navigate(`/project/${newProjectId}`, { replace: true });
             }
         } catch (e) {
             console.error(e);
@@ -101,7 +104,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, user, navigate]);
+    }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, user, navigate]);
 
     const handleUpdateSlide = (index: number, updatedSlide: Slide) => {
         if (!slides) return;
@@ -165,6 +168,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         isLoading={isLoading}
                         creativityLevel={creativityLevel}
                         setCreativityLevel={setCreativityLevel}
+                        bulletsPerSlide={bulletsPerSlide}
+                        setBulletsPerSlide={setBulletsPerSlide}
                     />
                 </div>
             </aside>

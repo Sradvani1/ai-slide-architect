@@ -39,7 +39,14 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (!timestamp) return '';
         // Handle Firestore Timestamp or Date object
         const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
-        return new Intl.DateTimeFormat('en-US', { month: 'short', day: 'numeric', year: 'numeric' }).format(date);
+        return new Intl.DateTimeFormat('en-US', {
+            month: 'short',
+            day: 'numeric',
+            year: 'numeric',
+            hour: 'numeric',
+            minute: '2-digit',
+            hour12: true
+        }).format(date);
     };
 
     return (
@@ -54,7 +61,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3v11.25A2.25 2.25 0 0 0 6 16.5h2.25M3.75 3h-1.5m1.5 0h16.5m0 0h1.5m-1.5 0v11.25A2.25 2.25 0 0 1 18 16.5h-2.25m-7.5 0h7.5m-7.5 0-1 3m8.5-3 1 3m0 0 .5 1.5m-.5-1.5h-9.5m0 0-.5 1.5M9 11.25v1.5M12 9v3.75m3-6v6" />
                         </svg>
                     </div>
-                    <span className="font-semibold text-[22px] tracking-tight text-primary-text">AI Slide Architect</span>
+                    <span className="font-semibold text-[22px] tracking-tight text-primary-text">SlidesEdu</span>
                 </div>
 
                 <div className="flex items-center">
@@ -134,51 +141,46 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             <div
                                 key={project.id}
                                 onClick={() => navigate(`/project/${project.id}`)}
-                                className="group/card rounded-xl p-6 cursor-pointer border border-[rgba(0,0,0,0.06)] shadow-[0_1px_3px_rgba(0,0,0,0.08)] bg-surface hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 transition-all duration-150 ease-out relative flex flex-col min-h-[140px]"
+                                className="group/card rounded-xl pt-5 pb-4 px-6 cursor-pointer border border-[rgba(0,0,0,0.06)] shadow-[0_1px_3px_rgba(0,0,0,0.08)] bg-surface hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 transition-all duration-150 ease-out relative flex flex-col min-h-[140px]"
                             >
-                                <div className="mb-4">
-                                    <div className="flex justify-between items-start mb-1">
-                                        <h3 className="font-semibold text-[19px] text-primary-text leading-tight line-clamp-2 pr-6 group-hover/card:text-primary transition-colors">
-                                            {project.title || "Untitled Project"}
-                                        </h3>
-                                        {/* Delete Action (Top Right) */}
-                                        <button
-                                            onClick={(e) => handleDeleteProject(e, project.id!)}
-                                            className="opacity-0 group-hover/card:opacity-100 text-secondary-text hover:text-error p-3 rounded-md hover:bg-red-50 transition-all absolute top-2 right-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
-                                            title="Delete Project"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
-                                            </svg>
-                                        </button>
-                                    </div>
+                                {/* Delete Action (Top Right) */}
+                                <button
+                                    onClick={(e) => handleDeleteProject(e, project.id!)}
+                                    className="opacity-0 group-hover/card:opacity-100 text-secondary-text hover:text-error p-3 rounded-md hover:bg-red-50 transition-all absolute top-2 right-2 min-w-[44px] min-h-[44px] flex items-center justify-center"
+                                    title="Delete Project"
+                                >
+                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4">
+                                        <path strokeLinecap="round" strokeLinejoin="round" d="m14.74 9-.346 9m-4.788 0L9.26 9m9.968-3.21c.342.052.682.107 1.022.166m-1.022-.165L18.16 19.673a2.25 2.25 0 0 1-2.244 2.077H8.084a2.25 2.25 0 0 1-2.244-2.077L4.772 5.79m14.456 0a48.108 48.108 0 0 0-3.478-.397m-12 .562c.34-.059.68-.114 1.022-.165m0 0a48.11 48.11 0 0 1 3.478-.397m7.5 0v-.916c0-1.18-.91-2.164-2.09-2.201a51.964 51.964 0 0 0-3.32 0c-1.18.037-2.09 1.022-2.09 2.201v.916m7.5 0a48.667 48.667 0 0 0-7.5 0" />
+                                    </svg>
+                                </button>
 
-                                    {project.topic && project.topic !== project.title && (
-                                        <p className="text-sm text-secondary-text line-clamp-1 font-medium mt-1">{project.topic}</p>
+                                {/* Row 1: Title (Primary Focus) */}
+                                <h3 className="font-semibold text-[20px] text-primary-text leading-tight line-clamp-2 pr-6 mb-3 group-hover/card:text-primary transition-colors">
+                                    {project.title || "Untitled Project"}
+                                </h3>
+
+                                {/* Row 2: Badge Row (Categorical Metadata) */}
+                                <div className="flex items-center gap-2 mb-4">
+                                    {project.subject && (
+                                        <span className="bg-[#E8F4F8] text-[#2180EA] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
+                                            {project.subject}
+                                        </span>
                                     )}
+                                    <span className="bg-[#F5F5F5] text-[#627C81] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
+                                        {project.gradeLevel || 'N/A'}
+                                    </span>
                                 </div>
 
-                                <div className="mt-auto flex items-center justify-between text-[13px] text-[#627C81] pt-0">
-                                    <div className="flex items-center space-x-3">
-                                        <span className="flex items-center group-hover:text-primary transition-colors">
-                                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 mr-1.5">
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                            </svg>
-                                            {project.slides?.length || 0}
-                                        </span>
-                                        <span className="text-slate-300">•</span>
-                                        <span>{formatDate(project.updatedAt)}</span>
-                                    </div>
-                                    <div className="flex">
-                                        <span className="bg-[#F5F5F5] text-[#627C81] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
-                                            {project.gradeLevel || 'N/A'}
-                                        </span>
-                                        {project.subject && (
-                                            <span className="ml-2 bg-[#F5F5F5] text-[#627C81] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
-                                                {project.subject}
-                                            </span>
-                                        )}
-                                    </div>
+                                {/* Row 3: Metadata Row (Temporal/Quantitative) */}
+                                <div className="mt-auto flex items-center text-[13px] text-[#627C81]">
+                                    <span className="flex items-center">
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 mr-1.5">
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                        </svg>
+                                        {project.slides?.length || 0}
+                                    </span>
+                                    <span className="mx-2">•</span>
+                                    <span>{formatDate(project.updatedAt)}</span>
                                 </div>
                             </div>
                         ))}
