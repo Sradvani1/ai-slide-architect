@@ -5,6 +5,7 @@ import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
 import { createProject, updateProject, getProject, uploadFileToStorage } from '../services/projectService';
+import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
 
 interface EditorProps {
@@ -26,10 +27,10 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         downloadUrl?: string;
         storagePath?: string;
     }[]>([]);
-    const [numSlides, setNumSlides] = useState<number>(5);
+    const [numSlides, setNumSlides] = useState<number>(DEFAULT_NUM_SLIDES);
     const [useWebSearch, setUseWebSearch] = useState<boolean>(true);
-    const [creativityLevel, setCreativityLevel] = useState<number>(0.7);
-    const [bulletsPerSlide, setBulletsPerSlide] = useState<number>(4);
+    const [creativityLevel, setCreativityLevel] = useState<number>(DEFAULT_TEMPERATURE);
+    const [bulletsPerSlide, setBulletsPerSlide] = useState<number>(DEFAULT_BULLETS_PER_SLIDE);
     const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
     const [slides, setSlides] = useState<Slide[] | null>(null);
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);

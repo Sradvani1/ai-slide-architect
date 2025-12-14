@@ -1,6 +1,7 @@
 
 import { GoogleGenAI } from "@google/genai";
 import type { Slide } from '../types';
+import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 
 const API_KEY = process.env.API_KEY;
 
@@ -27,8 +28,8 @@ export const generateSlidesFromDocument = async (
   sourceMaterial: string,
   numSlides: number,
   useWebSearch: boolean = false,
-  temperature: number = 0.7,
-  bulletsPerSlide: number = 4,
+  temperature: number = DEFAULT_TEMPERATURE,
+  bulletsPerSlide: number = DEFAULT_BULLETS_PER_SLIDE,
   additionalInstructions: string = ''
 ): Promise<Slide[]> => {
   const totalSlides = numSlides + 1;
