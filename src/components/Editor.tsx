@@ -27,9 +27,10 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         storagePath?: string;
     }[]>([]);
     const [numSlides, setNumSlides] = useState<number>(5);
-    const [useWebSearch, setUseWebSearch] = useState<boolean>(false);
+    const [useWebSearch, setUseWebSearch] = useState<boolean>(true);
     const [creativityLevel, setCreativityLevel] = useState<number>(0.7);
     const [bulletsPerSlide, setBulletsPerSlide] = useState<number>(4);
+    const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
     const [slides, setSlides] = useState<Slide[] | null>(null);
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -71,6 +72,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setTopic('');
                 setGradeLevel('');
                 setSubject('');
+                setAdditionalInstructions('');
                 setSlides(null);
                 setCurrentProjectId(null);
                 setUploadedFiles([]);
@@ -80,6 +82,15 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
         loadProject();
     }, [projectId, user.uid]);
+
+    // Enforce Mutual Exclusivity: Web Search (Researcher Mode) vs. Uploaded Files (Curator Mode)
+    useEffect(() => {
+        if (uploadedFiles.length > 0) {
+            setUseWebSearch(false);
+        } else {
+            setUseWebSearch(true);
+        }
+    }, [uploadedFiles.length]);
 
     const handleFilesSelected = (files: { file?: File; name: string; content: string; size: number }[]) => {
         setUploadedFiles((prev) => [...prev, ...files]);
@@ -111,7 +122,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             // Simplest: Generate the slots content first (AI), then Create Project, then Upload Files, then Update Project with files.
 
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
-            const generatedSlides = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide);
+            const generatedSlides = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions);
             setSlides(generatedSlides);
 
             if (user) {
@@ -174,7 +185,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         } finally {
             setIsLoading(false);
         }
-    }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, user, navigate]);
+    }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, user, navigate]);
 
     const handleUpdateSlide = (index: number, updatedSlide: Slide) => {
         if (!slides) return;
@@ -240,6 +251,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         setCreativityLevel={setCreativityLevel}
                         bulletsPerSlide={bulletsPerSlide}
                         setBulletsPerSlide={setBulletsPerSlide}
+                        additionalInstructions={additionalInstructions}
+                        setAdditionalInstructions={setAdditionalInstructions}
                     />
                 </div>
             </aside>

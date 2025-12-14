@@ -28,7 +28,8 @@ export const generateSlidesFromDocument = async (
   numSlides: number,
   useWebSearch: boolean = false,
   temperature: number = 0.7,
-  bulletsPerSlide: number = 4
+  bulletsPerSlide: number = 4,
+  additionalInstructions: string = ''
 ): Promise<Slide[]> => {
   let prompt = `
     Based on the following topic, grade level, and subject, generate a slide deck presentation.
@@ -41,7 +42,16 @@ export const generateSlidesFromDocument = async (
 
     **Subject:**
     ${subject}
+    `;
 
+  if (additionalInstructions) {
+    prompt += `
+    **Description & Instructions:**
+    ${additionalInstructions}
+    `;
+  }
+
+  prompt += `
     **Number of Slides:**
     ${numSlides}
     `;
@@ -57,8 +67,16 @@ export const generateSlidesFromDocument = async (
 
   if (useWebSearch) {
     prompt += `
-    **Web Search:**
-    You have access to Google Search. Please use it to find the most up-to-date and relevant information to supplement the content, especially if the source material is missing details or if the topic requires current knowledge.
+    **Deep Research & Content Generation:**
+    You have access to Google Search. Since NO source material was provided, you MUST use Search to act as the primary researcher for this presentation.
+    
+    **Execution Steps:**
+    1.  **Search Broadly:** Understand the core scope of the Topic: "${topic}".
+    2.  **Verify Details:** Find accurate, up-to-date facts, statistics, dates, and real-world examples.
+    3.  **Cross-Reference:** Ensure the information is reliable and suitable for ${gradeLevel}.
+    4.  **Synthesize:** Assemble this researched information into the slide content.
+    
+    **Constraint:** Do not hallucinate. If you cannot find verified information on a specific sub-point, omit it or find a verifiable alternative.
     `;
   }
 

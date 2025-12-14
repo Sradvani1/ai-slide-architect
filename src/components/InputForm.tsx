@@ -22,6 +22,8 @@ interface InputFormProps {
   setCreativityLevel: (level: number) => void;
   bulletsPerSlide: number;
   setBulletsPerSlide: (num: number) => void;
+  additionalInstructions: string;
+  setAdditionalInstructions: (text: string) => void;
 }
 
 const PLACEHOLDER_PAIRS = [
@@ -77,8 +79,11 @@ export const InputForm: React.FC<InputFormProps> = ({
   setCreativityLevel,
   bulletsPerSlide,
   setBulletsPerSlide,
+  additionalInstructions,
+  setAdditionalInstructions,
 }) => {
   const [placeholders, setPlaceholders] = useState(PLACEHOLDER_PAIRS[0]);
+  const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
 
   useEffect(() => {
     setPlaceholders(PLACEHOLDER_PAIRS[Math.floor(Math.random() * PLACEHOLDER_PAIRS.length)]);
@@ -101,6 +106,36 @@ export const InputForm: React.FC<InputFormProps> = ({
             className="input-field"
             disabled={isLoading}
           />
+        </div>
+
+        <div>
+          <button
+            type="button"
+            onClick={() => setIsDescriptionOpen(!isDescriptionOpen)}
+            className="flex items-center text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 hover:text-primary transition-colors focus:outline-none"
+          >
+            <span className="mr-1">Description</span>
+            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-1.5 py-0.5 rounded mr-2">Optional</span>
+            <svg
+              className={`w-3 h-3 transition-transform duration-200 ${isDescriptionOpen ? 'transform rotate-180' : ''}`}
+              fill="none"
+              viewBox="0 0 24 24"
+              stroke="currentColor"
+            >
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
+            </svg>
+          </button>
+
+          {isDescriptionOpen && (
+            <textarea
+              id="additionalInstructions"
+              value={additionalInstructions}
+              onChange={(e) => setAdditionalInstructions(e.target.value)}
+              placeholder="Add specific instructions for the AI (e.g., 'Focus on economic impact', 'Use simple vocabulary', 'Include more examples')..."
+              className="input-field min-h-[80px] text-sm py-2 resize-y"
+              disabled={isLoading}
+            />
+          )}
         </div>
 
         <div className="grid grid-cols-2 gap-4">
@@ -152,10 +187,14 @@ export const InputForm: React.FC<InputFormProps> = ({
       </div>
 
       <div className="border-t border-white/5 pt-4 space-y-4">
-        <div className="flex items-center justify-between p-3 rounded-lg bg-neutral-bg border border-border-light hover:border-primary/20 transition-colors">
+        <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${uploadedFiles.length > 0 ? 'bg-neutral-bg/50 border-border-light/50 opacity-60' : 'bg-neutral-bg border-border-light hover:border-primary/20'}`}>
           <div className="flex flex-col">
-            <label htmlFor="webSearch" className="font-medium text-primary-text cursor-pointer text-sm" onClick={() => setUseWebSearch(!useWebSearch)}>Web Search Grounding</label>
-            <p className="text-secondary-text text-xs">Improve accuracy with real-time results</p>
+            <label htmlFor="webSearch" className={`font-medium text-sm ${uploadedFiles.length > 0 ? 'text-secondary-text cursor-not-allowed' : 'text-primary-text cursor-pointer'}`} onClick={() => uploadedFiles.length === 0 && setUseWebSearch(!useWebSearch)}>Use Google Search</label>
+            <p className="text-secondary-text text-xs mt-0.5">
+              {uploadedFiles.length > 0
+                ? "Disabled to prioritize your uploaded content"
+                : "AI will research this topic online"}
+            </p>
           </div>
           <button
             id="webSearch"
@@ -163,9 +202,9 @@ export const InputForm: React.FC<InputFormProps> = ({
             role="switch"
             aria-checked={useWebSearch}
             onClick={() => setUseWebSearch(!useWebSearch)}
-            disabled={isLoading}
+            disabled={isLoading || uploadedFiles.length > 0}
             className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface ${useWebSearch ? 'bg-primary' : 'bg-border-light'
-              } ${isLoading ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${(isLoading || uploadedFiles.length > 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <span
               aria-hidden="true"
