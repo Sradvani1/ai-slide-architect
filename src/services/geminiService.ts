@@ -31,90 +31,92 @@ export const generateSlidesFromDocument = async (
   bulletsPerSlide: number = 4,
   additionalInstructions: string = ''
 ): Promise<Slide[]> => {
+  const totalSlides = numSlides + 1;
+
+  // 1. SYSTEM ROLE & OBJECTIVE
   let prompt = `
-    Based on the following topic, grade level, and subject, generate a slide deck presentation.
+    You are an expert educational content creator and curriculum designer.
+    Your goal is to generate a professional, engaging slide deck that is perfectly tailored to the specified grade level.
+  `;
 
-    **Topic:**
-    ${topic}
-
-    **Grade Level:**
-    ${gradeLevel}
-
-    **Subject:**
-    ${subject}
-    `;
+  // 2. INPUT CONTEXT
+  prompt += `
+    **Presentation Context:**
+    - Topic: "${topic}"
+    - Target Audience: ${gradeLevel}
+    - Subject: ${subject}
+    - Target Length: exactly ${totalSlides} slides (1 Title + ${numSlides} Content)
+  `;
 
   if (additionalInstructions) {
     prompt += `
-    **Description & Instructions:**
-    ${additionalInstructions}
+    - User Instructions: "${additionalInstructions}"
     `;
   }
 
-  prompt += `
-    **Number of Slides:**
-    ${numSlides}
-    `;
-
-  if (sourceMaterial) {
+  // 3. SOURCE MATERIAL / RESEARCH (Mutually Exclusive Logic)
+  if (sourceMaterial) { // Curator Mode
     prompt += `
-    **Source Material:**
-    ---
+    **Source Material (GROUND TRUTH):**
+    You must derive your content PRIMARILY from the following text. Do not contradict it.
+    
+    SOURCE BEGIN:
     ${sourceMaterial}
-    ---
+    SOURCE END
     `;
-  }
-
-  if (useWebSearch) {
+  } else if (useWebSearch) { // Researcher Mode
     prompt += `
-    **Deep Research & Content Generation:**
-    You have access to Google Search. Since NO source material was provided, you MUST use Search to act as the primary researcher for this presentation.
+    **Research Phase (REQUIRED):**
+    Since no source material is provided, you MUST use Google Search to act as the **primary content researcher**.
     
-    **Execution Steps:**
-    1.  **Search Broadly:** Understand the core scope of the Topic: "${topic}".
-    2.  **Verify Details:** Find accurate, up-to-date facts, statistics, dates, and real-world examples.
-    3.  **Cross-Reference:** Ensure the information is reliable and suitable for ${gradeLevel}.
-    4.  **Synthesize:** Assemble this researched information into the slide content.
-    
-    **Constraint:** Do not hallucinate. If you cannot find verified information on a specific sub-point, omit it or find a verifiable alternative.
+    **Instructions:**
+    1.  **Find Content:** Search for high-quality, age-appropriate information to build the core content of these slides.
+    2.  **Curate Sources:** Select the best, most reliable references (URLs) that a teacher would value.
+    3.  **Synthesize:** Use these search results as the SOLE source of truth for the presentation.
     `;
   }
 
-  const totalSlides = numSlides + 1;
-
+  // 4. CONTENT GENERATION STANDARDS
   prompt += `
-    Please generate exactly ${totalSlides} slides.
-    
-    **SLIDE 1 MUST BE A TITLE SLIDE:**
-    - **Title:** Use the provided Topic: "${topic}".
-    - **Content:**
-      - A catchy, short tagline related to the topic.
-      - "${gradeLevel}"
-      - "${subject}"
-    - **Layout:** "Title Slide"
-    - **Image Prompt:** Create a prompt for an educational illustration that visually represents the overall topic in an engaging, grade level appropriate style.
-    - **Speaker Notes:** Brief introductory remarks welcoming the class and introducing the topic.
+    **Content Standards:**
+    1. **Educational Value:** Content must be accurate, age-appropriate, and pedagogically sound.
+    2. **Clarity:** Use clear, concise language. Avoid jargon unless defined.
+    3. **Engagement:** Speaker notes should be engaging and conversational (script format).
+  `;
 
-    **SLIDES 2 to ${totalSlides}:**
-    - Generate content slides covering the topic in a logical sequence.
-    - For each slide, provide a title, content consisting of EXACTLY ${bulletsPerSlide} bullet points, a prompt for an image generator, and detailed speaker notes.
-    - **IMPORTANT:** Do NOT use markdown formatting (like **bold** or *italic*) in the bullet points. Use plain text only.
-    - **IMPORTANT:** Do NOT use nested bullet points or sub-bullets. Each content item must be a single, standalone statement.
-    
-    **REQUIREMENTS FOR IMAGE PROMPTS:**
-    For each slide, generate a clear, descriptive imagePrompt for an EDUCATIONAL ILLUSTRATION to explain the concept. Focus ONLY on the visible objects, actions, and diagrams. Ensuring the visual complexity is appropriate for ${gradeLevel} students. If a diagram is needed, explicitly specify "labeled diagram" and list key labels. DO NOT include any style, artistic, or rendering instructions (e.g., "detailed", "photorealistic", "illustration style").
-    
-    Ensure the output is a valid JSON array of slide objects. Each object MUST have these properties:
-    - "title": string
-    - "content": array of strings (EXACTLY ${bulletsPerSlide} items, each as a separate string)
-    - "layout": string
-    - "imagePrompt": string
-    - "speakerNotes": string (Detailed speaker notes for the teacher. **IMPORTANT:** At the very end of the speaker notes, add a section titled "Sources:". You MUST list the full URLs of any websites used from web search. Do NOT just say "Google Search" or "Web Search". List the actual links found. If using uploaded files, list the filenames. If no specific sources were used, omit this section.)
-    `;
+  // 5. STRUCTURE REQUIREMENTS
+  prompt += `
+    **Structure Requirements:**
+    - Slide 1: Title Slide (Topic, Tagline, Student Metadata).
+    - Slides 2-${totalSlides}: Content Slides (Title, Content, Image Prompt, Speaker Notes).
+  `;
+
+  // 6. FORMATTING CONTRAINTS (CRITICAL)
+  prompt += `
+    **Formatting Constraints (CRITICAL):**
+    - **Bullets:** Exactly ${bulletsPerSlide} bullet points per content slide.
+    - **No Markdown:** Bullet points must be plain strings. NO bold (**), italics (*), or bullet characters (-) in the string itself.
+    - **Image Prompts:** Visual descriptions ONLY. No "Prompt:" prefix. Focus on the subject matter (e.g., "A cross-section of a plant cell"). Do NOT include style instructions.
+  `;
+
+  // 7. OUTPUT SCHEMA
+  prompt += `
+    **Output Format:**
+    Return a valid JSON array of objects satisfying this structure:
+    [
+      {
+        "title": "string",
+        "content": ["string", "string", ...], // Exactly ${bulletsPerSlide} items
+        "layout": "Title Slide" | "Content",
+        "imagePrompt": "string",
+        "speakerNotes": "string (Start with script. End with a 'Sources:' section listing URLs if Web Search was used)"
+      }
+    ]
+  `;
 
   try {
     const tools: any[] = [];
-    if (useWebSearch) {
+    if (useWebSearch && !sourceMaterial) {
       tools.push({ googleSearch: {} });
     }
 
@@ -131,7 +133,7 @@ export const generateSlidesFromDocument = async (
 
     let jsonText = response.text.trim();
 
-    // Clean up markdown formatting if present (needed when not using JSON mode)
+    // Clean up markdown formatting if present
     if (jsonText.startsWith("```")) {
       jsonText = jsonText.replace(/^```json\s*/, "").replace(/^```\s*/, "").replace(/\s*```$/, "");
     }
