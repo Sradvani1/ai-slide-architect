@@ -79,16 +79,16 @@ export const generateSlidesFromDocument = async (
 
     **SLIDES 2 to ${totalSlides}:**
     - Generate content slides covering the topic in a logical sequence.
-    - For each slide, provide a title, content as EXACTLY ${bulletsPerSlide} bullet points per slide, a prompt for an image generator, and detailed speaker notes.
+    - For each slide, provide a title, content consisting of EXACTLY ${bulletsPerSlide} bullet points, a prompt for an image generator, and detailed speaker notes.
     - **IMPORTANT:** Do NOT use markdown formatting (like **bold** or *italic*) in the bullet points. Use plain text only.
     - **IMPORTANT:** Do NOT use nested bullet points or sub-bullets. Each content item must be a single, standalone statement.
     
     **REQUIREMENTS FOR IMAGE PROMPTS:**
-    For each slide, generate a clear, descriptive imagePrompt for an EDUCATIONAL ILLUSTRATION to explain the concept. Focus on the objects, actions, or diagrams that should be visible, ensuring the visual complexity is appropriate for ${gradeLevel} students. If a diagram is needed, explicitly specify "labeled diagram" and list key labels. Do NOT include style instructions in the prompt.
+    For each slide, generate a clear, descriptive imagePrompt for an EDUCATIONAL ILLUSTRATION to explain the concept. Focus ONLY on the visible objects, actions, and diagrams. Ensuring the visual complexity is appropriate for ${gradeLevel} students. If a diagram is needed, explicitly specify "labeled diagram" and list key labels. DO NOT include any style, artistic, or rendering instructions (e.g., "detailed", "photorealistic", "illustration style").
     
     Ensure the output is a valid JSON array of slide objects. Each object MUST have these properties:
     - "title": string
-    - "content": array of strings (each bullet point as a separate string)
+    - "content": array of strings (EXACTLY ${bulletsPerSlide} items, each as a separate string)
     - "layout": string
     - "imagePrompt": string
     - "speakerNotes": string (Detailed speaker notes for the teacher. **IMPORTANT:** At the very end of the speaker notes, add a section titled "Sources:". You MUST list the full URLs of any websites used from web search. Do NOT just say "Google Search" or "Web Search". List the actual links found. If using uploaded files, list the filenames. If no specific sources were used, omit this section.)
@@ -198,7 +198,7 @@ export const regenerateImagePrompt = async (
 ): Promise<string> => {
   // IMPORTANT: These instructions must mirror exactly what is in generateSlidesFromDocument
   const prompt = `
-    Generate a clear, descriptive imagePrompt for an EDUCATIONAL ILLUSTRATION to explain the concept of the following presentation slide. Focus on the objects, actions, or diagrams that should be visible, ensuring the visual complexity is appropriate for ${gradeLevel} students. If a diagram is needed, explicitly specify "labeled diagram" and list key labels. Do NOT include style instructions in the prompt.
+    Generate a clear, descriptive imagePrompt for an EDUCATIONAL ILLUSTRATION to explain the concept of the following presentation slide. Focus ONLY on the visible objects, actions, and diagrams. Ensuring the visual complexity is appropriate for ${gradeLevel} students. If a diagram is needed, explicitly specify "labeled diagram" and list key labels. DO NOT include any style, artistic, or rendering instructions (e.g., "detailed", "photorealistic", "illustration style").
     
     **Slide Context:**
     - Title: "${slideTitle}"
