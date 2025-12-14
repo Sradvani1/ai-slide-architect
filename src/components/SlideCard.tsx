@@ -113,7 +113,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const handleGenerateImage = async () => {
         setIsGeneratingImage(true);
         try {
-            const imageBlob = await generateImage(slide.imagePrompt, creativityLevel);
+            const imageBlob = await generateImage(slide.imagePrompt, gradeLevel, creativityLevel);
             const sanitizedTitle = sanitizeFilename(slide.title);
             const filename = `${slideNumber}-${sanitizedTitle}.png`;
             downloadBlob(imageBlob, filename);
