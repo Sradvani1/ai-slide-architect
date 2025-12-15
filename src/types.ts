@@ -1,10 +1,12 @@
 
 export interface Slide {
   title: string;
-  content: string;
+  content: string[];
   imagePrompt: string;
   backgroundImage?: string; // URL for the generated image
   speakerNotes?: string;
+  sources?: string[];
+  layout?: string;
 }
 
 export interface ProjectFile {

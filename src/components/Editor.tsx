@@ -36,6 +36,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
+    const [searchEntryPoint, setSearchEntryPoint] = useState<string | null>(null);
+    const [sources, setSources] = useState<Array<{ uri: string; title?: string }>>([]);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -123,8 +125,30 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             // Simplest: Generate the slots content first (AI), then Create Project, then Upload Files, then Update Project with files.
 
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
-            const { slides: generatedSlides, inputTokens, outputTokens } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions);
+
+            const { slides: generatedSlides, inputTokens, outputTokens, sources, warnings, searchEntryPoint, webSearchQueries } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions);
             setSlides(generatedSlides);
+
+            // Grounding UI: Sources & Search Entry Point
+            if (sources && sources.length > 0) {
+                setSources(sources);
+            } else {
+                setSources([]);
+            }
+
+            if (searchEntryPoint) {
+                setSearchEntryPoint(searchEntryPoint);
+            } else {
+                setSearchEntryPoint(null);
+            }
+
+            if (warnings && warnings.length > 0) {
+                console.warn("Generation Warnings:", warnings);
+            }
+
+            if (webSearchQueries) {
+                console.log("Web Search Queries Used:", webSearchQueries);
+            }
 
             if (user) {
                 // 1. Create project with slides first
@@ -272,6 +296,47 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         subject={subject}
                         creativityLevel={creativityLevel}
                     />
+
+                    {/* Grounding & Citations UI */}
+                    {(searchEntryPoint || (sources && sources.length > 0)) && (
+                        <div className="mt-12 pt-8 border-t border-white/10">
+
+                            {/* Google Search Grounding Widget (Required if present) */}
+                            {searchEntryPoint && (
+                                <div className="mb-8 p-4 bg-white rounded-lg shadow-sm">
+                                    <h3 className="text-slate-800 text-sm font-semibold mb-2">Google Search Context</h3>
+                                    {/* Sandboxed rendering for safety */}
+                                    <div
+                                        className="grounding-widget"
+                                        dangerouslySetInnerHTML={{ __html: searchEntryPoint }}
+                                    />
+                                    {/* Note: In a real production app, use specific Google Search Widget components or iframe for full isolation */}
+                                </div>
+                            )}
+
+                            {/* Works Cited Section */}
+                            {sources && sources.length > 0 && (
+                                <div className="sources-section">
+                                    <h3 className="text-xl font-bold text-white mb-4">Works Cited</h3>
+                                    <ul className="space-y-2">
+                                        {sources.map((source, idx) => (
+                                            <li key={idx} className="flex items-start">
+                                                <span className="text-slate-500 mr-2">{idx + 1}.</span>
+                                                <a
+                                                    href={source.uri}
+                                                    target="_blank"
+                                                    rel="noopener noreferrer"
+                                                    className="text-primary hover:underline hover:text-primary-light transition-colors break-all"
+                                                >
+                                                    {source.title || source.uri}
+                                                </a>
+                                            </li>
+                                        ))}
+                                    </ul>
+                                </div>
+                            )}
+                        </div>
+                    )}
                 </div>
             </main>
         </div>
