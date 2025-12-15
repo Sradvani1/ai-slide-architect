@@ -740,7 +740,7 @@ export const generateImage = async (prompt: string, gradeLevel: string, temperat
     ${IMAGE_STYLE_GUIDE}`;
 
     const response = await retryWithBackoff(() => ai.models.generateContent({
-      model: "gemini-2.5-flash-image",
+      model: "gemini-3-pro-image-preview",
       contents: enhancedPrompt,
       config: {
         temperature: temperature,
