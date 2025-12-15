@@ -14,11 +14,10 @@ const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const IMAGE_STYLE_GUIDE = `
 **Visual Style Guidelines:**
-- **Art Style:** Flat vector-style educational illustration. Professional, clean lines.
+- **Art Style:** Flat vector-style educational illustration. Supplementary visual aid. Professional, clean lines.
 - **Background:** Clean, solid, or white background. No scenic backgrounds or visual clutter.
 - **Color & Contrast:** High contrast, distinct colors optimized for classroom projection.
-- **Typography:** Use LARGE, BOLD, Sans-Serif fonts for all text. Ensure maximum readability from a distance.
-- **Labeling:** Connect labels with clear, straight lines. No floating text.
+- **No Text:** The image must be completely text-free. No labels, no words, no letters, no numbers.
 `;
 
 export const generateSlidesFromDocument = async (
@@ -42,44 +41,39 @@ export const generateSlidesFromDocument = async (
 
   // 2. INPUT CONTEXT
   prompt += `
-    **Presentation Context:**
-    - Topic: "${topic}"
-    - Target Audience: ${gradeLevel}
-    - Subject: ${subject}
-    - Target Length: exactly ${totalSlides} slides (1 Title + ${numSlides} Content)
+  **Presentation Context:**
+  - Topic: "${topic}"
+  - Subject: ${subject}
+  - Target Audience: ${gradeLevel}
+  - Length: ${totalSlides} slides (1 Title + ${numSlides} Content)
+  ${additionalInstructions ? `- Additional Instructions: "${additionalInstructions}"` : ''}
   `;
-
-  if (additionalInstructions) {
-    prompt += `
-    - User Instructions: "${additionalInstructions}"
-    `;
-  }
 
   // 3. SOURCE MATERIAL / RESEARCH (Mutually Exclusive Logic)
   if (sourceMaterial) { // Curator Mode
     prompt += `
     **Source Material (GROUND TRUTH):**
-    You must derive your content PRIMARILY from the following text. Do not contradict it.
+      You must derive your content PRIMARILY from the following text. Do not contradict it.
     
     SOURCE BEGIN:
     ${sourceMaterial}
     SOURCE END
-    `;
+  `;
   } else if (useWebSearch) { // Researcher Mode
     prompt += `
     **Research Phase (REQUIRED):**
     Since no source material is provided, you MUST use Google Search to act as the **primary content researcher**.
     
     **Instructions:**
-    1.  **Find Content:** Search for high-quality, age-appropriate information to build the core content of these slides.
-    2.  **Curate Sources:** Select the best, most reliable references (URLs) that a teacher would value.
-    3.  **Synthesize:** Use these search results as the SOLE source of truth for the presentation.
+    1. **Find Content:** Search for high-quality, age-appropriate information to build the core content of these slides.
+    2. **Curate Sources:** Select the best, most reliable references (URLs) that a teacher would value.
+    3. **Synthesize:** Use these search results as the SOLE source of truth for the presentation.
     `;
   }
 
   // 4. CONTENT GENERATION STANDARDS
   prompt += `
-    **Content Standards:**
+  **Content Standards:**
     1. **Educational Value:** Content must be accurate, age-appropriate, and pedagogically sound.
     2. **Clarity:** Use clear, concise language. Avoid jargon unless defined.
     3. **Engagement:** Speaker notes should be engaging and conversational (script format).
@@ -87,32 +81,41 @@ export const generateSlidesFromDocument = async (
 
   // 5. STRUCTURE REQUIREMENTS
   prompt += `
-    **Structure Requirements:**
-    - Slide 1: Title Slide (Title, Tagline, Student Metadata). NO bullet points.
+  **Structure Requirements:**
+    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["Tagline: <brief punchy tagline>", "Subject: ${subject}", "Grade: ${gradeLevel}"].
     - Slides 2-${totalSlides}: Content Slides (Title, Content, Image Prompt, Speaker Notes).
   `;
 
   // 6. FORMATTING CONTRAINTS (CRITICAL)
   prompt += `
-    **Formatting Constraints (CRITICAL):**
+  **Formatting Constraints (CRITICAL):**
     - **Bullets:** Exactly ${bulletsPerSlide} bullet points per content slide.
     - **No Markdown:** Bullet points must be plain strings. NO bold (**), italics (*), or bullet characters (-) in the string itself.
-    - **Image Prompts:** Visual descriptions ONLY. No "Prompt:" prefix. Focus on the subject matter. Do NOT include style instructions.
   `;
 
-  // 7. OUTPUT SCHEMA
+  // 7. IMAGE PROMPTING GUIDELINES
   prompt += `
-    **Output Format:**
+  **Image Prompting Guidelines:**
+    1. **Visual Description ONLY:** Focus strictly on visible objects, actions, and settings.
+    2. **NO Diagrams:** Do not request diagrams that require text labels. Images are supplementary visual aids.
+    3. **Target Audience:** Ensure visual complexity is appropriate for ${gradeLevel} students.
+    4. **NO Style Instructions:** Do not include words like "vector", "style", "photorealistic".
+    5. **Content Alignment:** The image must directly illustrate the "Content" provided above.
+  `;
+
+  // 8. OUTPUT SCHEMA
+  prompt += `
+  **Output Format:**
     Return a valid JSON array of objects satisfying this structure:
-    [
-      {
-        "title": "string",
-        "content": ["string", "string", ...], // Exactly ${bulletsPerSlide} items
-        "layout": "Title Slide" | "Content",
-        "imagePrompt": "string",
-        "speakerNotes": "string (Start with script. End with a 'Sources:' section listing URLs if Web Search was used)"
-      }
-    ]
+[
+  {
+    "title": "string",
+    "content": ["string", "string", ...], // Exactly ${bulletsPerSlide} items
+    "layout": "Title Slide" | "Content",
+    "imagePrompt": "string",
+    "speakerNotes": "string (Start with script. End with a 'Sources:' section listing URLs if Web Search was used)"
+  }
+]
   `;
 
   try {
@@ -173,7 +176,7 @@ export const generateImage = async (prompt: string, gradeLevel: string, temperat
     ${IMAGE_STYLE_GUIDE}`;
 
     const response = await ai.models.generateContent({
-      model: "gemini-3-pro-image-preview",
+      model: "gemini-2.5-flash-image",
       contents: enhancedPrompt,
       config: {
         temperature: temperature,
@@ -232,11 +235,13 @@ export const regenerateImagePrompt = async (
     - Target Audience: ${gradeLevel} Grade Students
     - Subject: "${subject}"
     
-    **Unbreakable Constraints:**
-    1. **Visual Description ONLY:** Focus strictly on visible objects, actions, and diagrams.
-    2. **NO Style Instructions:** Do not include words like "vector", "style", "photorealistic".
-    3. **NO "Prompt:" prefix:** Return the raw description string only.
-    4. **Content Alignment:** The image must directly illustrate the "Content" provided above.
+    **Image Prompting Guidelines:**
+    1. **Visual Description ONLY:** Focus strictly on visible objects, actions, and settings.
+    2. **NO Diagrams:** Do not request diagrams that require text labels. Images are supplementary visual aids.
+    3. **Target Audience:** Ensure visual complexity is appropriate for ${gradeLevel} students.
+    4. **NO Style Instructions:** Do not include words like "vector", "style", "photorealistic".
+    5. **NO "Prompt:" prefix:** Return the raw description string only.
+    6. **Content Alignment:** The image must directly illustrate the "Content" provided above.
     
     **Output:**
     Return strictly the prompt text.
