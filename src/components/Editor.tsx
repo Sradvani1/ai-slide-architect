@@ -52,6 +52,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setTopic(project.title);
                     setGradeLevel(project.gradeLevel);
                     setSubject(project.subject);
+                    setAdditionalInstructions(project.additionalInstructions || '');
                     setSlides(project.slides);
                     setCurrentProjectId(project.id!);
 
@@ -157,6 +158,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     topic,
                     gradeLevel,
                     subject,
+                    additionalInstructions,
                     slides: generatedSlides,
                     inputTokens,
                     outputTokens

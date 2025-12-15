@@ -80,6 +80,7 @@ export interface ProjectData {
     topic: string;
     gradeLevel: string;
     subject: string;
+    additionalInstructions?: string;
     slides: Slide[];
     files?: ProjectFile[];
     inputTokens?: number;

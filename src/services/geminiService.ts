@@ -118,7 +118,6 @@ function validateSlideStructure(slide: any, idx: number): string[] {
 }
 
 // Rate limit / Retrying utilities
-// Rate limit / Retrying utilities
 const MAX_RETRIES = 3;
 const INITIAL_DELAY_MS = 1000;
 const MAX_DELAY_MS = 10000;
@@ -236,9 +235,9 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = MAX_RETRIES, 
 const IMAGE_STYLE_GUIDE = `
 **Visual Style Guidelines:**
 - **Art Style:** Flat vector-style educational illustration. Supplementary visual aid. Professional, clean lines.
-- **Background:** Clean, solid, or white background. No scenic backgrounds or visual clutter.
-- **Color & Contrast:** High contrast, distinct colors optimized for classroom projection.
-- **No Text:** The image must be completely text-free. No labels, no words, no letters, no numbers.
+- **Background:** Clean white background. No scenic backgrounds or visual clutter.
+- **Color & Contrast:** High contrast, distinct colors optimized for classroom presentation.
+- **Text:** usage should be minimal and limited to basic labels or simple words. Avoid complex sentences or paragraphs.
 `;
 
 // Helper to extract JSON array safely
@@ -392,32 +391,35 @@ export const generateSlidesFromDocument = async (
   prompt += `
   CONTENT STANDARDS
     1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound.
-    2. Clarity: Use clear, concise language. Avoid jargon unless defined.
+    2. Clarity: Use clear, concise language.
     3. Engagement: Speaker notes should be engaging and conversational (script format).
+    4. Citations: You MUST include a "Sources:" section at the very end of the speaker notes. List all used URLs (if Web Search) or filenames (if uploaded text).
   `;
 
   // 5. STRUCTURE REQUIREMENTS
   prompt += `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["Tagline: <brief punchy tagline>", "Subject: ${subject}", "Grade: ${gradeLevel}"].
+    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"].
     - Slides 2-${totalSlides}: Content Slides (Title, Content, Image Prompt, Speaker Notes, Sources).
   `;
 
   // 6. FORMATTING CONSTRAINTS (CRITICAL)
   prompt += `
-  FORMATTING CONSTRAINTS (CRITICAL)
+  FORMATTING CONSTRAINTS(CRITICAL)
     - Bullets: Exactly ${bulletsPerSlide} bullet points per content slide.
     - No Markdown: Bullet points must be plain strings. NO bold (**), italics (*), or bullet characters (-) in the string itself.
   `;
 
   // 7. IMAGE PROMPTING GUIDELINES
   prompt += `
-  IMAGE PROMPTING GUIDELINES
+  IMAGE PROMPTING GUIDELINES (JOB: WRITE INPUT FOR AN AI IMAGE GENERATOR)
+    0. Role: You are not drawing. You are writing a description for an AI image generator.
     1. Content Alignment: The image must directly illustrate the "Content" provided above.
     2. Visual Description ONLY: Focus strictly on visible objects, actions, and settings.
-    3. NO Diagrams: Do not request diagrams that require text labels. Images are supplementary visual aids.
+    3. NO Complex Diagrams: Avoid charts, graphs, and schematics. Describe tangible objects, scenes, or actions.
     4. Target Audience: Ensure visual complexity is appropriate for ${gradeLevel} students.
-    5. NO Style Instructions: Do not include words like "vector", "style", "photorealistic".
+    5. NO Style Instructions: Do not include words like "photorealistic", "cinematic", "3d render", "cartoon".
+    6. Simplicity: Keep the scene uncluttered. 
   `;
 
   // 8. OUTPUT SCHEMA
@@ -438,7 +440,10 @@ export const generateSlidesFromDocument = async (
           enum: ["Title Slide", "Content"]
         },
         imagePrompt: { type: "string" },
-        speakerNotes: { type: "string", description: "Conversational script explaining the slide content" },
+        speakerNotes: {
+          type: "string",
+          description: "Conversational script explaining the slide content. **IMPORTANT:** At the very end, add a section titled 'Sources:'. List full URLs of websites used or filenames of uploaded documents. If only general knowledge is used, omit this section."
+        },
         sources: {
           type: "array",
           items: { type: "string" },
@@ -468,7 +473,7 @@ export const generateSlidesFromDocument = async (
     if (isUsingWebSearchTool) {
       prompt += `
       OUTPUT FORMAT
-      Return a valid JSON array of objects. Do not include markdown code fences (like \`\`\`json).
+      Return a valid JSON array of objects.Do not include markdown code fences(like \`\`\`json).
       JSON Structure:
       [
         {
@@ -476,7 +481,7 @@ export const generateSlidesFromDocument = async (
           "content": ["string", "string", ...], 
           "layout": "Title Slide" | "Content",
           "imagePrompt": "string",
-          "speakerNotes": "string",
+          "speakerNotes": "string (Script + 'Sources:' section at the end with URLs/filenames)",
           "sources": ["url1", "url2"]
         }
       ]
@@ -690,11 +695,6 @@ export const generateSlidesFromDocument = async (
         if (slide.layout === 'Title Slide') {
           if (slide.content.length !== 3) {
             warnings.push(`Slide 1 (Title Slide) malformed: Expected 3 items (Tagline, Subject, Grade), got ${slide.content.length}.`);
-          } else {
-            // Stricter Shape Check
-            if (!slide.content[0].startsWith("Tagline:") && !slide.content[0].startsWith("Tagline")) warnings.push("Slide 1 expected Tagline first.");
-            if (!slide.content[1].startsWith("Subject:") && !slide.content[1].startsWith("Subject")) warnings.push("Slide 1 expected Subject second.");
-            if (!slide.content[2].startsWith("Grade:") && !slide.content[2].startsWith("Grade")) warnings.push("Slide 1 expected Grade third.");
           }
         } else {
           warnings.push(`Slide 1 expected to be 'Title Slide', got '${slide.layout}'`);
@@ -812,15 +812,13 @@ export const regenerateImagePrompt = async (
     Subject: "${subject}"
     
     IMAGE PROMPTING GUIDELINES
+    0. You are writing a description for an AI image generator.
     1. Content Alignment: The image must directly illustrate the "Content" provided above.
     2. Visual Description ONLY: Focus strictly on visible objects, actions, and settings.
-    3. NO Diagrams: Do not request diagrams that require text labels. Images are supplementary visual aids.
-    4. Target Audience: Ensure visual complexity is appropriate for ${gradeLevel} students.
-    5. NO Style Instructions: Do not include words like "vector", "style", "photorealistic".
-    6. NO "Prompt:" prefix: Return the raw description string only.
-    
-    OUTPUT
-    Return strictly the prompt text.
+    3. NO Complex Diagrams: Avoid charts, graphs, and schematics. Describe tangible objects, scenes, or actions.
+    4. Target Audience: Ensure visual descriptions are appropriate for ${gradeLevel} students.
+    5. NO Style Instructions: Do not include words like "photorealistic", "cinematic", "3d render", "cartoon".
+    6. Simplicity: Keep the scene uncluttered. This is a visual aid, not a comprehensive diagram.
   `;
 
   try {
