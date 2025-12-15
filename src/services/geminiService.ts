@@ -14,7 +14,7 @@ const ai = new GoogleGenAI({ apiKey: API_KEY });
 
 const IMAGE_STYLE_GUIDE = `
 **Visual Style Guidelines:**
-- **Art Style:** Flat vector-style educational illustration. Professional, clean lines. No photorealism, 3D renders, or cartoons.
+- **Art Style:** Flat vector-style educational illustration. Professional, clean lines.
 - **Background:** Clean, solid, or white background. No scenic backgrounds or visual clutter.
 - **Color & Contrast:** High contrast, distinct colors optimized for classroom projection.
 - **Typography:** Use LARGE, BOLD, Sans-Serif fonts for all text. Ensure maximum readability from a distance.
@@ -88,7 +88,7 @@ export const generateSlidesFromDocument = async (
   // 5. STRUCTURE REQUIREMENTS
   prompt += `
     **Structure Requirements:**
-    - Slide 1: Title Slide (Topic, Tagline, Student Metadata).
+    - Slide 1: Title Slide (Title, Tagline, Student Metadata). NO bullet points.
     - Slides 2-${totalSlides}: Content Slides (Title, Content, Image Prompt, Speaker Notes).
   `;
 
@@ -97,7 +97,7 @@ export const generateSlidesFromDocument = async (
     **Formatting Constraints (CRITICAL):**
     - **Bullets:** Exactly ${bulletsPerSlide} bullet points per content slide.
     - **No Markdown:** Bullet points must be plain strings. NO bold (**), italics (*), or bullet characters (-) in the string itself.
-    - **Image Prompts:** Visual descriptions ONLY. No "Prompt:" prefix. Focus on the subject matter (e.g., "A cross-section of a plant cell"). Do NOT include style instructions.
+    - **Image Prompts:** Visual descriptions ONLY. No "Prompt:" prefix. Focus on the subject matter. Do NOT include style instructions.
   `;
 
   // 7. OUTPUT SCHEMA
@@ -217,18 +217,25 @@ export const regenerateImagePrompt = async (
   subject: string,
   temperature: number = 0.7
 ): Promise<string> => {
-  // IMPORTANT: These instructions must mirror exactly what is in generateSlidesFromDocument
+  // IMPORTANT: These instructions mirror the semantic constraints of the main generator
   const prompt = `
-    Generate a clear, descriptive imagePrompt for an EDUCATIONAL ILLUSTRATION to explain the concept of the following presentation slide. Focus ONLY on the visible objects, actions, and diagrams. Ensuring the visual complexity is appropriate for ${gradeLevel} students. If a diagram is needed, explicitly specify "labeled diagram" and list key labels. DO NOT include any style, artistic, or rendering instructions (e.g., "detailed", "photorealistic", "illustration style").
+    You are an expert educational content creator.
+    Generate a clear, descriptive image prompt for an educational illustration that visually explains the specific content of this slide.
     
     **Slide Context:**
     - Title: "${slideTitle}"
     - Content: ${slideContent.join('; ')}
-    - Grade Level: "${gradeLevel}"
+    - Target Audience: ${gradeLevel} Grade Students
     - Subject: "${subject}"
-
+    
+    **Unbreakable Constraints:**
+    1. **Visual Description ONLY:** Focus strictly on visible objects, actions, and diagrams.
+    2. **NO Style Instructions:** Do not include words like "vector", "style", "photorealistic".
+    3. **NO "Prompt:" prefix:** Return the raw description string only.
+    4. **Content Alignment:** The image must directly illustrate the "Content" provided above.
+    
     **Output:**
-    Return ONLY the prompt text for an educational illustration. Do not include any conversational text or labels like "Prompt:".
+    Return strictly the prompt text.
   `;
 
   try {
