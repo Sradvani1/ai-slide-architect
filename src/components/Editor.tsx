@@ -297,6 +297,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         gradeLevel={gradeLevel}
                         subject={subject}
                         creativityLevel={creativityLevel}
+                        userId={user.uid}
+                        projectId={currentProjectId}
                     />
 
                     {/* Grounding & Citations UI */}

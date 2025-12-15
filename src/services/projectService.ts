@@ -17,7 +17,7 @@ import {
     getDownloadURL,
     deleteObject
 } from 'firebase/storage';
-import type { Slide, ProjectFile } from '../types';
+import type { Slide, ProjectFile, GeneratedImage } from '../types';
 
 /**
  * Uploads a file to Firebase Storage and returns the file metadata.
@@ -40,6 +40,31 @@ export const uploadFileToStorage = async (userId: string, projectId: string, fil
         };
     } catch (error) {
         console.error("Error uploading file:", error);
+        throw error;
+    }
+};
+
+/**
+ * Uploads a generated image blob to Firebase Storage.
+ */
+export const uploadImageToStorage = async (userId: string, projectId: string, imageBlob: Blob, filename: string): Promise<GeneratedImage> => {
+    try {
+        // Create a unique path for the image
+        // Using a dedicated 'images' folder to keep it organized separate from user uploads
+        const storagePath = `users/${userId}/projects/${projectId}/images/${Date.now()}_${filename}`;
+        const storageRef = ref(storage, storagePath);
+
+        const snapshot = await uploadBytes(storageRef, imageBlob);
+        const downloadUrl = await getDownloadURL(snapshot.ref);
+
+        return {
+            id: crypto.randomUUID(),
+            url: downloadUrl,
+            storagePath,
+            createdAt: Date.now()
+        };
+    } catch (error) {
+        console.error("Error uploading image:", error);
         throw error;
     }
 };

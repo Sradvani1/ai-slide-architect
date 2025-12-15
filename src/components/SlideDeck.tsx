@@ -18,6 +18,8 @@ interface SlideDeckProps {
     gradeLevel: string;
     subject: string;
     creativityLevel: number;
+    userId: string;
+    projectId: string | null;
 }
 
 const WelcomeMessage: React.FC = () => (
@@ -136,7 +138,7 @@ const generateDocx = async (slides: Slide[]) => {
     return await Packer.toBlob(doc);
 };
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide, gradeLevel, subject, creativityLevel }) => {
+export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide, gradeLevel, subject, creativityLevel, userId, projectId }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
@@ -429,6 +431,8 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         gradeLevel={gradeLevel}
                         subject={subject}
                         creativityLevel={creativityLevel}
+                        userId={userId}
+                        projectId={projectId}
                     />
                 ))}
             </div>
