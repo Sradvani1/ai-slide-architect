@@ -82,6 +82,8 @@ export interface ProjectData {
     subject: string;
     slides: Slide[];
     files?: ProjectFile[];
+    inputTokens?: number;
+    outputTokens?: number;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
 }

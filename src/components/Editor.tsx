@@ -123,7 +123,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             // Simplest: Generate the slots content first (AI), then Create Project, then Upload Files, then Update Project with files.
 
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
-            const generatedSlides = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions);
+            const { slides: generatedSlides, inputTokens, outputTokens } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions);
             setSlides(generatedSlides);
 
             if (user) {
@@ -133,7 +133,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     topic,
                     gradeLevel,
                     subject,
-                    slides: generatedSlides
+                    slides: generatedSlides,
+                    inputTokens,
+                    outputTokens
                 });
 
                 setCurrentProjectId(newProjectId);

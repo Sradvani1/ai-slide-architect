@@ -31,7 +31,7 @@ export const generateSlidesFromDocument = async (
   temperature: number = DEFAULT_TEMPERATURE,
   bulletsPerSlide: number = DEFAULT_BULLETS_PER_SLIDE,
   additionalInstructions: string = ''
-): Promise<Slide[]> => {
+): Promise<{ slides: Slide[], inputTokens: number, outputTokens: number }> => {
   const totalSlides = numSlides + 1;
 
   // 1. SYSTEM ROLE & OBJECTIVE
@@ -148,7 +148,11 @@ export const generateSlidesFromDocument = async (
       }
     });
 
-    return slides;
+    return {
+      slides,
+      inputTokens: response.usageMetadata?.promptTokenCount || 0,
+      outputTokens: response.usageMetadata?.candidatesTokenCount || 0
+    };
 
   } catch (error) {
     console.error("Error generating slides with Gemini API:", error);
