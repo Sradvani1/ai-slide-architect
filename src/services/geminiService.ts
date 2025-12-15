@@ -233,11 +233,11 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = MAX_RETRIES, 
   }
 }
 const IMAGE_STYLE_GUIDE = `
-**Visual Style Guidelines:**
-- **Art Style:** Flat vector-style educational illustration. Supplementary visual aid. Professional, clean lines.
-- **Background:** Clean white background. No scenic backgrounds or visual clutter.
-- **Color & Contrast:** High contrast, distinct colors optimized for classroom presentation.
-- **Text:** usage should be minimal and limited to basic labels or simple words. Avoid complex sentences or paragraphs.
+Visual Style Guidelines:
+- Art Style: Flat vector-style educational illustration. Supplementary visual aid. Professional, clean lines.
+- Background: Clean white background. No scenic backgrounds or visual clutter.
+- Color & Contrast: High contrast, distinct colors optimized for classroom presentation.
+- Text: usage should be minimal and limited to basic labels and simple words.
 `;
 
 // Helper to extract JSON array safely
@@ -419,7 +419,7 @@ export const generateSlidesFromDocument = async (
     3. NO Complex Diagrams: Avoid charts, graphs, and schematics. Describe tangible objects, scenes, or actions.
     4. Target Audience: Ensure visual complexity is appropriate for ${gradeLevel} students.
     5. NO Style Instructions: Do not include words like "photorealistic", "cinematic", "3d render", "cartoon".
-    6. Simplicity: Keep the scene uncluttered. 
+    6. Simplicity: Keep the scene uncluttered. Do not describe the background. 
   `;
 
   // 8. OUTPUT SCHEMA
@@ -818,7 +818,7 @@ export const regenerateImagePrompt = async (
     3. NO Complex Diagrams: Avoid charts, graphs, and schematics. Describe tangible objects, scenes, or actions.
     4. Target Audience: Ensure visual descriptions are appropriate for ${gradeLevel} students.
     5. NO Style Instructions: Do not include words like "photorealistic", "cinematic", "3d render", "cartoon".
-    6. Simplicity: Keep the scene uncluttered. This is a visual aid, not a comprehensive diagram.
+    6. Simplicity: Keep the scene uncluttered. Do not describe the background.
   `;
 
   try {
