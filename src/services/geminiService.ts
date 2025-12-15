@@ -319,12 +319,19 @@ function extractFirstJsonArray(text: string): any[] {
 
   const jsonString = cleanText.substring(firstBracket, endIndex + 1);
 
-  // 4. Attempt parse
+  // 4. Attempt parse with sanitization
   try {
     return JSON.parse(jsonString);
   } catch (error) {
-    console.error("JSON Parse Error Snippet:", jsonString.substring(0, 300));
-    throw new Error("Failed to parse extracted JSON array");
+    // Attempt simple sanitization (trailing commas)
+    try {
+      const sanitized = jsonString.replace(/,\s*([\]}])/g, '$1');
+      return JSON.parse(sanitized);
+    } catch (e2) {
+      // Only warn here, let the caller handle the repair pass
+      console.warn("JSON Extraction Failed (Snippet):", jsonString.substring(0, 150) + "...");
+      throw new Error("Failed to parse extracted JSON array");
+    }
   }
 }
 

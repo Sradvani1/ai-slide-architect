@@ -5,6 +5,7 @@ import { HowItWorks } from './landing/HowItWorks';
 import { UseCases } from './landing/UseCases';
 import { Footer } from './landing/Footer';
 import { Auth } from './Auth';
+import { Header } from './landing/Header';
 
 export const LandingPage: React.FC = () => {
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -19,22 +20,8 @@ export const LandingPage: React.FC = () => {
 
     return (
         <div className="min-h-screen bg-background">
-            {/* Header */}
-            <header className="w-full border-b border-subtle bg-surface">
-                <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
-                    <h1 className="text-xl font-semibold text-primary-text">
-                        SlidesEdu
-                    </h1>
-                    <button
-                        onClick={handleGetStarted}
-                        className="btn-primary text-sm px-4 py-2"
-                    >
-                        Sign In
-                    </button>
-                </div>
-            </header>
+            <Header onSignIn={handleGetStarted} />
 
-            {/* Main Content */}
             <main>
                 <Hero onGetStarted={handleGetStarted} />
                 <Features />
@@ -44,7 +31,6 @@ export const LandingPage: React.FC = () => {
 
             <Footer />
 
-            {/* Auth Modal */}
             {showAuthModal && (
                 <div
                     className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"

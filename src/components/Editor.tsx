@@ -12,6 +12,39 @@ interface EditorProps {
     user: User;
 }
 
+/**
+ * Validated "First Principles" Fix for Style Pollution.
+ * Uses Native Shadow DOM to create a hard CSS boundary around untrusted HTML.
+ * This prevents third-party styles (like body { background: black }) from leaking out.
+ */
+const ShadowSafeHTML: React.FC<{ html: string; className?: string }> = ({ html, className }) => {
+    const containerRef = React.useRef<HTMLDivElement>(null);
+    const shadowRootRef = React.useRef<ShadowRoot | null>(null);
+
+    useEffect(() => {
+        if (containerRef.current && !shadowRootRef.current) {
+            // mode: 'open' allows JS to access the shadow root if needed, standard for app components
+            shadowRootRef.current = containerRef.current.attachShadow({ mode: 'open' });
+        }
+
+        if (shadowRootRef.current) {
+            // Reset styles inside shadow root to ensure it behaves like a clean block
+            // and inject the HTML content.
+            // :host is the shadow host (the wrapper div).
+            const resetCss = `
+        <style>
+          :host { display: block; all: initial; font-family: inherit; }
+          /* Ensure content doesn't overflow horizontally inside the widget either */
+          * { max-width: 100%; box-sizing: border-box; }
+        </style>
+      `;
+            shadowRootRef.current.innerHTML = resetCss + html;
+        }
+    }, [html]);
+
+    return <div ref={containerRef} className={className} />;
+};
+
 export const Editor: React.FC<EditorProps> = ({ user }) => {
     const { projectId } = useParams<{ projectId: string }>();
     const navigate = useNavigate();
@@ -309,12 +342,11 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                             {searchEntryPoint && (
                                 <div className="mb-8 p-4 bg-white rounded-lg shadow-sm">
                                     <h3 className="text-slate-800 text-sm font-semibold mb-2">Google Search Context</h3>
-                                    {/* Sandboxed rendering for safety */}
-                                    <div
+                                    {/* Shadow DOM Isolation for Third-Party Content */}
+                                    <ShadowSafeHTML
+                                        html={searchEntryPoint}
                                         className="grounding-widget"
-                                        dangerouslySetInnerHTML={{ __html: searchEntryPoint }}
                                     />
-                                    {/* Note: In a real production app, use specific Google Search Widget components or iframe for full isolation */}
                                 </div>
                             )}
 

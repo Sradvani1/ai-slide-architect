@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { LandingPage } from './components/LandingPage';
 import { Dashboard } from './components/Dashboard';
 import { Editor } from './components/Editor';
+import { FAQ } from './components/landing/FAQ';
 import { auth, db } from './firebaseConfig';
 import { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -40,17 +41,24 @@ function App() {
     );
   }
 
-  if (!user) {
-    return <LandingPage />;
-  }
-
   return (
     <Router>
       <Routes>
-        <Route path="/" element={<Dashboard user={user} />} />
-        <Route path="/new" element={<Editor user={user} />} />
-        <Route path="/project/:projectId" element={<Editor user={user} />} />
-        <Route path="*" element={<Navigate to="/" replace />} />
+        <Route path="/faq" element={<FAQ />} />
+
+        {!user ? (
+          <>
+            <Route path="/" element={<LandingPage />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        ) : (
+          <>
+            <Route path="/" element={<Dashboard user={user} />} />
+            <Route path="/new" element={<Editor user={user} />} />
+            <Route path="/project/:projectId" element={<Editor user={user} />} />
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </>
+        )}
       </Routes>
     </Router>
   );
