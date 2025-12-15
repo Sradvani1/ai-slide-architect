@@ -97,6 +97,9 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     }, [contentText, isEditingContent]);
 
+    // Aspect Ratio State
+    const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1'>('16:9');
+
     // Sync local text state when active prompt changes
     useEffect(() => {
         setPromptText(activePrompt.prompt);
@@ -142,7 +145,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const handleGenerateImage = async () => {
         setIsGeneratingImage(true);
         try {
-            const imageBlob = await generateImage(activePrompt.prompt, gradeLevel, creativityLevel);
+            const imageBlob = await generateImage(activePrompt.prompt, gradeLevel, creativityLevel, aspectRatio);
 
             // Upload to storage if we have project context
             // Even if we don't have project ID yet (e.g. very first generation before save), we might want to wait?
@@ -157,7 +160,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             if (userId && projectId) {
                 const sanitizedTitle = sanitizeFilename(slide.title);
                 const filename = `img-${slideNumber}-${sanitizedTitle}.png`;
-                const generatedImage = await uploadImageToStorage(userId, projectId, imageBlob, filename);
+                const generatedImage = await uploadImageToStorage(userId, projectId, imageBlob, filename, aspectRatio);
 
                 // Update specific prompt with new image
                 const updatedPrompts = [...prompts];
@@ -453,6 +456,28 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 </div>
 
                 <div className="flex justify-end items-center pt-2 w-full gap-2 border-t border-slate-100/50 mt-1">
+                    {/* Aspect Ratio Selector */}
+                    <div className="flex items-center space-x-1 mr-auto bg-slate-100/50 p-1 rounded-lg">
+                        <button
+                            onClick={() => setAspectRatio('16:9')}
+                            className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '16:9'
+                                    ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            16:9
+                        </button>
+                        <button
+                            onClick={() => setAspectRatio('1:1')}
+                            className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '1:1'
+                                    ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                    : 'text-slate-500 hover:text-slate-700'
+                                }`}
+                        >
+                            1:1
+                        </button>
+                    </div>
+
                     <button
                         onClick={handleGenerateImage}
                         disabled={isGeneratingImage}

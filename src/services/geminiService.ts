@@ -727,7 +727,7 @@ export const generateSlidesFromDocument = async (
   }
 };
 
-export const generateImage = async (prompt: string, gradeLevel: string, temperature: number = 0.3): Promise<Blob> => {
+export const generateImage = async (prompt: string, gradeLevel: string, temperature: number = 0.3, aspectRatio: '16:9' | '1:1' = '16:9'): Promise<Blob> => {
   try {
     // Inject centralized style guidelines into the prompt
     const enhancedPrompt = `
@@ -744,7 +744,8 @@ export const generateImage = async (prompt: string, gradeLevel: string, temperat
       contents: enhancedPrompt,
       config: {
         temperature: temperature,
-      },
+        aspectRatio: aspectRatio,
+      } as any,
     }));
 
     // Extract image data from response

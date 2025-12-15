@@ -4,6 +4,7 @@ export interface GeneratedImage {
   url: string;
   storagePath: string;
   createdAt: number;
+  aspectRatio?: '16:9' | '1:1';
 }
 
 export interface ImagePrompt {
