@@ -20,20 +20,25 @@ export type ImageTextPolicy = 'NO_LABELS' | 'LIMITED_LABELS_1_TO_3';
 export type ImageLayout =
   | 'single-focal-subject-centered'
   | 'balanced-pair'
-  | 'simple-sequence-2-panel';
+  | 'simple-sequence-2-panel'
+  | 'comparison-split-screen'
+  | 'diagram-with-flow';
 
 export type Viewpoint =
   | 'front'
   | 'three-quarter'
   | 'side'
   | 'overhead'
-  | 'child-eye-level';
+  | 'child-eye-level'
+  | 'side-profile'
+  | 'isometric-3d-cutaway';
 
 export type Whitespace = 'generous' | 'moderate';
 
 export interface ImageSpec {
   // WHAT: semantic content
   primaryFocal: string;       // Single main visible concept/action
+  conceptualPurpose: string;  // REQUIRED - Teaching intent
   subjects: string[];         // 2–5 concrete objects
   actions?: string[];         // 0–3 verbs
   mustInclude: string[];      // 2–6 critical visible elements

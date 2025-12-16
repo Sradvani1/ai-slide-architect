@@ -427,24 +427,27 @@ export const generateSlidesFromDocument = async (
   IMAGE VISUAL SPECIFICATION (imageSpec)
   You must output an \`imageSpec\` object for each content slide. This object will be converted into an AI image generation prompt.
 
-  imageSpec rules:
-  - The image is a supplemental visual aid for the slide, not the entire lesson.
-  - Illustrate EXACTLY ONE primary idea from the slide bullets.
-  - Keep the scene simple and uncluttered.
-  - Use 2–5 concrete subjects (things you can literally draw).
-  - Use 2–6 mustInclude elements that are essential to understanding the slide.
-  - Use the avoid list to exclude distracting or confusing elements.
-  - Composition:
-    - Prefer layout = "single-focal-subject-centered".
-    - Viewpoint should be age-appropriate: younger grades use "child-eye-level" or "front".
-    - Whitespace should usually be "generous" so teachers can place text on top.
-  - Text policy:
-    - Default: textPolicy = "NO_LABELS" (no text or labels in the image).
-    - Only when the slide clearly needs 1–3 simple labels (e.g., parts of a plant), use textPolicy = "LIMITED_LABELS_1_TO_3" and specify allowedLabels.
-  - Colors: choose 3–5 high-contrast, classroom-friendly colors.
-  - negativePrompt: list common failure modes to avoid (e.g., "no cluttered background", "no chemical equations", "no complex diagrams").
+  TEACHING GOAL:
+  - The image must teach a specific concept, not just decorate the slide.
+  - Define a \`conceptualPurpose\`: What should the student understand from this image? (e.g., "Show how evaporation leads to condensation").
 
-  Output a valid JSON object for imageSpec matching the schema. Do NOT output an image prompt paragraph.
+  imageSpec rules:
+  - \`conceptualPurpose\`: REQUIRED. explicit pedagogical goal.
+  - \`primaryFocal\`: The main visual subject.
+  - \`subjects\`: 2–5 concrete objects to draw.
+  - \`mustInclude\`: 2–6 critical details to include.
+  - \`avoid\`: List distracting elements to exclude.
+  - Composition:
+    - \`layout\`: Choose best fit: "single-focal-subject-centered" (default), "balanced-pair" (comparisons), "comparison-split-screen" (before/after), "diagram-with-flow" (processes), "simple-sequence-2-panel" (steps).
+    - \`viewpoint\`: "front", "side", "overhead", "isometric-3d-cutaway" (for structures), "side-profile" (for layers/processes).
+    - \`whitespace\`: "generous" (default) or "moderate".
+  - Text policy:
+    - Default: "NO_LABELS" (no text).
+    - Only use "LIMITED_LABELS_1_TO_3" if critical for parts/diagrams.
+  - Colors: 3–5 high-contrast colors.
+  - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
+
+  Output a valid JSON object.
   `;
 
   // 8. OUTPUT SCHEMA
@@ -454,23 +457,27 @@ export const generateSlidesFromDocument = async (
   const imageSpecSchema = {
     type: "object",
     properties: {
-      primaryFocal: { type: "string" },
+      primaryFocal: { type: "string", description: "One-sentence description of the main visual subject." },
+      conceptualPurpose: { type: "string", description: "The educational goal: what concept should the student understand from this image?" },
       subjects: {
         type: "array",
         items: { type: "string" },
-        // minItems: 2, maxItems: 5 - Enforced by prompt & validator, schema is loose for robustness
+        description: "2-5 concrete visual elements.",
       },
       actions: {
         type: "array",
         items: { type: "string" },
+        description: "0-3 interactions or movements.",
       },
       mustInclude: {
         type: "array",
         items: { type: "string" },
+        description: "2-6 essential details.",
       },
       avoid: {
         type: "array",
         items: { type: "string" },
+        description: "Elements to exclude to prevent confusion.",
       },
       composition: {
         type: "object",
@@ -481,6 +488,8 @@ export const generateSlidesFromDocument = async (
               "single-focal-subject-centered",
               "balanced-pair",
               "simple-sequence-2-panel",
+              "comparison-split-screen",
+              "diagram-with-flow",
             ],
           },
           viewpoint: {
@@ -491,6 +500,8 @@ export const generateSlidesFromDocument = async (
               "side",
               "overhead",
               "child-eye-level",
+              "side-profile",
+              "isometric-3d-cutaway",
             ],
           },
           whitespace: {
@@ -511,6 +522,7 @@ export const generateSlidesFromDocument = async (
       colors: {
         type: "array",
         items: { type: "string" },
+        description: "3-5 key colors.",
       },
       negativePrompt: {
         type: "array",
@@ -519,6 +531,7 @@ export const generateSlidesFromDocument = async (
     },
     required: [
       "primaryFocal",
+      "conceptualPurpose",
       "subjects",
       "mustInclude",
       "avoid",
@@ -800,28 +813,29 @@ export const generateSlidesFromDocument = async (
 
       // 4. Image Spec Processing & Prompt Hashing
       // Unified block: If we have an imageSpec (Content slides), process it fully here.
+      // 4. Image Spec Processing & Prompt Hashing
+      // Unified block: If we have an imageSpec (Content slides), process it fully here.
       if (slide.imageSpec) {
         try {
-          // Sanitize
-          const cleanSpec = sanitizeImageSpec(slide.imageSpec, gradeLevel);
-
-          // Validate
-          const specErrors = validateImageSpec(cleanSpec);
+          // 1. Validate (Collect warnings, don't fail)
+          const specErrors = validateImageSpec(slide.imageSpec);
           if (specErrors.length > 0) {
-            warnings.push(`Slide ${idx + 1} ImageSpec invalid: ${specErrors.join('; ')}`);
+            warnings.push(`Slide ${idx + 1} ImageSpec warnings: ${specErrors.join('; ')}`);
           }
 
-          // Update Slide with Clean Spec
+          // 2. Sanitize & Repair (Fill defaults, clamp arrays, backfill conceptualPurpose)
+          const cleanSpec = sanitizeImageSpec(slide.imageSpec, gradeLevel);
           slide.imageSpec = cleanSpec;
 
-          // Format for API (Deterministic Prompt)
+          // 3. deterministic Format for API
           slide.renderedImagePrompt = formatImageSpec(cleanSpec, { gradeLevel, subject });
 
-          // Note: Hashing is async. We will do it in the parallel pass below to keep this loop sync/clean
-          // or refactor everything to map later. Key is we have prepared the data.
+          // 4. Hash (Will happen in parallel pass below)
         } catch (e) {
           console.error("Image Spec processing failed", e);
           warnings.push(`Slide ${idx + 1}: Failed to process image spec.`);
+          // Fallback? If sanitize fails, we might leave it as is or nullify it.
+          // Leaving it allows UI to try rendering or show error.
         }
       }
 
@@ -1017,6 +1031,7 @@ const imageSpecSchema = {
   type: SchemaType.OBJECT,
   properties: {
     primaryFocal: { type: SchemaType.STRING, description: "The main thing seen in the image." },
+    conceptualPurpose: { type: SchemaType.STRING, description: "Pedagogical goal of the image." },
     subjects: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "List of visual subjects." },
     actions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Verbs/actions happening." },
     mustInclude: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Critical details." },
@@ -1035,7 +1050,7 @@ const imageSpecSchema = {
     colors: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
     negativePrompt: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
   },
-  required: ['primaryFocal', 'subjects', 'mustInclude', 'avoid', 'composition', 'textPolicy'],
+  required: ['primaryFocal', 'conceptualPurpose', 'subjects', 'mustInclude', 'avoid', 'composition', 'textPolicy'],
 };
 
 export const regenerateImageSpec = async (

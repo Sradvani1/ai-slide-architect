@@ -12,10 +12,17 @@ export function validateImageSpec(spec: ImageSpec): string[] {
         return ['ImageSpec is null or undefined'];
     }
 
+    // REQUIRED FIELDS
     if (!spec.primaryFocal || typeof spec.primaryFocal !== 'string' || spec.primaryFocal.trim() === '') {
         errors.push('imageSpec.primaryFocal is required');
     }
 
+    // NEW: conceptualPurpose is critical
+    if (!spec.conceptualPurpose || typeof spec.conceptualPurpose !== 'string' || spec.conceptualPurpose.trim() === '') {
+        errors.push('imageSpec.conceptualPurpose is required');
+    }
+
+    // Checking Ranges
     if (!Array.isArray(spec.subjects) || spec.subjects.length < 2 || spec.subjects.length > 5) {
         errors.push('imageSpec.subjects must have 2–5 items');
     }
@@ -28,21 +35,32 @@ export function validateImageSpec(spec: ImageSpec): string[] {
         errors.push('imageSpec.avoid must have at least 2 items');
     }
 
+    // COMPOSITION
     if (!spec.composition) {
         errors.push('imageSpec.composition is required');
     } else {
-        // Runtime Enum Validation
-        const validLayouts: ImageLayout[] = ['single-focal-subject-centered', 'balanced-pair', 'simple-sequence-2-panel'];
-        const validViewpoints: Viewpoint[] = ['front', 'three-quarter', 'side', 'overhead', 'child-eye-level'];
+        const validLayouts: ImageLayout[] = [
+            'single-focal-subject-centered',
+            'balanced-pair',
+            'simple-sequence-2-panel',
+            'comparison-split-screen',
+            'diagram-with-flow'
+        ];
+        const validViewpoints: Viewpoint[] = [
+            'front',
+            'three-quarter',
+            'side',
+            'overhead',
+            'child-eye-level',
+            'side-profile',
+            'isometric-3d-cutaway'
+        ];
         const validWhitespaces: Whitespace[] = ['generous', 'moderate'];
 
         if (!validLayouts.includes(spec.composition.layout)) {
             errors.push(`Invalid layout: ${spec.composition.layout}`);
         }
         if (spec.composition.viewpoint && !validViewpoints.includes(spec.composition.viewpoint)) {
-            // Viewpoint might be undefined before sanitization, so check only if present? 
-            // Actually validate is usually called AFTER generation or BEFORE usage. 
-            // Let's assume strictness only if value exists, or undefined might be allowed raw?
             errors.push(`Invalid viewpoint: ${spec.composition.viewpoint}`);
         }
         if (!validWhitespaces.includes(spec.composition.whitespace)) {
@@ -50,11 +68,14 @@ export function validateImageSpec(spec: ImageSpec): string[] {
         }
     }
 
+    // TEXT POLICY
     if (spec.textPolicy) {
         const validPolicies: ImageTextPolicy[] = ['NO_LABELS', 'LIMITED_LABELS_1_TO_3'];
         if (!validPolicies.includes(spec.textPolicy)) {
             errors.push(`Invalid textPolicy: ${spec.textPolicy}`);
         }
+    } else {
+        errors.push('imageSpec.textPolicy is required');
     }
 
     return errors;
@@ -97,26 +118,80 @@ export function parseGradeLevel(gradeLevel: string): number {
  * This should be called before formatting.
  */
 export function sanitizeImageSpec(spec: ImageSpec, gradeLevel: string): ImageSpec {
-    // 1. Shallow clone + explicit normalization (avoid JSON.parse/stringify to keep undefineds)
+    // 1. Compatibility Check: Handle Null/Undefined input gracefully
+    // If spec is missing but we're here, we must produce a valid placeholder.
+    if (!spec) {
+        return {
+            primaryFocal: 'Visual representation of the concept',
+            conceptualPurpose: 'Visual aid for the requested topic',
+            subjects: ['key subject'],
+            mustInclude: ['clear visuals'],
+            avoid: ['text', 'blur'],
+            composition: {
+                layout: 'single-focal-subject-centered',
+                viewpoint: 'front',
+                whitespace: 'generous'
+            },
+            textPolicy: 'NO_LABELS',
+            colors: [],
+            negativePrompt: [],
+            actions: [],
+            allowedLabels: []
+        };
+    }
+
+    // 2. Shallow clone + data repair
     const clone: ImageSpec = { ...spec };
 
-    // Deep clone specific objects/arrays we intend to mutate
-    clone.subjects = [...(spec.subjects || [])].slice(0, 5);
-    clone.mustInclude = [...(spec.mustInclude || [])].slice(0, 6);
-    clone.avoid = [...(spec.avoid || [])].slice(0, 10);
-    clone.actions = spec.actions ? [...spec.actions].slice(0, 3) : [];
-    clone.colors = spec.colors ? [...spec.colors].slice(0, 5) : [];
-    clone.negativePrompt = spec.negativePrompt ? [...spec.negativePrompt].slice(0, 10) : [];
-    clone.allowedLabels = spec.allowedLabels ? [...spec.allowedLabels].slice(0, 3) : [];
+    // Backfill conceptualPurpose (Critical for legacy slides)
+    if (!clone.conceptualPurpose || typeof clone.conceptualPurpose !== 'string' || clone.conceptualPurpose.trim() === '') {
+        // Fallback: use primary focal as the base, or a generic purpose
+        clone.conceptualPurpose = clone.primaryFocal
+            ? `Help students visualize: ${clone.primaryFocal}`
+            : 'Provide a clear visual aid for this concept';
+    }
 
-    // Composition requires careful handling of sub-object
+    // 3. Clamp Arrays
+    clone.subjects = [...(spec.subjects || [])].filter(s => s && typeof s === 'string').slice(0, 5);
+    clone.mustInclude = [...(spec.mustInclude || [])].filter(s => s && typeof s === 'string').slice(0, 6);
+    clone.avoid = [...(spec.avoid || [])].filter(s => s && typeof s === 'string').slice(0, 10);
+    clone.actions = spec.actions ? [...spec.actions].filter(s => s && typeof s === 'string').slice(0, 3) : [];
+    clone.colors = spec.colors ? [...spec.colors].filter(s => s && typeof s === 'string').slice(0, 5) : [];
+    clone.negativePrompt = spec.negativePrompt ? [...spec.negativePrompt].filter(s => s && typeof s === 'string').slice(0, 10) : [];
+    clone.allowedLabels = spec.allowedLabels ? [...spec.allowedLabels].filter(s => s && typeof s === 'string').slice(0, 3) : [];
+
+    // 4. Composition Defaults
     clone.composition = spec.composition ? { ...spec.composition } : {
         layout: 'single-focal-subject-centered',
         viewpoint: undefined as any,
         whitespace: 'generous'
     };
 
-    // Ensure negativePrompt defaults
+    if (!clone.composition.layout) clone.composition.layout = 'single-focal-subject-centered';
+    if (!clone.composition.whitespace) clone.composition.whitespace = 'generous';
+
+    // Smart Viewpoint Default
+    const gradeNum = parseGradeLevel(gradeLevel);
+    if (!clone.composition.viewpoint) {
+        // Younger kids (K-2) benefit from simple eye-level views. Older -> Front/Isom/Side.
+        // Defaulting to 'front' for 3+ ensures clarity.
+        clone.composition.viewpoint = gradeNum <= 2 ? 'child-eye-level' : 'front';
+    }
+
+    // 5. Text Policy Defaults
+    if (!clone.textPolicy) {
+        clone.textPolicy = 'NO_LABELS';
+    }
+    if (clone.textPolicy === 'NO_LABELS') {
+        clone.allowedLabels = [];
+    }
+
+    // 6. Color Defaults (if empty)
+    if (clone.colors.length === 0) {
+        clone.colors = ['#1976D2', '#388E3C', '#F57C00']; // Simple primary-ish defaults
+    }
+
+    // 7. Negative Prompt Defaults (if empty)
     if (clone.negativePrompt.length === 0) {
         clone.negativePrompt = [
             'misspelled text',
@@ -125,26 +200,6 @@ export function sanitizeImageSpec(spec: ImageSpec, gradeLevel: string): ImageSpe
             'watermarks',
             'blurry'
         ];
-    }
-
-    // Defaults for Composition
-    if (!clone.composition.layout) clone.composition.layout = 'single-focal-subject-centered';
-    if (!clone.composition.whitespace) clone.composition.whitespace = 'generous';
-
-    // Smart Viewpoint Default
-    const gradeNum = parseGradeLevel(gradeLevel);
-    if (!clone.composition.viewpoint) {
-        // Younger kids (K-2) benefit from simple front/eye-level views
-        clone.composition.viewpoint = gradeNum <= 2 ? 'child-eye-level' : 'front';
-    }
-
-    // Text Policy Defaults
-    if (!clone.textPolicy) {
-        clone.textPolicy = 'NO_LABELS';
-    }
-
-    if (clone.textPolicy === 'NO_LABELS') {
-        clone.allowedLabels = [];
     }
 
     return clone;
@@ -161,6 +216,7 @@ interface FormatContext {
 export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
     const {
         primaryFocal,
+        conceptualPurpose,
         subjects,
         actions = [],
         mustInclude,
@@ -172,64 +228,55 @@ export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
         negativePrompt = [],
     } = spec;
 
-    const actionsStr = actions.length
-        ? `Actions: ${actions.join(', ')}.`
-        : '';
+    let prompt = `EDUCATIONAL VISUAL AID PROMPT
+${'='.repeat(40)}
 
-    const colorsStr = colors.length
-        ? `Primary colors: ${colors.join(', ')}.`
-        : '';
+CONTEXT:
+- Grade Level: ${ctx.gradeLevel}
+- Subject: ${ctx.subject}
 
-    const textPolicyStr =
-        textPolicy === 'NO_LABELS'
-            ? 'No text, letters, or labels in the image.'
-            : allowedLabels.length > 0
-                ? `Include at most these labels: ${allowedLabels.join(', ')}. Labels must be simple, legible, and large.`
-                : 'At most 1–3 simple labels if absolutely needed for clarity.';
+TEACHING PURPOSE (Why this matters):
+${conceptualPurpose || 'Provide a visual aid for the concept.'}
 
-    const rawAvoidList = [
-        ...avoid,
-        ...negativePrompt,
-        'watermarks or signatures in the focal area',
-        'dense, distracting background patterns',
-        'tiny unreadable details',
-    ];
-    // Dedupe
-    const avoidList = Array.from(new Set(rawAvoidList));
-
-    // We intentionally format this with explicit headers to guide the model
-    return `EDUCATIONAL VISUAL AID PROMPT
-Audience: ${ctx.gradeLevel} grade
-Subject: ${ctx.subject}
-
-Primary focus:
+PRIMARY VISUAL CONCEPT:
 ${primaryFocal}
 
-Show:
-- ${mustInclude.join('\n- ')}
+VISUAL ELEMENTS (Concrete objects):
+${subjects.map((s, i) => `${i + 1}. ${s}`).join('\n')}
 
-Objects:
-- ${subjects.join('\n- ')}
-${actionsStr ? '\n' + actionsStr : ''}
+${actions.length > 0 ? `ACTIONS / INTERACTIONS:\n${actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}\n` : ''}
+MUST INCLUDE (Critical details):
+${mustInclude.map((m, i) => `${i + 1}. ${m}`).join('\n')}
 
-Composition:
+COMPOSITION & LAYOUT:
 - Layout: ${composition.layout}
 - Viewpoint: ${composition.viewpoint}
-- Background: plain white
-- Whitespace: ${composition.whitespace} (leave room for slide text)
+- Whitespace: ${composition.whitespace} (keep clean for text overlay)
+- Background: Minimal/Plain (standard educational style)
 
-Text in image:
-- ${textPolicyStr}
+TEXT POLICY:
+${textPolicy === 'NO_LABELS'
+            ? '- No text, labels, or lettering in the image.'
+            : `- Include ONLY these labels: ${allowedLabels.join(', ')}.\n- Use large, legible font.`}
 
-Style:
-- Flat vector educational illustration, clean lines, classroom-friendly
-- High contrast, simple shapes, no photorealism
+COLORS (Semantic & High Contrast):
+${colors.length > 0
+            ? `- Use this palette: ${colors.join(', ')}`
+            : '- Use high-contrast primary colors suitable for classroom projection.'}
 
-${colorsStr}
+AVOID (Distractions):
+${avoid.map((a, i) => `${i + 1}. ${a}`).join('\n')}
 
-Avoid:
-- ${avoidList.join('\n- ')}
+NEGATIVE PROMPT (Prevent these errors):
+${negativePrompt.join(', ')}
+
+STYLE & TONE:
+- Educational illustration, suitable for textbooks or classroom slides.
+- Prioritize CLARITY over decorative flair.
+- Use clean lines and distinct shapes.
 `;
+
+    return prompt;
 }
 
 /**
