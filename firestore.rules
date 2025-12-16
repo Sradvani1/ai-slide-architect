@@ -1,0 +1,59 @@
+
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    
+    // User Projects
+    match /users/{userId}/projects/{projectId} {
+      // 1. Explicit Read Access (Owner only)
+      allow read: if request.auth != null && request.auth.uid == userId;
+      
+      // 2. Delete Access (Owner only)
+      allow delete: if request.auth != null && request.auth.uid == userId;
+
+      // Project Validation Function
+      function isValidProject() {
+         let data = request.resource.data;
+         // DENY forbidden legacy fields and root slides array
+         return !data.keys().hasAny(['slides', 'imagePrompt', 'prompts', 'legacy'])
+             // REQUIRE essential metadata fields
+             && data.keys().hasAll(['title', 'updatedAt', 'userId']);
+      }
+      
+      // 3. Create & Update (Owner + Validation)
+      allow create: if request.auth != null && request.auth.uid == userId && isValidProject();
+      allow update: if request.auth != null && request.auth.uid == userId && isValidProject();
+
+      // Subcollection: Slides
+      match /slides/{slideId} {
+        allow read: if request.auth != null && request.auth.uid == userId;
+        allow delete: if request.auth != null && request.auth.uid == userId;
+        
+        // Slide Validation Function
+        function isValidSlide() {
+           let data = request.resource.data;
+           // DENY legacy fields
+           return !data.keys().hasAny(['imagePrompt', 'prompts'])
+               // REQUIRE essential content fields
+               && data.keys().hasAll(['id', 'title', 'content', 'sortOrder'])
+               // TYPE CHECK (Basic) - 'content' must be a List (FireRules can't easily check typeof, but existence is good)
+               // VALIDATE promptHistory if present (Must be list)
+               && (!data.keys().hasAny(['promptHistory']) || data.promptHistory is list);
+        }
+        
+        allow create: if request.auth != null && request.auth.uid == userId && isValidSlide();
+        allow update: if request.auth != null && request.auth.uid == userId && isValidSlide();
+      }
+      
+      // Subcollection: History
+      match /history/{versionId} {
+        allow read, write: if request.auth != null && request.auth.uid == userId;
+      }
+    }
+    
+    // User Profile
+    match /users/{userId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}

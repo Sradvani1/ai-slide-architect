@@ -7,12 +7,14 @@ export interface GeneratedImage {
   aspectRatio?: '16:9' | '1:1';
 }
 
-export interface ImagePrompt {
-  id: string;
-  prompt: string;
+// NEW: Spec-first history record (Replacing legacy ImagePrompt)
+export interface ImagePromptRecord {
+  id: string;               // UUID
   createdAt: number;
+  spec: ImageSpec;          // REQUIRED (Source of truth)
+  renderedPrompt: string;   // Derived for audit
+  promptHash: string;       // SHA-256 for dedup
   generatedImages: GeneratedImage[];
-  spec?: ImageSpec; // Store the spec that generated this prompt
 }
 
 export type ImageTextPolicy = 'NO_LABELS' | 'LIMITED_LABELS_1_TO_3';
@@ -63,30 +65,40 @@ export interface ImageSpec {
 }
 
 export class ImageGenError extends Error {
+  public code: 'NO_IMAGE_DATA' | 'INVALID_MIME_TYPE' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN';
+  public isRetryable: boolean;
+  public context?: any;
+
   constructor(
     message: string,
-    public code: 'NO_IMAGE_DATA' | 'INVALID_MIME_TYPE' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN',
-    public isRetryable: boolean,
-    public context?: any
+    code: 'NO_IMAGE_DATA' | 'INVALID_MIME_TYPE' | 'NETWORK' | 'TIMEOUT' | 'UNKNOWN',
+    isRetryable: boolean,
+    context?: any
   ) {
     super(message);
     this.name = 'ImageGenError';
+    this.code = code;
+    this.isRetryable = isRetryable;
+    this.context = context;
   }
 }
 
 export interface Slide {
+  id: string; // UUID for subcollection addressing
+  sortOrder: number; // For maintaining order in subcollection
   title: string;
   content: string[];
-  imagePrompt?: string; // Deprecated, kept for backward compatibility (optional now)
+
   imageSpec?: ImageSpec; // Structured image specification (Source of Truth)
   renderedImagePrompt?: string; // Deterministic prompt derived from spec (for display/API)
   renderedImagePromptHash?: string; // SHA-256 hash of the rendered prompt for change detection
-  prompts?: ImagePrompt[]; // New history support
+  promptHistory?: ImagePromptRecord[]; // New history support (Spec-first)
   selectedPromptId?: string; // ID of the currently selected prompt
   backgroundImage?: string; // URL for the generated image
   speakerNotes: string; // Required, defaults to empty string if missing
   sources?: string[];
   layout?: 'Title Slide' | 'Content' | string; // Narrowed, but keeping string for safety against hallucinations
+  updatedAt?: any; // Firestore Timestamp or number
 }
 
 export interface ProjectFile {

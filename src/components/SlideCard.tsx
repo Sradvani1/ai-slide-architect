@@ -1,14 +1,14 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Slide, ImagePrompt, GeneratedImage, ImageSpec, ImageGenError } from '../types';
+import type { Slide, ImagePromptRecord, GeneratedImage, ImageSpec, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { generateImageFromSpec, regenerateImageSpec } from '../services/geminiService';
-import { formatImageSpec } from '../utils/imageUtils';
+import { formatImageSpec, hashPrompt, getVisualIdeaSummary } from '../utils/imageUtils';
 import { uploadImageToStorage } from '../services/projectService';
 
 interface SlideCardProps {
     slide: Slide;
     slideNumber: number;
-    onUpdateSlide: (updatedSlide: Slide) => void;
+    onUpdateSlide: (patch: Partial<Slide>) => void;
     gradeLevel: string;
     subject: string;
     creativityLevel: number;
@@ -54,15 +54,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     // However, for strict React purity, we should not mutate props. 
     // We will derive the "display" prompts array on the fly.
     // History State
-    const prompts: ImagePrompt[] = slide.prompts || [
-        {
-            id: 'legacy-' + Date.now(),
-            prompt: slide.renderedImagePrompt || slide.imagePrompt || '',
-            createdAt: Date.now(),
-            generatedImages: [],
-            spec: slide.imageSpec // Store spec if available
-        }
-    ];
+    // History State
+    const prompts: ImagePromptRecord[] = slide.promptHistory || [];
 
     // Identify which prompt is selected. Default to the last one (most recent) if not specified.
     // If selectedPromptId is set but not found, fallback to last.
@@ -74,9 +67,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const activeIndex = selectedPromptIndex >= 0 ? selectedPromptIndex : prompts.length - 1;
     const activePrompt = prompts[activeIndex];
 
-    const [promptText, setPromptText] = useState(activePrompt.prompt);
+    const [promptText, setPromptText] = useState(activePrompt?.renderedPrompt || '');
     const textareaRef = useRef<HTMLTextAreaElement>(null);
     const editContainerRef = useRef<HTMLDivElement>(null);
+
+    // Hard Re-entrancy Locks
+    const isGeneratingImageRef = useRef(false);
+    const isRegeneratingPromptRef = useRef(false);
 
     const [isEditingContent, setIsEditingContent] = useState(false);
     const [contentText, setContentText] = useState(slide.content.join('\n'));
@@ -104,8 +101,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
     // Sync local text state when active prompt changes
     useEffect(() => {
-        setPromptText(activePrompt.prompt);
-    }, [activePrompt.id, activePrompt.prompt]);
+        setPromptText(activePrompt?.renderedPrompt || '');
+    }, [activePrompt?.id, activePrompt?.renderedPrompt]);
 
     // Click outside to cancel prompt edit
     useEffect(() => {
@@ -137,65 +134,76 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             onUpdateSlide({
                 ...slide,
                 // Ensure prompts array is fully populated in the update if it wasn't before
-                prompts: prompts,
+                promptHistory: prompts,
                 selectedPromptId: newPrompt.id,
-                imagePrompt: newPrompt.prompt // Update legacy field just in case
+
             });
         }
     };
 
     const handleGenerateImage = async () => {
+        if (isGeneratingImageRef.current) return;
+        isGeneratingImageRef.current = true;
         setIsGeneratingImage(true);
         try {
             // New Flow: generateImageFromSpec
-            if (activePrompt.spec || slide.imageSpec) {
-                const specToUse = activePrompt.spec || slide.imageSpec;
-                if (!specToUse) throw new Error("No image spec available");
+            if (!activePrompt || !activePrompt.spec) {
+                throw new Error("No valid visual idea selected.");
+            }
 
-                const { blob, renderedPrompt } = await generateImageFromSpec(specToUse, gradeLevel, subject, {
-                    temperature: creativityLevel,
-                    aspectRatio: aspectRatio
+            const specToUse = activePrompt.spec;
+
+            const { blob, renderedPrompt } = await generateImageFromSpec(specToUse, gradeLevel, subject, {
+                temperature: creativityLevel,
+                aspectRatio: aspectRatio
+            });
+
+            // Handle result...
+            if (userId && projectId) {
+                const sanitizedTitle = sanitizeFilename(slide.title);
+                const filename = `img-${slideNumber}-${sanitizedTitle}.png`;
+                const generatedImage = await uploadImageToStorage(userId, projectId, blob, filename, aspectRatio);
+
+                // Update history
+                const updatedPrompts = [...prompts];
+                const updatedPrompt: ImagePromptRecord = {
+                    ...activePrompt,
+                    renderedPrompt: renderedPrompt, // Refresh render just in case
+                    generatedImages: [...(activePrompt.generatedImages || []), generatedImage],
+                };
+                updatedPrompts[activeIndex] = updatedPrompt;
+
+                onUpdateSlide({
+                    promptHistory: updatedPrompts,
+                    selectedPromptId: activePrompt.id,
+                    backgroundImage: generatedImage.url,
                 });
 
-                // Handle result...
-                if (userId && projectId) {
-                    const sanitizedTitle = sanitizeFilename(slide.title);
-                    const filename = `img-${slideNumber}-${sanitizedTitle}.png`;
-                    const generatedImage = await uploadImageToStorage(userId, projectId, blob, filename, aspectRatio);
-
-                    // Update history
-                    const updatedPrompts = [...prompts];
-                    const updatedPrompt = {
-                        ...activePrompt,
-                        prompt: renderedPrompt,
-                        generatedImages: [...(activePrompt.generatedImages || []), generatedImage],
-                        spec: specToUse
-                    };
-                    updatedPrompts[activeIndex] = updatedPrompt;
-
-                    onUpdateSlide({
-                        ...slide,
-                        prompts: updatedPrompts,
-                        selectedPromptId: activePrompt.id,
-                        backgroundImage: generatedImage.url,
-                        renderedImagePrompt: renderedPrompt
-                    });
-                } else {
-                    // Fallback download
-                    const url = URL.createObjectURL(blob);
-                    const a = document.createElement('a');
-                    a.href = url;
-                    a.download = `slide-${slideNumber}-image.png`;
-                    document.body.appendChild(a);
-                    a.click();
-                    document.body.removeChild(a);
-                    URL.revokeObjectURL(url);
+                // INVARIANT LOGGING (Production Signal)
+                console.groupCollapsed(`[Invariant] Image Generated: ${slide.id}`);
+                console.log({
+                    slideId: slide.id,
+                    promptId: activePrompt.id,
+                    promptHash: activePrompt.promptHash,
+                    generatedImagesLength: generatedImage ? activePrompt.generatedImages.length + 1 : activePrompt.generatedImages.length
+                });
+                if (updatedPrompts.length !== slide.promptHistory?.length) {
+                    console.error("Invariant Violation: Generate Image altered promptHistory length!");
                 }
+                console.groupEnd();
 
             } else {
-                // Fallback for legacy (should not hit in new decks)
-                alert("Legacy format not supported for regeneration. Please create a new deck.");
+                // Fallback download
+                const url = URL.createObjectURL(blob);
+                const a = document.createElement('a');
+                a.href = url;
+                a.download = `slide-${slideNumber}-image.png`;
+                document.body.appendChild(a);
+                a.click();
+                document.body.removeChild(a);
+                URL.revokeObjectURL(url);
             }
+
         } catch (error) {
             console.error('Error generating image:', error);
 
@@ -213,10 +221,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             alert(message);
         } finally {
             setIsGeneratingImage(false);
+            isGeneratingImageRef.current = false;
         }
     };
 
     const handleNewVisualIdea = async () => {
+        if (isRegeneratingPromptRef.current) return;
+        isRegeneratingPromptRef.current = true;
         setIsRegeneratingPrompt(true);
         try {
             // Generate NEW Spec
@@ -230,33 +241,60 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
             // Create display string
             const rendered = formatImageSpec(newSpec, { gradeLevel, subject });
+            const promptHash = await hashPrompt(rendered);
 
-            const newPromptObj: ImagePrompt = {
+            // Deduplication Check
+            const existingIndex = prompts.findIndex(p => p.promptHash === promptHash);
+
+            if (existingIndex !== -1) {
+                // Duplicate found: Switch to it
+                onUpdateSlide({
+                    ...slide,
+                    selectedPromptId: prompts[existingIndex].id
+                });
+                return;
+            }
+
+            // New unique idea
+            const newPromptRecord: ImagePromptRecord = {
                 id: crypto.randomUUID(),
-                prompt: rendered,
+                spec: newSpec,
+                renderedPrompt: rendered,
+                promptHash: promptHash,
                 createdAt: Date.now(),
                 generatedImages: [],
-                spec: newSpec
             };
 
-            const updatedPrompts = [...prompts, newPromptObj];
+            const updatedPrompts = [...(slide.promptHistory || []), newPromptRecord];
 
             onUpdateSlide({
-                ...slide,
-                prompts: updatedPrompts,
-                imageSpec: newSpec, // Update authoritative spec
-                renderedImagePrompt: rendered,
-                selectedPromptId: newPromptObj.id
+                promptHistory: updatedPrompts,
+                selectedPromptId: newPromptRecord.id
             });
-            // Note: We don't auto-generate the image here, we let the user click "Generate"
-            // Or we could auto-generate?
-            // "New Visual Idea" suggests getting the idea first. User can then generate.
+
+            // INVARIANT LOGGING (Production Signal)
+            console.groupCollapsed(`[Invariant] New Visual Idea: ${slide.id}`);
+            console.log({
+                slideId: slide.id,
+                promptHash: promptHash,
+                promptHistoryLength: updatedPrompts.length,
+                isDuplicate: updatedPrompts.length === (slide.promptHistory?.length || 0)
+            });
+
+            // Check for Hash Duplicates in the new list
+            const hashes = updatedPrompts.map(p => p.promptHash);
+            const uniqueHashes = new Set(hashes);
+            if (hashes.length !== uniqueHashes.size) {
+                console.error("Invariant Violation: Duplicate promptHash detected in promptHistory!", { hashes });
+            }
+            console.groupEnd();
 
         } catch (error) {
             console.error('Error generating new visual idea:', error);
             alert('Failed to create new visual idea. Please try again.');
         } finally {
             setIsRegeneratingPrompt(false);
+            isRegeneratingPromptRef.current = false;
         }
     };
 
@@ -264,26 +302,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setPromptText(e.target.value);
     };
 
-    const handleSavePrompt = () => {
-        // Update the CURRENT prompt version
-        const updatedPrompts = [...prompts];
-        updatedPrompts[activeIndex] = {
-            ...activePrompt,
-            prompt: promptText
-        };
-
-        onUpdateSlide({
-            ...slide,
-            prompts: updatedPrompts,
-            imagePrompt: promptText
-        });
-        setIsEditingPrompt(false);
-    };
-
     const handleCancelEdit = () => {
-        setPromptText(activePrompt.prompt);
+        setPromptText(activePrompt?.renderedPrompt || '');
         setIsEditingPrompt(false);
     };
+
+    // Derived UI Data
+    const visualSummary = activePrompt?.spec ? getVisualIdeaSummary(activePrompt.spec) : { title: 'No Idea', subtitle: '', elements: '' };
 
     const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
         setContentText(e.target.value);
@@ -324,9 +349,20 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         <textarea
                             ref={contentRef}
                             value={contentText}
-                            onChange={handleContentChange}
-                            className="input-field min-h-[150px] leading-relaxed resize-none focus:bg-white"
-                            rows={slide.content.length || 3}
+                            onChange={e => setContentText(e.target.value)}
+                            onBlur={() => {
+                                setIsEditingContent(false);
+                                if (contentText !== slide.content.join('\n')) {
+                                    // Split by newline and filter out empty lines, then clean text
+                                    const newContent = contentText.split('\n')
+                                        .map(line => line.trim())
+                                        .filter(line => line.length > 0)
+                                        .map(cleanText); // Ensure clean markdown
+
+                                    onUpdateSlide({ content: newContent });
+                                }
+                            }}
+                            className="w-full h-full min-h-[300px] resize-none outline-none text-secondary-text leading-relaxed bg-transparent"
                         />
                         <div className="flex justify-end space-x-2 mt-3">
                             <button
@@ -378,7 +414,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     <div className="flex-grow min-w-0">
                         {/* Prompt Header: Label + Navigation + Actions */}
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Image Prompt</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Idea</span>
 
                             {/* Navigation Controls */}
                             <div className="flex items-center space-x-2">
@@ -410,13 +446,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                     <div className="flex items-center space-x-1">
                                         <button
                                             onClick={() => setIsEditingPrompt(true)}
-                                            className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-primary transition-colors"
-                                            title="View Full Prompt"
+                                            className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded"
+                                            title="View Full Prompt (Advanced)"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
-                                            </svg>
+                                            View Prompt
                                         </button>
                                         <button
                                             onClick={handleNewVisualIdea}
@@ -434,20 +467,31 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             </div>
                         </div>
 
-                        {/* Prompt Text / Edit Mode */}
-                        {isEditingPrompt ? (
+
+                        {/* Visual Idea Summary / Prompt View */}
+                        {(prompts.length === 0) ? (
+                            <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
+                                <p className="text-sm text-slate-500 mb-3">No visual idea generated for this slide yet.</p>
+                                <button
+                                    onClick={handleNewVisualIdea}
+                                    disabled={isRegeneratingPrompt}
+                                    className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
+                                >
+                                    {isRegeneratingPrompt ? 'Generating Idea...' : 'Create Visual Idea'}
+                                </button>
+                            </div>
+                        ) : isEditingPrompt ? (
                             <div className="w-full animate-fade-in" ref={editContainerRef}>
-                                <div className="p-2 mb-2 bg-amber-50 text-amber-600 text-xs rounded border border-amber-200">
-                                    <strong>Note:</strong> Editing the prompt text directly disconnects it from the Visual Spec.
-                                    (Currently Disabled for consistency - use "New Idea" instead)
+                                <div className="p-2 mb-2 bg-slate-50 text-slate-500 text-xs rounded border border-slate-200">
+                                    <strong>Advanced View:</strong> This is the verbatim prompt sent to the image generator.
                                 </div>
                                 <textarea
                                     ref={textareaRef}
                                     value={promptText}
                                     onChange={handlePromptChange}
-                                    readOnly={true} // Read-only for now to enforce spec workflow
-                                    className="input-field text-sm min-h-[80px] bg-slate-100 text-slate-500 cursor-not-allowed"
-                                    rows={2}
+                                    readOnly={false}
+                                    className="input-field text-[10px] font-mono leading-tight min-h-[120px] bg-slate-100 text-slate-600 cursor-text"
+                                    rows={6}
                                 />
                                 <div className="flex justify-end space-x-2 mt-2">
                                     <button
@@ -460,14 +504,31 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             </div>
                         ) : (
                             <div className="relative group/prompt">
-                                <p className="text-sm text-secondary-text italic cursor-pointer hover:text-primary-text transition-colors line-clamp-3" onClick={() => setIsEditingPrompt(true)}>
-                                    {activePrompt.prompt}
-                                </p>
+                                {activePrompt?.spec ? (
+                                    <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-colors">
+                                        <div className="flex gap-2 mb-1">
+                                            <span className="text-xs font-bold text-primary-text">{visualSummary.title}</span>
+                                        </div>
+                                        <p className="text-xs text-secondary-text mb-2 line-clamp-2">{visualSummary.subtitle}</p>
+
+                                        <div className="flex flex-wrap gap-1">
+                                            {visualSummary.elements.split(',').map((elem, i) => (
+                                                <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                                    {elem.trim()}
+                                                </span>
+                                            ))}
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <p className="text-sm text-secondary-text italic cursor-pointer hover:text-primary-text transition-colors line-clamp-3" onClick={() => setIsEditingPrompt(true)}>
+                                        {activePrompt?.renderedPrompt || "No visual idea available."}
+                                    </p>
+                                )}
                             </div>
                         )}
 
-                        {/* Generated Images Strip */}
-                        {activePrompt.generatedImages && activePrompt.generatedImages.length > 0 && (
+                        {/* Recent Images Strip - Robust against undefined arrays */}
+                        {activePrompt?.generatedImages && activePrompt.generatedImages.length > 0 && (
                             <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
                                 {activePrompt.generatedImages.map((img) => (
                                     <a
@@ -527,7 +588,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         )}
                         <span>Generate Image</span>
                     </button>
-                    <CopyButton textToCopy={activePrompt.prompt} />
+                    <CopyButton textToCopy={activePrompt?.renderedPrompt || ''} />
                 </div>
             </footer>
         </div>

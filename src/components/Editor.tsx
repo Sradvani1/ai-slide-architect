@@ -4,7 +4,7 @@ import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
-import { createProject, updateProject, getProject, uploadFileToStorage } from '../services/projectService';
+import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
 
@@ -249,26 +249,25 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
     }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, user, navigate]);
 
-    const handleUpdateSlide = (index: number, updatedSlide: Slide) => {
-        if (!slides) return;
+    const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
+        setSlides(prevSlides => {
+            if (!prevSlides) return prevSlides;
+            const newSlides = [...prevSlides]; // Shallow copy array
+            const oldSlide = newSlides[index];
+            if (!oldSlide) return prevSlides; // Safety check
 
-        const newSlides = [...slides];
-        newSlides[index] = updatedSlide;
+            // Merge patch into local state
+            newSlides[index] = { ...oldSlide, ...patch };
 
-        setSlides(newSlides);
-
-        // Debounced Auto-Save
-        if (user && currentProjectId) {
-            if (saveTimeoutRef.current) {
-                clearTimeout(saveTimeoutRef.current);
+            // Immediate Atomic Update (Debounce can be handled by UI if needed, but Firestore handles rapid writes well on different docs)
+            if (user && currentProjectId && oldSlide.id) {
+                // Fire and forget (or track pending state if robust)
+                // We pass ONLY the patch to the service
+                updateSlide(user.uid, currentProjectId, oldSlide.id, patch).catch(console.error);
             }
 
-            saveTimeoutRef.current = setTimeout(() => {
-                updateProject(user.uid, currentProjectId, {
-                    slides: newSlides
-                }).catch(console.error);
-            }, 2000); // 2 second debounce
-        }
+            return newSlides;
+        });
     };
 
     return (

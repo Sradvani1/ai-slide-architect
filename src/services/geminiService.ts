@@ -106,9 +106,9 @@ function validateSlideStructure(slide: any, idx: number): string[] {
   }
 
   // Required keys
-  const required = ['title', 'content', 'speakerNotes']; // imageSpec is NOT required here to allow Title slides to omit it potentially, or we enforce logic manually
-  // Removed 'imagePrompt' from required since we now use imageSpec, and it might be optional on Title Slide
-  // or checking specific schema below. Let's keep it loose for top-level keys.
+  const required = ['title', 'content', 'speakerNotes']; // imageSpec is NOT required here to allow Title slides to omit it potentially
+  // Strict checking for top-level keys
+
 
   required.forEach(key => {
     if (!(key in slide)) errors.push(`Slide ${idx + 1}: Missing '${key}'`);
@@ -554,7 +554,7 @@ export const generateSlidesFromDocument = async (
           type: "string",
           enum: ["Title Slide", "Content"]
         },
-        // imagePrompt is no longer requested, we request imageSpec
+        // imageSpec: We request imageSpec for all content slides
         imageSpec: imageSpecSchema,
         speakerNotes: {
           type: "string",
@@ -773,6 +773,10 @@ export const generateSlidesFromDocument = async (
     // Validation & Sanitization Pass
     // Refactor to for...of loop to support await inside (for hashing)
     for (const [idx, slide] of slides.entries()) {
+      // 0. ID & Order Injection (Critical for Subcollections)
+      if (!slide.id) slide.id = crypto.randomUUID();
+      slide.sortOrder = idx;
+
       // 1. Strict Structure Validation
       const structureErrors = validateSlideStructure(slide, idx);
       if (structureErrors.length > 0) {
@@ -860,37 +864,27 @@ export const generateSlidesFromDocument = async (
         warnings.push(`Slide ${idx + 1}: Missing layout property.`);
       }
 
-      // 6. Image Spec Processing
-      // This block is now redundant as image spec processing is unified above.
-      // Keeping it commented out for now, but it should be removed in a cleanup pass.
-      /*
-      if (slide.layout !== 'Title Slide' && slide.imageSpec) {
-        // Validate
-        const specErrors = validateImageSpec(slide.imageSpec);
-        if (specErrors.length > 0) {
-          warnings.push(`Slide ${idx + 1} ImageSpec: ${specErrors.join('; ')}`);
-        }
-  
-        // Sanitize (Fix defaults, clamp arrays)
-        slide.imageSpec = sanitizeImageSpec(slide.imageSpec, gradeLevel);
-  
-        // Deterministic Format
-        slide.renderedImagePrompt = formatImageSpec(slide.imageSpec, { gradeLevel, subject });
-  
-        // Hash
-        // Note: hashing is async because it might use crypto, we should handle this
-        // Ideally we await it, but we are inside forEach.
-        // Let's postpone hashing or do it in a Promise.all map if we really need it now.
-        // For simplicity in this sync-like loop, we'll skip async hashing here or just let the UI compute it lazy?
-        // Better: Refactor the loop to be async map.
-      }
-      */
+
     }
 
+    // Async pass for Hashing (since we couldn't do it in forEach easily)
     // Async pass for Hashing (since we couldn't do it in forEach easily)
     await Promise.all(slides.map(async (slide) => {
       if (slide.renderedImagePrompt) {
         slide.renderedImagePromptHash = await hashPrompt(slide.renderedImagePrompt);
+
+        // Initialize History (Single Source of Truth)
+        if (slide.imageSpec) {
+          slide.promptHistory = [{
+            id: crypto.randomUUID(),
+            createdAt: Date.now(),
+            spec: slide.imageSpec,
+            renderedPrompt: slide.renderedImagePrompt,
+            promptHash: slide.renderedImagePromptHash,
+            generatedImages: []
+          }];
+          slide.selectedPromptId = slide.promptHistory[0].id;
+        }
       }
     }));
 

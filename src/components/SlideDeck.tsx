@@ -12,7 +12,7 @@ interface SlideDeckProps {
     slides: Slide[] | null;
     isLoading: boolean;
     error: string | null;
-    onUpdateSlide: (index: number, updatedSlide: Slide) => void;
+    onUpdateSlide: (index: number, patch: Partial<Slide>) => void;
     gradeLevel: string;
     subject: string;
     creativityLevel: number;
@@ -243,14 +243,11 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
                         const filename = `slide-${i + 1}-${sanitizedTitle}.png`;
                         folder.file(filename, blob);
-                    } else if (slide.imagePrompt) {
-                        // Fallback message for legacy slides or just skip
-                        folder.file(`slide-${i + 1}-legacy.txt`, `Legacy image generation not supported for: ${slide.imagePrompt}`);
                     }
                 } catch (err) {
                     console.error(`Failed to generate image for slide ${i + 1}`, err);
                     // Continue with other slides even if one fails
-                    folder.file(`slide-${i + 1}-error.txt`, `Failed to generate image for prompt: ${slide.imagePrompt}`);
+                    folder.file(`slide-${i + 1}-error.txt`, `Failed to generate image.`);
                 }
             }
 
@@ -412,7 +409,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         key={index}
                         slide={slide}
                         slideNumber={index + 1}
-                        onUpdateSlide={(updatedSlide) => onUpdateSlide(index, updatedSlide)}
+                        onUpdateSlide={(patch) => onUpdateSlide(index, patch)}
                         gradeLevel={gradeLevel}
                         subject={subject}
                         creativityLevel={creativityLevel}

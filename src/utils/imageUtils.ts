@@ -1,5 +1,5 @@
 
-import { ImageSpec, ImageLayout, Viewpoint, Whitespace, ImageTextPolicy } from '../types';
+import type { ImageSpec, ImageLayout, Viewpoint, Whitespace, ImageTextPolicy } from '../types.ts';
 
 /**
  * Validates an ImageSpec object at runtime.
@@ -279,10 +279,39 @@ STYLE & TONE:
     return prompt;
 }
 
+// Helper Types for UI Summary
+export interface VisualIdeaSummary {
+    title: string;
+    subtitle: string;
+    elements: string;
+}
+
 /**
- * Generates a SHA-256 hash of the prompt string.
- * Used to detect if the prompt has changed since the last generation.
+ * Returns a user-friendly summary of the visual idea.
+ * Used to display a clean UI instead of the raw prompt.
  */
+export function getVisualIdeaSummary(spec: ImageSpec): VisualIdeaSummary {
+    if (!spec) {
+        return {
+            title: 'No Visual Idea',
+            subtitle: 'Create a new idea to get started.',
+            elements: ''
+        };
+    }
+
+    const { primaryFocal, conceptualPurpose, subjects = [] } = spec;
+
+    // Truncate subjects if there are too many
+    const displaySubjects = subjects.slice(0, 3);
+    const remaining = subjects.length - 3;
+    const elementsStr = displaySubjects.join(', ') + (remaining > 0 ? `... (+${remaining} more)` : '');
+
+    return {
+        title: primaryFocal || 'Visual Concept',
+        subtitle: conceptualPurpose || 'Visual aid',
+        elements: elementsStr
+    };
+}
 export async function hashPrompt(prompt: string): Promise<string> {
     const encoder = new TextEncoder();
     const data = encoder.encode(prompt);

@@ -17,9 +17,10 @@ console.log("Running Image Utils Tests...\n");
 console.log("--- validateImageSpec ---");
 
 const validSpec: ImageSpec = {
-    primaryFocal: "A red ball",
-    subjects: ["ball", "grass"],
-    mustInclude: ["ball", "grass"],
+    primaryFocal: "A happy cat",
+    conceptualPurpose: "To show happiness",
+    subjects: ["cat"],
+    mustInclude: ["smile", "grass"],
     avoid: ["people", "text"],
     composition: {
         layout: "single-focal-subject-centered",
