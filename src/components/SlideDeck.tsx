@@ -6,9 +6,7 @@ import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
 import { generateImageFromSpec } from '../services/geminiService';
 import type { Slide } from '../types';
 
-type PptxGenJsConstructor = typeof import('pptxgenjs') extends { default: infer DefaultExport }
-    ? DefaultExport
-    : never;
+import PptxGenJS from 'pptxgenjs';
 
 interface SlideDeckProps {
     slides: Slide[] | null;
@@ -142,29 +140,11 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
-    const [PptxGenJS, setPptxGenJS] = useState<PptxGenJsConstructor | null>(null);
 
-    useEffect(() => {
-        let isCancelled = false;
 
-        import('pptxgenjs')
-            .then((module) => {
-                if (!isCancelled) {
-                    const Constructor = (module as { default: PptxGenJsConstructor }).default;
-                    setPptxGenJS(() => Constructor);
-                }
-            })
-            .catch((err) => {
-                console.error('Failed to load pptxgenjs library', err);
-            });
-
-        return () => {
-            isCancelled = true;
-        };
-    }, []);
 
     const handleExportPPTX = async () => {
-        if (!slides || !PptxGenJS) return;
+        if (!slides) return;
 
         setIsExporting(true);
         try {
@@ -400,7 +380,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
 
                     <button
                         onClick={handleExportPPTX}
-                        disabled={isExporting || !PptxGenJS || isDownloadingImages}
+                        disabled={isExporting || isDownloadingImages}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-wait
                             ${isExporting
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
