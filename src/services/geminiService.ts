@@ -1,10 +1,17 @@
 
 import { GoogleGenAI } from "@google/genai";
-import type { Slide } from '../types';
+import type { Slide, ImageSpec } from '../types';
+import { ImageGenError } from '../types';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
+import {
+  validateImageSpec,
+  sanitizeImageSpec,
+  formatImageSpec,
+  hashPrompt,
+  parseGradeLevel // Useful helper if needed internally
+} from '../utils/imageUtils';
 
-const API_KEY = process.env.API_KEY;
-
+const API_KEY = process.env.API_KEY || ''; // Ensure string
 if (!API_KEY) {
   throw new Error("API_KEY environment variable is not set");
 }
@@ -99,7 +106,10 @@ function validateSlideStructure(slide: any, idx: number): string[] {
   }
 
   // Required keys
-  const required = ['title', 'content', 'layout', 'imagePrompt', 'speakerNotes'];
+  const required = ['title', 'content', 'speakerNotes']; // imageSpec is NOT required here to allow Title slides to omit it potentially, or we enforce logic manually
+  // Removed 'imagePrompt' from required since we now use imageSpec, and it might be optional on Title Slide
+  // or checking specific schema below. Let's keep it loose for top-level keys.
+
   required.forEach(key => {
     if (!(key in slide)) errors.push(`Slide ${idx + 1}: Missing '${key}'`);
   });
@@ -232,13 +242,7 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = MAX_RETRIES, 
     return retryWithBackoff(fn, retries - 1, nextDelay, deadline);
   }
 }
-const IMAGE_STYLE_GUIDE = `
-Visual Style Guidelines:
-- Art Style: Flat vector-style educational illustration. Supplementary visual aid. Professional, clean lines.
-- Background: Clean white background. No scenic backgrounds or visual clutter.
-- Color & Contrast: High contrast, distinct colors optimized for classroom presentation.
-- Text: usage should be minimal and limited to basic labels and simple words.
-`;
+// IMAGE_STYLE_GUIDE removed - it is now part of formatImageSpec utility
 
 // Helper to extract JSON array safely
 function extractFirstJsonArray(text: string): any[] {
@@ -406,8 +410,8 @@ export const generateSlidesFromDocument = async (
   // 5. STRUCTURE REQUIREMENTS
   prompt += `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"].
-    - Slides 2-${totalSlides}: Content Slides (Title, Content, Image Prompt, Speaker Notes, Sources).
+    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"]. (No imageSpec required).
+    - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes, Sources).
   `;
 
   // 6. FORMATTING CONSTRAINTS (CRITICAL)
@@ -418,19 +422,110 @@ export const generateSlidesFromDocument = async (
   `;
 
   // 7. IMAGE PROMPTING GUIDELINES
+  // 7. IMAGE VISUAL SPECIFICATION (imageSpec)
   prompt += `
-  IMAGE PROMPTING GUIDELINES (JOB: WRITE INPUT FOR AN AI IMAGE GENERATOR)
-    0. Role: You are not drawing. You are writing a description for an AI image generator.
-    1. Content Alignment: The image must directly illustrate the "Content" provided above.
-    2. Visual Description ONLY: Focus strictly on visible objects, actions, and settings.
-    3. NO Complex Diagrams: Avoid charts, graphs, and schematics. Describe tangible objects, scenes, or actions.
-    4. Target Audience: Ensure visual complexity is appropriate for ${gradeLevel} students.
-    5. NO Style Instructions: Do not include words like "photorealistic", "cinematic", "3d render", "cartoon".
-    6. Simplicity: Keep the scene uncluttered. Do not describe the background. 
+  IMAGE VISUAL SPECIFICATION (imageSpec)
+  You must output an \`imageSpec\` object for each content slide. This object will be converted into an AI image generation prompt.
+
+  imageSpec rules:
+  - The image is a supplemental visual aid for the slide, not the entire lesson.
+  - Illustrate EXACTLY ONE primary idea from the slide bullets.
+  - Keep the scene simple and uncluttered.
+  - Use 2–5 concrete subjects (things you can literally draw).
+  - Use 2–6 mustInclude elements that are essential to understanding the slide.
+  - Use the avoid list to exclude distracting or confusing elements.
+  - Composition:
+    - Prefer layout = "single-focal-subject-centered".
+    - Viewpoint should be age-appropriate: younger grades use "child-eye-level" or "front".
+    - Whitespace should usually be "generous" so teachers can place text on top.
+  - Text policy:
+    - Default: textPolicy = "NO_LABELS" (no text or labels in the image).
+    - Only when the slide clearly needs 1–3 simple labels (e.g., parts of a plant), use textPolicy = "LIMITED_LABELS_1_TO_3" and specify allowedLabels.
+  - Colors: choose 3–5 high-contrast, classroom-friendly colors.
+  - negativePrompt: list common failure modes to avoid (e.g., "no cluttered background", "no chemical equations", "no complex diagrams").
+
+  Output a valid JSON object for imageSpec matching the schema. Do NOT output an image prompt paragraph.
   `;
 
   // 8. OUTPUT SCHEMA
   // Defined in responseSchema below, but mentioned here for context if needed (though implicit in structured output)
+
+  // Schema Definitions
+  const imageSpecSchema = {
+    type: "object",
+    properties: {
+      primaryFocal: { type: "string" },
+      subjects: {
+        type: "array",
+        items: { type: "string" },
+        // minItems: 2, maxItems: 5 - Enforced by prompt & validator, schema is loose for robustness
+      },
+      actions: {
+        type: "array",
+        items: { type: "string" },
+      },
+      mustInclude: {
+        type: "array",
+        items: { type: "string" },
+      },
+      avoid: {
+        type: "array",
+        items: { type: "string" },
+      },
+      composition: {
+        type: "object",
+        properties: {
+          layout: {
+            type: "string",
+            enum: [
+              "single-focal-subject-centered",
+              "balanced-pair",
+              "simple-sequence-2-panel",
+            ],
+          },
+          viewpoint: {
+            type: "string",
+            enum: [
+              "front",
+              "three-quarter",
+              "side",
+              "overhead",
+              "child-eye-level",
+            ],
+          },
+          whitespace: {
+            type: "string",
+            enum: ["generous", "moderate"],
+          },
+        },
+        required: ["layout", "viewpoint", "whitespace"],
+      },
+      textPolicy: {
+        type: "string",
+        enum: ["NO_LABELS", "LIMITED_LABELS_1_TO_3"],
+      },
+      allowedLabels: {
+        type: "array",
+        items: { type: "string" },
+      },
+      colors: {
+        type: "array",
+        items: { type: "string" },
+      },
+      negativePrompt: {
+        type: "array",
+        items: { type: "string" },
+      },
+    },
+    required: [
+      "primaryFocal",
+      "subjects",
+      "mustInclude",
+      "avoid",
+      "composition",
+      "textPolicy",
+    ],
+  };
 
   const slidesSchema = {
     type: "array",
@@ -446,7 +541,8 @@ export const generateSlidesFromDocument = async (
           type: "string",
           enum: ["Title Slide", "Content"]
         },
-        imagePrompt: { type: "string" },
+        // imagePrompt is no longer requested, we request imageSpec
+        imageSpec: imageSpecSchema,
         speakerNotes: {
           type: "string",
           description: "Conversational script explaining the slide content. **IMPORTANT:** At the very end, add a section titled 'Sources:'. List full URLs of websites used or filenames of uploaded documents. If only general knowledge is used, omit this section."
@@ -457,7 +553,8 @@ export const generateSlidesFromDocument = async (
           description: "List of source URLs used for this slide if web search was enabled."
         },
       },
-      required: ["title", "content", "layout", "imagePrompt", "speakerNotes"],
+
+      required: ["title", "content", "layout", "speakerNotes"], // imageSpec removed from required to support Title slides
     },
   };
 
@@ -487,7 +584,14 @@ export const generateSlidesFromDocument = async (
           "title": "string",
           "content": ["string", "string", ...], 
           "layout": "Title Slide" | "Content",
-          "imagePrompt": "string",
+          "imageSpec": {
+            "primaryFocal": "string",
+            "subjects": ["string"],
+            "mustInclude": ["string"],
+            "avoid": ["string"],
+            "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
+            "textPolicy": "string"
+          }, 
           "speakerNotes": "string (Script + 'Sources:' section at the end with URLs/filenames)",
           "sources": ["url1", "url2"]
         }
@@ -653,7 +757,9 @@ export const generateSlidesFromDocument = async (
     // Validation & Sanitization Pass
     // Single pass to validate structure, sanitize markdown, and enforce constraints.
 
-    slides.forEach((slide, idx) => {
+    // Validation & Sanitization Pass
+    // Refactor to for...of loop to support await inside (for hashing)
+    for (const [idx, slide] of slides.entries()) {
       // 1. Strict Structure Validation
       const structureErrors = validateSlideStructure(slide, idx);
       if (structureErrors.length > 0) {
@@ -692,9 +798,31 @@ export const generateSlidesFromDocument = async (
         }
       }
 
-      // 3. Speaker Notes
-      if (!slide.speakerNotes) {
-        slide.speakerNotes = "Speaker notes were not generated for this slide.";
+      // 4. Image Spec Processing & Prompt Hashing
+      // Unified block: If we have an imageSpec (Content slides), process it fully here.
+      if (slide.imageSpec) {
+        try {
+          // Sanitize
+          const cleanSpec = sanitizeImageSpec(slide.imageSpec, gradeLevel);
+
+          // Validate
+          const specErrors = validateImageSpec(cleanSpec);
+          if (specErrors.length > 0) {
+            warnings.push(`Slide ${idx + 1} ImageSpec invalid: ${specErrors.join('; ')}`);
+          }
+
+          // Update Slide with Clean Spec
+          slide.imageSpec = cleanSpec;
+
+          // Format for API (Deterministic Prompt)
+          slide.renderedImagePrompt = formatImageSpec(cleanSpec, { gradeLevel, subject });
+
+          // Note: Hashing is async. We will do it in the parallel pass below to keep this loop sync/clean
+          // or refactor everything to map later. Key is we have prepared the data.
+        } catch (e) {
+          console.error("Image Spec processing failed", e);
+          warnings.push(`Slide ${idx + 1}: Failed to process image spec.`);
+        }
       }
 
       // 4. Invariant Check: Slide 1
@@ -706,13 +834,51 @@ export const generateSlidesFromDocument = async (
         } else {
           warnings.push(`Slide 1 expected to be 'Title Slide', got '${slide.layout}'`);
         }
+      } else {
+        // Warning for missing imageSpec on CONTENT slides (likely model drift)
+        if (slide.layout !== 'Title Slide' && !slide.imageSpec) {
+          warnings.push(`Slide ${idx + 1} missing imageSpec. The model may be disregarding instructions.`);
+        }
       }
 
-      // 5. Layout Check
+      // 5. Layout Check & ImageSpec Processing
       if (!slide.layout) {
         warnings.push(`Slide ${idx + 1}: Missing layout property.`);
       }
-    });
+
+      // 6. Image Spec Processing
+      // This block is now redundant as image spec processing is unified above.
+      // Keeping it commented out for now, but it should be removed in a cleanup pass.
+      /*
+      if (slide.layout !== 'Title Slide' && slide.imageSpec) {
+        // Validate
+        const specErrors = validateImageSpec(slide.imageSpec);
+        if (specErrors.length > 0) {
+          warnings.push(`Slide ${idx + 1} ImageSpec: ${specErrors.join('; ')}`);
+        }
+  
+        // Sanitize (Fix defaults, clamp arrays)
+        slide.imageSpec = sanitizeImageSpec(slide.imageSpec, gradeLevel);
+  
+        // Deterministic Format
+        slide.renderedImagePrompt = formatImageSpec(slide.imageSpec, { gradeLevel, subject });
+  
+        // Hash
+        // Note: hashing is async because it might use crypto, we should handle this
+        // Ideally we await it, but we are inside forEach.
+        // Let's postpone hashing or do it in a Promise.all map if we really need it now.
+        // For simplicity in this sync-like loop, we'll skip async hashing here or just let the UI compute it lazy?
+        // Better: Refactor the loop to be async map.
+      }
+      */
+    }
+
+    // Async pass for Hashing (since we couldn't do it in forEach easily)
+    await Promise.all(slides.map(async (slide) => {
+      if (slide.renderedImagePrompt) {
+        slide.renderedImagePromptHash = await hashPrompt(slide.renderedImagePrompt);
+      }
+    }));
 
     // Safe token usage
     const inputTokens = response.usageMetadata?.promptTokenCount ?? 0;
@@ -734,39 +900,60 @@ export const generateSlidesFromDocument = async (
   }
 };
 
-export const generateImage = async (prompt: string, gradeLevel: string, temperature: number = 0.3, aspectRatio: '16:9' | '1:1' = '16:9'): Promise<Blob> => {
+interface ImageGenOptions {
+  temperature?: number;
+  aspectRatio?: '16:9' | '1:1';
+  imageSize?: '1K' | '2K' | '4K';
+}
+
+export const generateImageFromSpec = async (
+  spec: ImageSpec,
+  gradeLevel: string,
+  subject: string,
+  {
+    temperature = 0.3,
+    aspectRatio = '16:9',
+    imageSize = '2K',
+  }: ImageGenOptions = {}
+): Promise<{ blob: Blob; renderedPrompt: string; }> => {
   try {
-    // Inject centralized style guidelines into the prompt
-    const enhancedPrompt = `
-    IMAGE SUBJECT
-    ${prompt}
+    // 1. Format the spec into a prompt
+    const renderedPrompt = formatImageSpec(spec, { gradeLevel, subject });
 
-    TARGET AUDIENCE
-    ${gradeLevel} Grade Students
-
-    ${IMAGE_STYLE_GUIDE}`;
+    // 2. Call Gemini 3 Pro Image
+    const imageConfig: any = {
+      aspectRatio: aspectRatio || '16:9',
+      imageSize: imageSize || '1K' // Pass symbolic value directly: '1K', '2K', or '4K'
+    };
 
     const response = await retryWithBackoff(() => ai.models.generateContent({
       model: "gemini-3-pro-image-preview",
-      contents: enhancedPrompt,
+      contents: [{ role: 'user', parts: [{ text: renderedPrompt }] }],
       config: {
+        responseModalities: ['TEXT', 'IMAGE'],
         temperature: temperature,
-        aspectRatio: aspectRatio,
-      } as any,
+        // @ts-ignore - SDK types might not have imageConfig in V1beta yet, but API supports it
+        imageConfig: imageConfig,
+      } as any
     }));
 
-    // Extract image data from response
-    // Ensure parts exist before usage
-    const candidatesParts = (response as any).candidates?.[0]?.content?.parts;
-    const parts = candidatesParts || (response as any).parts || [];
+    const resp = response;
 
+    // Safe Logging (No Base64 Bomb)
+    // We already log safe summary in the lines above in previous edits, but cleaning up the "Response structure" bomb at the end.
+
+    if (!resp.candidates || !resp.candidates[0].content?.parts) {
+      throw new GeminiError("No content parts in response", 'API_ERROR', true);
+    }
+
+    const parts = resp.candidates[0].content.parts;
     if (parts && parts.length > 0) {
       // Find the first part that actually has inlineData
-      const validPart = parts.find((p: any) => p.inlineData || p.inline_data);
+      const validPart = parts.find((p: any) => p.inlineData || (p as any).inline_data);
 
       if (validPart) {
         // Try both camelCase and snake_case property names
-        const inlineData = validPart.inlineData || validPart.inline_data;
+        const inlineData = validPart.inlineData || (validPart as any).inline_data;
         if (inlineData) {
           // Convert base64 to blob
           const base64Data = inlineData.data;
@@ -787,61 +974,126 @@ export const generateImage = async (prompt: string, gradeLevel: string, temperat
               bytes[i] = binaryString.charCodeAt(i);
             }
           }
-          return new Blob([bytes as any], { type: mimeType });
+
+          return {
+            blob: new Blob([bytes as any], { type: mimeType }),
+            renderedPrompt
+          };
         }
       }
     }
 
-    // Log response structure for debugging if image not found
-    console.error("Response structure:", JSON.stringify(response, null, 2));
-    throw new Error("No image data found in response");
+    // Safe Failure (Log summary, not full object)
+    const summary = {
+      candidates: resp.candidates?.length,
+      firstPart: resp.candidates?.[0]?.content?.parts?.[0] ? 'Present' : 'Missing',
+      finishReason: resp.candidates?.[0]?.finishReason,
+      // Debug info if inlineData was present but confused
+      inlineDataPresent: parts?.some((p: any) => p.inlineData || (p as any).inline_data),
+      partKeys: parts?.map((p: any) => Object.keys(p).join(',')),
+    };
+    console.error("Gemini Image Gen failed to find image data. Summary:", JSON.stringify(summary));
+    throw new ImageGenError("No image data found in response", 'NO_IMAGE_DATA', true, summary);
   } catch (error) {
     console.error("Error generating image with Gemini API:", error);
-    throw new Error("Failed to generate image. Please try again.");
+    // Expand error handling if needed, or rethrow
+    throw error;
   }
 };
 
-export const regenerateImagePrompt = async (
+enum SchemaType {
+  OBJECT = "object",
+  ARRAY = "array",
+  STRING = "string",
+  NUMBER = "number",
+  BOOLEAN = "boolean",
+  INTEGER = "integer",
+  NULL = "null",
+}
+
+// Reusing the schema definition from earlier or defining it at module scope is cleaner.
+// For now, we redefine strictly for this function call context.
+const imageSpecSchema = {
+  type: SchemaType.OBJECT,
+  properties: {
+    primaryFocal: { type: SchemaType.STRING, description: "The main thing seen in the image." },
+    subjects: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "List of visual subjects." },
+    actions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Verbs/actions happening." },
+    mustInclude: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Critical details." },
+    avoid: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Things to exclude." },
+    composition: {
+      type: SchemaType.OBJECT,
+      properties: {
+        layout: { type: SchemaType.STRING },
+        viewpoint: { type: SchemaType.STRING },
+        whitespace: { type: SchemaType.STRING }
+      },
+      required: ['layout', 'viewpoint', 'whitespace']
+    },
+    textPolicy: { type: SchemaType.STRING, enum: ['NO_LABELS', 'LIMITED_LABELS_1_TO_3'] },
+    allowedLabels: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+    colors: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+    negativePrompt: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
+  },
+  required: ['primaryFocal', 'subjects', 'mustInclude', 'avoid', 'composition', 'textPolicy'],
+};
+
+export const regenerateImageSpec = async (
   slideTitle: string,
   slideContent: string[],
   gradeLevel: string,
   subject: string,
-  temperature: number = 0.7
-): Promise<string> => {
-  // IMPORTANT: These instructions mirror the semantic constraints of the main generator
+  creativityLevel: number
+): Promise<ImageSpec> => {
   const prompt = `
-    You are an expert educational content creator.
-    Generate a clear, descriptive image prompt for an educational illustration that visually explains the specific content of this slide.
-    
-    SLIDE CONTEXT
-    Title: "${slideTitle}"
-    Content: ${slideContent.join('; ')}
-    Target Audience: ${gradeLevel} Grade Students
-    Subject: "${subject}"
-    
-    IMAGE PROMPTING GUIDELINES
-    0. You are writing a description for an AI image generator.
-    1. Content Alignment: The image must directly illustrate the "Content" provided above.
-    2. Visual Description ONLY: Focus strictly on visible objects, actions, and settings.
-    3. NO Complex Diagrams: Avoid charts, graphs, and schematics. Describe tangible objects, scenes, or actions.
-    4. Target Audience: Ensure visual descriptions are appropriate for ${gradeLevel} students.
-    5. NO Style Instructions: Do not include words like "photorealistic", "cinematic", "3d render", "cartoon".
-    6. Simplicity: Keep the scene uncluttered. Do not describe the background.
+  Input Context:
+  - Slide Title: "${slideTitle}"
+  - Slide Content: ${JSON.stringify(slideContent)}
+  - Grade: ${gradeLevel}
+  - Subject: ${subject}
+
+  Task:
+  Create a NEW, distinct visual idea (ImageSpec) for this slide.
+  It must be different from a standard literal interpretation.
+  Focus on a conceptual metaphor or a specific detailed aspect mentioned in the content.
+
+  Output MUST be a single valid JSON object matching the ImageSpec schema.
   `;
 
+  const safeTemp = Math.max(0, Math.min(creativityLevel, 1.5)); // Clamp for safety
+
   try {
-    const response = await ai.models.generateContent({
-      model: "gemini-2.5-pro",
-      contents: prompt,
+    const result = await ai.models.generateContent({
+      model: "gemini-2.5-pro", // Switch to 2.5 Pro for higher quality consistency
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
-        temperature: temperature,
-      },
+        responseMimeType: "application/json",
+        responseSchema: imageSpecSchema,
+        temperature: safeTemp,
+      } as any
     });
 
-    return response.text.trim();
+    // Safe text extraction handling potential method vs property
+    const txt = (result as any).text;
+    const text = (typeof txt === 'function' ? txt.call(result) : txt) as string;
+
+    try {
+      const spec = JSON.parse(text) as ImageSpec;
+      // Validate & Sanitize immediately
+      const sanitized = sanitizeImageSpec(spec, gradeLevel);
+      const errors = validateImageSpec(sanitized);
+      if (errors.length > 0) {
+        console.warn("Regenerated spec validation failed, attempting auto-fix", errors);
+      }
+      return sanitized;
+    } catch (e) {
+      console.error("Failed to parse regenerated ImageSpec JSON:", e);
+      throw new Error("AI produced invalid JSON for image spec.");
+    }
+
   } catch (error) {
-    console.error("Error regenerating image prompt:", error);
-    throw new Error("Failed to regenerate image prompt.");
+    console.error("regenerateImageSpec failed:", error);
+    throw error;
   }
 };
 

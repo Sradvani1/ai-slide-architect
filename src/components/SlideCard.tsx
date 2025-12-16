@@ -1,8 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
-import type { Slide, ImagePrompt, GeneratedImage } from '../types';
+import type { Slide, ImagePrompt, GeneratedImage, ImageSpec, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
-import { generateImage, regenerateImagePrompt } from '../services/geminiService';
+import { generateImageFromSpec, regenerateImageSpec } from '../services/geminiService';
+import { formatImageSpec } from '../utils/imageUtils';
 import { uploadImageToStorage } from '../services/projectService';
 
 interface SlideCardProps {
@@ -53,12 +53,14 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     // We initialize this lazily to handle the legacy -> history migration on first render if needed
     // However, for strict React purity, we should not mutate props. 
     // We will derive the "display" prompts array on the fly.
+    // History State
     const prompts: ImagePrompt[] = slide.prompts || [
         {
             id: 'legacy-' + Date.now(),
-            prompt: slide.imagePrompt,
+            prompt: slide.renderedImagePrompt || slide.imagePrompt || '',
             createdAt: Date.now(),
-            generatedImages: []
+            generatedImages: [],
+            spec: slide.imageSpec // Store spec if available
         }
     ];
 
@@ -145,61 +147,80 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const handleGenerateImage = async () => {
         setIsGeneratingImage(true);
         try {
-            const imageBlob = await generateImage(activePrompt.prompt, gradeLevel, creativityLevel, aspectRatio);
+            // New Flow: generateImageFromSpec
+            if (activePrompt.spec || slide.imageSpec) {
+                const specToUse = activePrompt.spec || slide.imageSpec;
+                if (!specToUse) throw new Error("No image spec available");
 
-            // Upload to storage if we have project context
-            // Even if we don't have project ID yet (e.g. very first generation before save), we might want to wait?
-            // Actually, Editor.tsx generates slides -> creates project -> uploads files.
-            // So if user is here, project might exist OR it might be transient.
-            // But Editor creates project immediately after generation now as of previous tool outputs logic check... 
-            // Wait, previous Editor logic: generate -> setSlides -> createProject. 
-            // So yes, projectId should be available 99% of time. 
-            // If not available, we can't save to storage efficiently without it.
-            // We'll proceed with download only if no project ID (rare fallback), else upload.
-
-            if (userId && projectId) {
-                const sanitizedTitle = sanitizeFilename(slide.title);
-                const filename = `img-${slideNumber}-${sanitizedTitle}.png`;
-                const generatedImage = await uploadImageToStorage(userId, projectId, imageBlob, filename, aspectRatio);
-
-                // Update specific prompt with new image
-                const updatedPrompts = [...prompts];
-                const updatedPrompt = {
-                    ...activePrompt,
-                    generatedImages: [...(activePrompt.generatedImages || []), generatedImage]
-                };
-                updatedPrompts[activeIndex] = updatedPrompt;
-
-                onUpdateSlide({
-                    ...slide,
-                    prompts: updatedPrompts,
-                    selectedPromptId: activePrompt.id,
-                    backgroundImage: generatedImage.url // Use most recent as slide bg
+                const { blob, renderedPrompt } = await generateImageFromSpec(specToUse, gradeLevel, subject, {
+                    temperature: creativityLevel,
+                    aspectRatio: aspectRatio
                 });
-            } else {
-                // Fallback: Just download (same as before) logic if no backend text
-                const url = URL.createObjectURL(imageBlob);
-                const a = document.createElement('a');
-                a.href = url;
-                a.download = `slide-${slideNumber}-image.png`;
-                document.body.appendChild(a);
-                a.click();
-                document.body.removeChild(a);
-                URL.revokeObjectURL(url);
-            }
 
+                // Handle result...
+                if (userId && projectId) {
+                    const sanitizedTitle = sanitizeFilename(slide.title);
+                    const filename = `img-${slideNumber}-${sanitizedTitle}.png`;
+                    const generatedImage = await uploadImageToStorage(userId, projectId, blob, filename, aspectRatio);
+
+                    // Update history
+                    const updatedPrompts = [...prompts];
+                    const updatedPrompt = {
+                        ...activePrompt,
+                        prompt: renderedPrompt,
+                        generatedImages: [...(activePrompt.generatedImages || []), generatedImage],
+                        spec: specToUse
+                    };
+                    updatedPrompts[activeIndex] = updatedPrompt;
+
+                    onUpdateSlide({
+                        ...slide,
+                        prompts: updatedPrompts,
+                        selectedPromptId: activePrompt.id,
+                        backgroundImage: generatedImage.url,
+                        renderedImagePrompt: renderedPrompt
+                    });
+                } else {
+                    // Fallback download
+                    const url = URL.createObjectURL(blob);
+                    const a = document.createElement('a');
+                    a.href = url;
+                    a.download = `slide-${slideNumber}-image.png`;
+                    document.body.appendChild(a);
+                    a.click();
+                    document.body.removeChild(a);
+                    URL.revokeObjectURL(url);
+                }
+
+            } else {
+                // Fallback for legacy (should not hit in new decks)
+                alert("Legacy format not supported for regeneration. Please create a new deck.");
+            }
         } catch (error) {
             console.error('Error generating image:', error);
-            alert('Failed to generate image. Please try again.');
+
+            let message = 'Failed to generate image. Please try again.';
+            if (error instanceof Error && (error as any).isRetryable) { // Check for ImageGenError attributes
+                const imgErr = error as ImageGenError;
+                if (imgErr.code === 'NO_IMAGE_DATA') {
+                    message = "No image returned from AI. Try clicking 'New Visual Idea' to reset the concept.";
+                } else if (imgErr.isRetryable) {
+                    message = "Temporary AI glitch. Please try clicking 'Generate Image' again.";
+                } else if (imgErr.code === 'INVALID_MIME_TYPE') {
+                    message = "Unexpected image format received. Please report this issue.";
+                }
+            }
+            alert(message);
         } finally {
             setIsGeneratingImage(false);
         }
     };
 
-    const handleRegeneratePrompt = async () => {
+    const handleNewVisualIdea = async () => {
         setIsRegeneratingPrompt(true);
         try {
-            const newPromptText = await regenerateImagePrompt(
+            // Generate NEW Spec
+            const newSpec = await regenerateImageSpec(
                 slide.title,
                 slide.content,
                 gradeLevel,
@@ -207,11 +228,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 creativityLevel
             );
 
+            // Create display string
+            const rendered = formatImageSpec(newSpec, { gradeLevel, subject });
+
             const newPromptObj: ImagePrompt = {
                 id: crypto.randomUUID(),
-                prompt: newPromptText,
+                prompt: rendered,
                 createdAt: Date.now(),
-                generatedImages: []
+                generatedImages: [],
+                spec: newSpec
             };
 
             const updatedPrompts = [...prompts, newPromptObj];
@@ -219,13 +244,17 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             onUpdateSlide({
                 ...slide,
                 prompts: updatedPrompts,
-                imagePrompt: newPromptText,
+                imageSpec: newSpec, // Update authoritative spec
+                renderedImagePrompt: rendered,
                 selectedPromptId: newPromptObj.id
             });
+            // Note: We don't auto-generate the image here, we let the user click "Generate"
+            // Or we could auto-generate?
+            // "New Visual Idea" suggests getting the idea first. User can then generate.
 
         } catch (error) {
-            console.error('Error regenerating prompt:', error);
-            alert('Failed to regenerate prompt. Please try again.');
+            console.error('Error generating new visual idea:', error);
+            alert('Failed to create new visual idea. Please try again.');
         } finally {
             setIsRegeneratingPrompt(false);
         }
@@ -382,21 +411,23 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                         <button
                                             onClick={() => setIsEditingPrompt(true)}
                                             className="p-1.5 hover:bg-slate-100 rounded text-slate-400 hover:text-primary transition-colors"
-                                            title="Edit This Prompt"
+                                            title="View Full Prompt"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M15 12a3 3 0 11-6 0 3 3 0 016 0z" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M2.458 12C3.732 7.943 7.523 5 12 5c4.478 0 8.268 2.943 9.542 7-1.274 4.057-5.064 7-9.542 7-4.477 0-8.268-2.943-9.542-7z" />
                                             </svg>
                                         </button>
                                         <button
-                                            onClick={handleRegeneratePrompt}
+                                            onClick={handleNewVisualIdea}
                                             disabled={isRegeneratingPrompt}
-                                            className="p-1.5 hover:bg-slate-100 rounded text-secondary-text hover:text-accent transition-colors disabled:opacity-50"
-                                            title="Generate New Variation"
+                                            className="flex items-center space-x-1 px-2 py-1 hover:bg-slate-100 rounded text-xs text-secondary-text hover:text-accent transition-colors disabled:opacity-50 border border-transparent hover:border-slate-200"
+                                            title="Get New Visual Idea (New Spec)"
                                         >
                                             <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${isRegeneratingPrompt ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                             </svg>
+                                            <span className="font-semibold">New Idea</span>
                                         </button>
                                     </div>
                                 )}
@@ -406,11 +437,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         {/* Prompt Text / Edit Mode */}
                         {isEditingPrompt ? (
                             <div className="w-full animate-fade-in" ref={editContainerRef}>
+                                <div className="p-2 mb-2 bg-amber-50 text-amber-600 text-xs rounded border border-amber-200">
+                                    <strong>Note:</strong> Editing the prompt text directly disconnects it from the Visual Spec.
+                                    (Currently Disabled for consistency - use "New Idea" instead)
+                                </div>
                                 <textarea
                                     ref={textareaRef}
                                     value={promptText}
                                     onChange={handlePromptChange}
-                                    className="input-field text-sm min-h-[80px] bg-surface text-primary-text"
+                                    readOnly={true} // Read-only for now to enforce spec workflow
+                                    className="input-field text-sm min-h-[80px] bg-slate-100 text-slate-500 cursor-not-allowed"
                                     rows={2}
                                 />
                                 <div className="flex justify-end space-x-2 mt-2">
@@ -418,20 +454,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                         onClick={handleCancelEdit}
                                         className="px-2 py-1 text-xs font-medium text-secondary-text hover:text-primary-text transition-colors"
                                     >
-                                        Cancel
-                                    </button>
-                                    <button
-                                        onClick={handleSavePrompt}
-                                        className="px-2 py-1 text-xs font-bold bg-primary text-white rounded hover:bg-primary/90 transition-colors"
-                                    >
-                                        Save Changes
+                                        Close
                                     </button>
                                 </div>
                             </div>
                         ) : (
-                            <p className="text-sm text-secondary-text italic cursor-text hover:text-primary-text transition-colors line-clamp-3" onClick={() => setIsEditingPrompt(true)}>
-                                {activePrompt.prompt}
-                            </p>
+                            <div className="relative group/prompt">
+                                <p className="text-sm text-secondary-text italic cursor-pointer hover:text-primary-text transition-colors line-clamp-3" onClick={() => setIsEditingPrompt(true)}>
+                                    {activePrompt.prompt}
+                                </p>
+                            </div>
                         )}
 
                         {/* Generated Images Strip */}
@@ -461,8 +493,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         <button
                             onClick={() => setAspectRatio('16:9')}
                             className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '16:9'
-                                    ? 'bg-white text-primary shadow-sm border border-slate-200'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             16:9
@@ -470,8 +502,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         <button
                             onClick={() => setAspectRatio('1:1')}
                             className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '1:1'
-                                    ? 'bg-white text-primary shadow-sm border border-slate-200'
-                                    : 'text-slate-500 hover:text-slate-700'
+                                ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                : 'text-slate-500 hover:text-slate-700'
                                 }`}
                         >
                             1:1

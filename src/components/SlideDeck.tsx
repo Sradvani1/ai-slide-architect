@@ -3,7 +3,7 @@ import JSZip from 'jszip';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
-import { generateImage } from '../services/geminiService';
+import { generateImageFromSpec } from '../services/geminiService';
 import type { Slide } from '../types';
 
 type PptxGenJsConstructor = typeof import('pptxgenjs') extends { default: infer DefaultExport }
@@ -258,10 +258,15 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
             for (let i = 0; i < slides.length; i++) {
                 const slide = slides[i];
                 try {
-                    const blob = await generateImage(slide.imagePrompt, creativityLevel);
-                    const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
-                    const filename = `slide-${i + 1}-${sanitizedTitle}.png`;
-                    folder.file(filename, blob);
+                    if (slide.imageSpec) {
+                        const { blob } = await generateImageFromSpec(slide.imageSpec, gradeLevel, subject, { temperature: creativityLevel });
+                        const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
+                        const filename = `slide-${i + 1}-${sanitizedTitle}.png`;
+                        folder.file(filename, blob);
+                    } else if (slide.imagePrompt) {
+                        // Fallback message for legacy slides or just skip
+                        folder.file(`slide-${i + 1}-legacy.txt`, `Legacy image generation not supported for: ${slide.imagePrompt}`);
+                    }
                 } catch (err) {
                     console.error(`Failed to generate image for slide ${i + 1}`, err);
                     // Continue with other slides even if one fails
