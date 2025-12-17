@@ -1,9 +1,18 @@
 // #region agent log
-fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:1',message:'Before module-alias import',data:{cwd:process.cwd(),__dirname:__dirname},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+const path = require('path');
+const fs = require('fs');
+const packageJsonPath = path.join(__dirname, '../package.json');
+let packageJson: any = {};
+try {
+    packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
+} catch (e) {}
+fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:1',message:'Before module-alias import',data:{cwd:process.cwd(),__dirname:__dirname,packageJsonPath,moduleAliases:packageJson._moduleAliases},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
 // #endregion
 import 'module-alias/register';
 // #region agent log
-fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:3',message:'After module-alias import',data:{moduleAliasLoaded:typeof require !== 'undefined'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+const moduleAlias = require('module-alias');
+const aliases = (moduleAlias as any).getAliases ? (moduleAlias as any).getAliases() : 'not available';
+fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'index.ts:3',message:'After module-alias import',data:{aliases,moduleAliasLoaded:typeof moduleAlias !== 'undefined'},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
 // #endregion
 import * as functions from 'firebase-functions';
 import * as express from 'express';
