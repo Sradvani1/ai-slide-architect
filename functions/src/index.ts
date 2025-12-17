@@ -1,9 +1,11 @@
+import 'module-alias/register';
 import * as functions from 'firebase-functions';
 import * as express from 'express';
 import * as cors from 'cors';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin (must be before middleware)
+// Force deploy: API Key Config Update
 admin.initializeApp();
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';

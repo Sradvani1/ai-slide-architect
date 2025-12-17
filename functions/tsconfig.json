@@ -10,14 +10,13 @@
         "baseUrl": ".",
         "paths": {
             "@shared/*": [
-                "../shared/*"
+                "./src/shared/*"
             ]
         },
         "skipLibCheck": true
     },
     "compileOnSave": true,
     "include": [
-        "src",
-        "../shared"
+        "src"
     ]
 }

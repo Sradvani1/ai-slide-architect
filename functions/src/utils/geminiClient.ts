@@ -1,10 +1,17 @@
 import { GoogleGenAI } from "@google/genai";
 import * as functions from 'firebase-functions';
 
-const GEMINI_API_KEY = functions.config().gemini?.api_key || process.env.GEMINI_API_KEY;
+let aiInstance: GoogleGenAI | null = null;
 
-if (!GEMINI_API_KEY) {
-    throw new Error("GEMINI_API_KEY not configured");
-}
+export const getAiClient = () => {
+    if (aiInstance) return aiInstance;
 
-export const ai = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    const GEMINI_API_KEY = functions.config().gemini?.api_key || process.env.GEMINI_API_KEY;
+
+    if (!GEMINI_API_KEY) {
+        throw new Error("GEMINI_API_KEY not configured");
+    }
+
+    aiInstance = new GoogleGenAI({ apiKey: GEMINI_API_KEY });
+    return aiInstance;
+};

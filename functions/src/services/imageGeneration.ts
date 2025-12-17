@@ -1,5 +1,4 @@
-
-import { ai } from '../utils/geminiClient';
+import { getAiClient } from '../utils/geminiClient';
 import { MODEL_IMAGE_GENERATION } from '@shared/constants';
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
@@ -22,7 +21,7 @@ export async function generateImage(
             const model = MODEL_IMAGE_GENERATION;
 
             // Original approach using generateContent for image generation model
-            const response = await ai.models.generateContent({
+            const response = await getAiClient().models.generateContent({
                 model: model,
                 contents: [{ role: 'user', parts: [{ text: renderedPrompt }] }],
                 config: {

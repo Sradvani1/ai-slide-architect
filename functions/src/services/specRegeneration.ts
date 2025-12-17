@@ -1,41 +1,22 @@
-import { ai } from '../utils/geminiClient';
-import { MODEL_SPEC_REGENERATION } from '@shared/constants';
-import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
-import { GeminiError } from '@shared/errors';
-import { ImageSpec } from '@shared/types';
+import { getAiClient } from '../utils/geminiClient';
+import { buildSpecRegenerationPrompt } from '@shared/promptBuilders';
 import { normalizeImageSpec } from '@shared/utils/imageUtils';
+import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
+import { MODEL_SLIDE_GENERATION } from '@shared/constants';
+import { ImageSpec } from '@shared/types';
+import { GeminiError } from '@shared/errors';
 
 export async function regenerateImageSpec(
     currentSpec: ImageSpec,
     changeRequest: string,
-    slideContext: { title: string; content: string[] },
-    diffOnly: boolean = false // If true, only return changed fields? For now, full spec.
-): Promise<ImageSpec> {
-
-    const prompt = `
-    You are an expert Visual Director.
-    Task: Update the following Image Specification based on a user's request.
-
-    CONTEXT:
-    Slide Title: "${slideContext.title}"
-    Slide Content: ${slideContext.content.slice(0, 3).join('; ')}...
-
-    CURRENT SPEC (JSON):
-    ${JSON.stringify(currentSpec, null, 2)}
-
-    USER REQUEST:
-    "${changeRequest}"
-
-    INSTRUCTIONS:
-    1. Modify the JSON to satisfy the user request.
-    2. Maintain strict alignment with the slide concept.
-    3. Ensure the JSON schema is valid (same fields as input).
-    4. Return ONLY the JSON object.
-    `;
+    slideContext: { title: string; content: string[] }
+): Promise<{ spec: ImageSpec, inputTokens: number, outputTokens: number }> {
+    const prompt = buildSpecRegenerationPrompt(currentSpec, changeRequest, slideContext);
 
     const generateFn = async () => {
-        const result = await ai.models.generateContent({
-            model: MODEL_SPEC_REGENERATION,
+        const model = MODEL_SLIDE_GENERATION;
+        const result = await getAiClient().models.generateContent({
+            model: model,
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: {
                 responseMimeType: "application/json",
@@ -63,11 +44,14 @@ export async function regenerateImageSpec(
             }
         }
 
+        const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+        const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
         // Normalize
         // Passed gradeLevel could be improved, but for now fixed "3rd Grade" or derived from context if passed
         const { spec } = normalizeImageSpec(newSpec, "3rd Grade");
 
-        return spec;
+        return { spec, inputTokens, outputTokens };
     };
 
     return retryWithBackoff(generateFn);

@@ -1,4 +1,4 @@
-import { ai } from '../utils/geminiClient';
+import { getAiClient } from '../utils/geminiClient';
 import { buildSlideGenerationPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
@@ -50,7 +50,7 @@ export async function generateSlides(
             config.tools = [{ googleSearch: {} }];
         }
 
-        const result = await ai.models.generateContent({
+        const result = await getAiClient().models.generateContent({
             model: model,
             contents: [{ role: 'user', parts: [{ text: prompt }] }],
             config: config
