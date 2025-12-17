@@ -4,12 +4,11 @@ import type { Slide, ImageSpec } from '../types';
 import { ImageGenError } from '../types';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import {
-  validateImageSpec,
-  sanitizeImageSpec,
-  formatImageSpec
+  formatImageSpec,
+  normalizeImageSpec
 } from '../utils/imageUtils';
 
-const API_KEY = process.env.API_KEY || ''; // Ensure string
+const API_KEY = process.env.API_KEY || '';
 if (!API_KEY) {
   throw new Error("API_KEY environment variable is not set");
 }
@@ -92,6 +91,108 @@ class RateLimiter {
 }
 
 const rateLimiter = new RateLimiter();
+
+/**
+ * Model Constants
+ */
+const MODEL_SLIDE_GENERATION = "gemini-2.5-pro";
+const MODEL_REPAIR_PASS = "gemini-2.5-pro";
+
+/**
+ * ImageSpec JSON Schema for Gemini structured output
+ * Used for both slide generation and spec regeneration
+ */
+const IMAGE_SPEC_SCHEMA = {
+  type: "object",
+  properties: {
+    primaryFocal: {
+      type: "string",
+      description: "One-sentence description of the main visual subject."
+    },
+    conceptualPurpose: {
+      type: "string",
+      description: "The educational goal: what concept should the student understand from this image?"
+    },
+    subjects: {
+      type: "array",
+      items: { type: "string" },
+      description: "2-5 concrete visual elements.",
+    },
+    actions: {
+      type: "array",
+      items: { type: "string" },
+      description: "0-3 interactions or movements.",
+    },
+    mustInclude: {
+      type: "array",
+      items: { type: "string" },
+      description: "2-6 essential details.",
+    },
+    avoid: {
+      type: "array",
+      items: { type: "string" },
+      description: "Elements to exclude to prevent confusion.",
+    },
+    composition: {
+      type: "object",
+      properties: {
+        layout: {
+          type: "string",
+          enum: [
+            "single-focal-subject-centered",
+            "balanced-pair",
+            "simple-sequence-2-panel",
+            "comparison-split-screen",
+            "diagram-with-flow",
+          ],
+        },
+        viewpoint: {
+          type: "string",
+          enum: [
+            "front",
+            "three-quarter",
+            "side",
+            "overhead",
+            "child-eye-level",
+            "side-profile",
+            "isometric-3d-cutaway",
+          ],
+        },
+        whitespace: {
+          type: "string",
+          enum: ["generous", "moderate"],
+        },
+      },
+      required: ["layout", "viewpoint", "whitespace"],
+    },
+    textPolicy: {
+      type: "string",
+      enum: ["NO_LABELS", "LIMITED_LABELS_1_TO_3"],
+    },
+    allowedLabels: {
+      type: "array",
+      items: { type: "string" },
+    },
+    colors: {
+      type: "array",
+      items: { type: "string" },
+      description: "3-5 key colors.",
+    },
+    negativePrompt: {
+      type: "array",
+      items: { type: "string" },
+    },
+  },
+  required: [
+    "primaryFocal",
+    "conceptualPurpose",
+    "subjects",
+    "mustInclude",
+    "avoid",
+    "composition",
+    "textPolicy",
+  ],
+};
 
 /**
  * Strict Runtime Validator
@@ -336,35 +437,30 @@ function extractFirstJsonArray(text: string): any[] {
   }
 }
 
-export const generateSlidesFromDocument = async (
-  topic: string,
-  gradeLevel: string,
-  subject: string,
-  sourceMaterial: string,
-  numSlides: number,
-  useWebSearch: boolean = false,
-  temperature: number = DEFAULT_TEMPERATURE,
-  bulletsPerSlide: number = DEFAULT_BULLETS_PER_SLIDE,
-  additionalInstructions: string = ''
-): Promise<{
-  slides: Slide[],
-  inputTokens: number,
-  outputTokens: number,
-  sources: Array<{ uri: string; title?: string }>,
-  searchEntryPoint?: string,
-  webSearchQueries?: string[],
-  warnings: string[]
-}> => {
-  const totalSlides = numSlides + 1;
+const MODEL_IMAGE_GENERATION = "gemini-3-pro-image-preview";
+const MODEL_SPEC_REGENERATION = "gemini-2.5-pro";
 
-  // 1. SYSTEM ROLE & OBJECTIVE
-  let prompt = `
+/**
+ * Prompt building functions for slide generation
+ * Each function builds a specific section of the prompt
+ */
+
+function buildSystemRoleSection(): string {
+  return `
     You are an expert educational content creator and curriculum designer.
     Your goal is to generate a professional, engaging slide deck that is perfectly tailored to the specified grade level.
   `;
+}
 
-  // 2. INPUT CONTEXT
-  prompt += `
+function buildInputContextSection(
+  topic: string,
+  subject: string,
+  gradeLevel: string,
+  totalSlides: number,
+  numSlides: number,
+  additionalInstructions?: string
+): string {
+  return `
   PRESENTATION CONTEXT
   Topic: "${topic}"
   Subject: ${subject}
@@ -372,10 +468,11 @@ export const generateSlidesFromDocument = async (
   Length: ${totalSlides} slides (1 Title + ${numSlides} Content)
   ${additionalInstructions ? `- Additional Instructions: "${additionalInstructions}"` : ''}
   `;
+}
 
-  // 3. SOURCE MATERIAL / RESEARCH (Mutually Exclusive Logic)
-  if (sourceMaterial) { // Curator Mode
-    prompt += `
+function buildSourceMaterialSection(sourceMaterial: string, useWebSearch: boolean): string {
+  if (sourceMaterial) {
+    return `
     SOURCE MATERIAL (GROUND TRUTH)
       You must derive your content ENTIRELY from the following text. Do not contradict it.
     
@@ -383,10 +480,10 @@ export const generateSlidesFromDocument = async (
     ${sourceMaterial}
     SOURCE END
   `;
-  } else if (useWebSearch) { // Researcher Mode
-    prompt += `
+  } else if (useWebSearch) {
+    return `
     RESEARCH PHASE (REQUIRED)
-    Since no source material is provided, you MUST use Google Search to act as the primary content researcher.
+      Since no source material is provided, you MUST use Google Search to act as the primary content researcher.
     
     INSTRUCTIONS
     1. Find Content: Search for high-quality, age-appropriate information to build the core content of these slides.
@@ -394,32 +491,37 @@ export const generateSlidesFromDocument = async (
     3. Synthesize: Use these search results as the SOLE source of truth for the presentation.
     `;
   }
+  return '';
+}
 
-  // 4. CONTENT GENERATION STANDARDS
-  prompt += `
+function buildContentStandardsSection(): string {
+  return `
   CONTENT STANDARDS
     1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound.
     2. Clarity: Use clear, concise language.
     3. Engagement: Speaker notes should be engaging and conversational (script format).
     4. Citations: You MUST include a "Sources:" section at the very end of the speaker notes. List all used URLs (if Web Search) or filenames (if uploaded text). DO NOT include citations or sources in the visible slide "content" array.
   `;
+}
 
-  // 5. STRUCTURE REQUIREMENTS
-  prompt += `
+function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
+  return `
   STRUCTURE REQUIREMENTS
     - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"]. (MUST include imageSpec).
     - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes, Sources).
   `;
+}
 
-  // 6. FORMATTING CONSTRAINTS (CRITICAL)
-  prompt += `
+function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
+  return `
   FORMATTING CONSTRAINTS(CRITICAL)
     - Bullets: Exactly ${bulletsPerSlide} bullet points per content slide.
     - No Markdown: Bullet points must be plain strings. NO bold (**), italics (*), or bullet characters (-) in the string itself.
   `;
+}
 
-  // 7. IMAGE VISUAL SPECIFICATION (imageSpec)
-  prompt += `
+function buildImageSpecInstructionsSection(): string {
+  return `
   IMAGE VISUAL SPECIFICATION (imageSpec)
   You must output an \`imageSpec\` object for each content slide. This object will be converted into an AI image generation prompt.
 
@@ -447,96 +549,104 @@ export const generateSlidesFromDocument = async (
 
   Output a valid JSON object.
   `;
+}
 
-  // 8. OUTPUT SCHEMA
+function buildOutputFormatSection(): string {
+  return `
+  OUTPUT FORMAT
+  Return a valid JSON array of objects.Do not include markdown code fences(like \`\`\`json).
+  JSON Structure:
+  [
+    {
+      "title": "string",
+      "content": ["string", "string", ...], 
+      "layout": "Title Slide" | "Content",
+      "imageSpec": {
+        "primaryFocal": "string",
+        "subjects": ["string"],
+        "mustInclude": ["string"],
+        "avoid": ["string"],
+        "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
+        "textPolicy": "string"
+      }, 
+      "speakerNotes": "string (Script + 'Sources:' section at the end with URLs/filenames)",
+      "sources": ["url1", "url2"]
+    }
+  ]
+  `;
+}
+
+/**
+ * Builds the complete prompt for slide generation
+ */
+function buildSlideGenerationPrompt(
+  topic: string,
+  subject: string,
+  gradeLevel: string,
+  totalSlides: number,
+  numSlides: number,
+  sourceMaterial: string,
+  useWebSearch: boolean,
+  bulletsPerSlide: number,
+  additionalInstructions?: string,
+  includeOutputFormat?: boolean
+): string {
+  const sections = [
+    buildSystemRoleSection(),
+    buildInputContextSection(topic, subject, gradeLevel, totalSlides, numSlides, additionalInstructions),
+    buildSourceMaterialSection(sourceMaterial, useWebSearch),
+    buildContentStandardsSection(),
+    buildStructureRequirementsSection(totalSlides, subject, gradeLevel),
+    buildFormattingConstraintsSection(bulletsPerSlide),
+    buildImageSpecInstructionsSection(),
+  ];
+
+  if (includeOutputFormat) {
+    sections.push(buildOutputFormatSection());
+  }
+
+  return sections.filter(section => section.trim().length > 0).join('\n');
+}
+
+export const generateSlidesFromDocument = async (
+  topic: string,
+  gradeLevel: string,
+  subject: string,
+  sourceMaterial: string,
+  numSlides: number,
+  useWebSearch: boolean = false,
+  temperature: number = DEFAULT_TEMPERATURE,
+  bulletsPerSlide: number = DEFAULT_BULLETS_PER_SLIDE,
+  additionalInstructions: string = ''
+): Promise<{
+  slides: Slide[],
+  inputTokens: number,
+  outputTokens: number,
+  sources: Array<{ uri: string; title?: string }>,
+  searchEntryPoint?: string,
+  webSearchQueries?: string[],
+  warnings: string[]
+}> => {
+  const totalSlides = numSlides + 1;
+
+  // Build the complete prompt using extracted functions
+  const prompt = buildSlideGenerationPrompt(
+    topic,
+    subject,
+    gradeLevel,
+    totalSlides,
+    numSlides,
+    sourceMaterial,
+    useWebSearch,
+    bulletsPerSlide,
+    additionalInstructions,
+    useWebSearch && !sourceMaterial // Include output format instructions if using web search tool
+  );
+
+  // OUTPUT SCHEMA
   // Defined in responseSchema below, but mentioned here for context if needed (though implicit in structured output)
 
-  // Schema Definitions
-  const imageSpecSchema = {
-    type: "object",
-    properties: {
-      primaryFocal: { type: "string", description: "One-sentence description of the main visual subject." },
-      conceptualPurpose: { type: "string", description: "The educational goal: what concept should the student understand from this image?" },
-      subjects: {
-        type: "array",
-        items: { type: "string" },
-        description: "2-5 concrete visual elements.",
-      },
-      actions: {
-        type: "array",
-        items: { type: "string" },
-        description: "0-3 interactions or movements.",
-      },
-      mustInclude: {
-        type: "array",
-        items: { type: "string" },
-        description: "2-6 essential details.",
-      },
-      avoid: {
-        type: "array",
-        items: { type: "string" },
-        description: "Elements to exclude to prevent confusion.",
-      },
-      composition: {
-        type: "object",
-        properties: {
-          layout: {
-            type: "string",
-            enum: [
-              "single-focal-subject-centered",
-              "balanced-pair",
-              "simple-sequence-2-panel",
-              "comparison-split-screen",
-              "diagram-with-flow",
-            ],
-          },
-          viewpoint: {
-            type: "string",
-            enum: [
-              "front",
-              "three-quarter",
-              "side",
-              "overhead",
-              "child-eye-level",
-              "side-profile",
-              "isometric-3d-cutaway",
-            ],
-          },
-          whitespace: {
-            type: "string",
-            enum: ["generous", "moderate"],
-          },
-        },
-        required: ["layout", "viewpoint", "whitespace"],
-      },
-      textPolicy: {
-        type: "string",
-        enum: ["NO_LABELS", "LIMITED_LABELS_1_TO_3"],
-      },
-      allowedLabels: {
-        type: "array",
-        items: { type: "string" },
-      },
-      colors: {
-        type: "array",
-        items: { type: "string" },
-        description: "3-5 key colors.",
-      },
-      negativePrompt: {
-        type: "array",
-        items: { type: "string" },
-      },
-    },
-    required: [
-      "primaryFocal",
-      "conceptualPurpose",
-      "subjects",
-      "mustInclude",
-      "avoid",
-      "composition",
-      "textPolicy",
-    ],
-  };
+  const imageSpecSchema = IMAGE_SPEC_SCHEMA;
 
   const slidesSchema = {
     type: "array",
@@ -582,33 +692,9 @@ export const generateSlidesFromDocument = async (
       tools: tools.length > 0 ? tools : undefined,
     };
 
-    // Conditional Configuration:
     // If using Web Search tool, DO NOT use responseSchema/json mode to avoid incompatibility.
-    // Instead, rely on prompt instructions for JSON.
-    if (isUsingWebSearchTool) {
-      prompt += `
-      OUTPUT FORMAT
-      Return a valid JSON array of objects.Do not include markdown code fences(like \`\`\`json).
-      JSON Structure:
-      [
-        {
-          "title": "string",
-          "content": ["string", "string", ...], 
-          "layout": "Title Slide" | "Content",
-          "imageSpec": {
-            "primaryFocal": "string",
-            "subjects": ["string"],
-            "mustInclude": ["string"],
-            "avoid": ["string"],
-            "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
-            "textPolicy": "string"
-          }, 
-          "speakerNotes": "string (Script + 'Sources:' section at the end with URLs/filenames)",
-          "sources": ["url1", "url2"]
-        }
-      ]
-      `;
-    } else {
+    // Instead, rely on prompt instructions for JSON (handled in buildSlideGenerationPrompt).
+    if (!isUsingWebSearchTool) {
       // Use Structured Outputs for non-tool calls
       config.responseMimeType = "application/json";
       config.responseSchema = slidesSchema;
@@ -616,8 +702,8 @@ export const generateSlidesFromDocument = async (
 
     // Generate Content with Retry
     const response = await retryWithBackoff(() => ai.models.generateContent({
-      model: "gemini-2.5-pro",
-      contents: prompt,
+      model: MODEL_SLIDE_GENERATION,
+      contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: config,
     }));
 
@@ -697,15 +783,15 @@ export const generateSlidesFromDocument = async (
             `;
 
           const repairResponse = await retryWithBackoff(() => ai.models.generateContent({
-            model: "gemini-2.5-pro",
-            contents: repairPrompt,
+            model: MODEL_REPAIR_PASS,
+            contents: [{ role: 'user', parts: [{ text: repairPrompt }] }],
             config: repairConfig
           }));
 
 
-          slides = JSON.parse(repairResponse.text);
+          const slides = JSON.parse(repairResponse.text);
           console.log("Repair Pass Successful");
-          warnings.push("UsedRepairPass: true"); // Signal that repair was used
+          warnings.push("UsedRepairPass: true");
         } catch (repairError) {
           console.error("Repair Pass Failed"); // Log concisely
           throw new Error("Failed to parse response even after repair.");
@@ -768,18 +854,18 @@ export const generateSlidesFromDocument = async (
     // Validation & Sanitization Pass
     // Single pass to validate structure, sanitize markdown, and enforce constraints.
     for (const [idx, slide] of slides.entries()) {
-      // 0. ID & Order Injection (Critical for Subcollections)
+      // ID & Order Injection (Critical for Subcollections)
       if (!slide.id) slide.id = crypto.randomUUID();
       slide.sortOrder = idx;
 
-      // 1. Strict Structure Validation
+      // Strict Structure Validation
       const structureErrors = validateSlideStructure(slide, idx);
       if (structureErrors.length > 0) {
         warnings.push(...structureErrors);
         // We continue processing, attempting to "fix" via coercion below if possible, or just accept the mess.
       }
 
-      // 2. Coercion & Fixes
+      // Coercion & Fixes
       if (!slide.content || !Array.isArray(slide.content)) {
         slide.content = [];
       }
@@ -810,22 +896,19 @@ export const generateSlidesFromDocument = async (
         }
       }
 
-      // 4. Image Spec Processing & Prompt Hashing
+      // Image Spec Processing & Prompt Hashing
       // Unified block: If we have an imageSpec (Content slides), process it fully here.
       if (slide.imageSpec) {
         try {
-          // 1. Validate (Collect warnings, don't fail)
-          const specErrors = validateImageSpec(slide.imageSpec);
-          if (specErrors.length > 0) {
-            warnings.push(`Slide ${idx + 1} ImageSpec warnings: ${specErrors.join('; ')}`);
+          // Normalize (Sanitize + Validate)
+          const { spec: normalizedSpec, warnings: specWarnings } = normalizeImageSpec(slide.imageSpec, gradeLevel);
+
+          if (specWarnings.length > 0) {
+            warnings.push(`Slide ${idx + 1} ImageSpec warnings: ${specWarnings.join('; ')}`);
           }
 
-          // 2. Sanitize & Repair (Fill defaults, clamp arrays, backfill conceptualPurpose)
-          const cleanSpec = sanitizeImageSpec(slide.imageSpec, gradeLevel);
-          slide.imageSpec = cleanSpec;
-
-          // 3. deterministic Format for API
-          slide.renderedImagePrompt = formatImageSpec(cleanSpec, { gradeLevel, subject });
+          slide.imageSpec = normalizedSpec;
+          slide.renderedImagePrompt = formatImageSpec(normalizedSpec, { gradeLevel, subject });
 
         } catch (e) {
           console.error("Image Spec processing failed", e);
@@ -835,7 +918,7 @@ export const generateSlidesFromDocument = async (
         }
       }
 
-      // 4. Invariant Check: Slide 1
+      // Invariant Check: Slide 1
       if (idx === 0) {
         if (slide.layout === 'Title Slide') {
           if (slide.content.length !== 3) {
@@ -851,7 +934,7 @@ export const generateSlidesFromDocument = async (
         }
       }
 
-      // 5. Layout Check & ImageSpec Processing
+      // Layout Check & ImageSpec Processing
       if (!slide.layout) {
         warnings.push(`Slide ${idx + 1}: Missing layout property.`);
       }
@@ -907,7 +990,7 @@ export const generateImageFromSpec = async (
     };
 
     const response = await retryWithBackoff(() => ai.models.generateContent({
-      model: "gemini-3-pro-image-preview",
+      model: MODEL_IMAGE_GENERATION,
       contents: [{ role: 'user', parts: [{ text: renderedPrompt }] }],
       config: {
         responseModalities: ['TEXT', 'IMAGE'],
@@ -917,16 +1000,11 @@ export const generateImageFromSpec = async (
       } as any
     }));
 
-    const resp = response;
-
-    // Safe Logging (No Base64 Bomb)
-    // We already log safe summary in the lines above in previous edits, but cleaning up the "Response structure" bomb at the end.
-
-    if (!resp.candidates || !resp.candidates[0].content?.parts) {
+    if (!response.candidates || !response.candidates[0].content?.parts) {
       throw new GeminiError("No content parts in response", 'API_ERROR', true);
     }
 
-    const parts = resp.candidates[0].content.parts;
+    const parts = response.candidates[0].content.parts;
     if (parts && parts.length > 0) {
       // Find the first part that actually has inlineData
       const validPart = parts.find((p: any) => p.inlineData || (p as any).inline_data);
@@ -962,12 +1040,11 @@ export const generateImageFromSpec = async (
         }
       }
     }
-
     // Safe Failure (Log summary, not full object)
     const summary = {
-      candidates: resp.candidates?.length,
-      firstPart: resp.candidates?.[0]?.content?.parts?.[0] ? 'Present' : 'Missing',
-      finishReason: resp.candidates?.[0]?.finishReason,
+      candidates: response.candidates?.length,
+      firstPart: response.candidates?.[0]?.content?.parts?.[0] ? 'Present' : 'Missing',
+      finishReason: response.candidates?.[0]?.finishReason,
       // Debug info if inlineData was present but confused
       inlineDataPresent: parts?.some((p: any) => p.inlineData || (p as any).inline_data),
       partKeys: parts?.map((p: any) => Object.keys(p).join(',')),
@@ -981,43 +1058,7 @@ export const generateImageFromSpec = async (
   }
 };
 
-enum SchemaType {
-  OBJECT = "object",
-  ARRAY = "array",
-  STRING = "string",
-  NUMBER = "number",
-  BOOLEAN = "boolean",
-  INTEGER = "integer",
-  NULL = "null",
-}
-
-// Reusing the schema definition from earlier or defining it at module scope is cleaner.
-// For now, we redefine strictly for this function call context.
-const imageSpecSchema = {
-  type: SchemaType.OBJECT,
-  properties: {
-    primaryFocal: { type: SchemaType.STRING, description: "The main thing seen in the image." },
-    conceptualPurpose: { type: SchemaType.STRING, description: "Pedagogical goal of the image." },
-    subjects: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "List of visual subjects." },
-    actions: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Verbs/actions happening." },
-    mustInclude: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Critical details." },
-    avoid: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING }, description: "Things to exclude." },
-    composition: {
-      type: SchemaType.OBJECT,
-      properties: {
-        layout: { type: SchemaType.STRING },
-        viewpoint: { type: SchemaType.STRING },
-        whitespace: { type: SchemaType.STRING }
-      },
-      required: ['layout', 'viewpoint', 'whitespace']
-    },
-    textPolicy: { type: SchemaType.STRING, enum: ['NO_LABELS', 'LIMITED_LABELS_1_TO_3'] },
-    allowedLabels: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    colors: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-    negativePrompt: { type: SchemaType.ARRAY, items: { type: SchemaType.STRING } },
-  },
-  required: ['primaryFocal', 'conceptualPurpose', 'subjects', 'mustInclude', 'avoid', 'composition', 'textPolicy'],
-};
+// Schema is now defined at module level as IMAGE_SPEC_SCHEMA
 
 export const regenerateImageSpec = async (
   slideTitle: string,
@@ -1045,11 +1086,11 @@ export const regenerateImageSpec = async (
 
   try {
     const result = await ai.models.generateContent({
-      model: "gemini-2.5-pro", // Switch to 2.5 Pro for higher quality consistency
+      model: MODEL_SPEC_REGENERATION, // Switch to 2.5 Pro for higher quality consistency
       contents: [{ role: 'user', parts: [{ text: prompt }] }],
       config: {
         responseMimeType: "application/json",
-        responseSchema: imageSpecSchema,
+        responseSchema: IMAGE_SPEC_SCHEMA,
         temperature: safeTemp,
       } as any
     });
@@ -1060,13 +1101,13 @@ export const regenerateImageSpec = async (
 
     try {
       const spec = JSON.parse(text) as ImageSpec;
-      // Validate & Sanitize immediately
-      const sanitized = sanitizeImageSpec(spec, gradeLevel);
-      const errors = validateImageSpec(sanitized);
-      if (errors.length > 0) {
-        console.warn("Regenerated spec validation failed, attempting auto-fix", errors);
+      // Normalize (Sanitize + Validate)
+      const { spec: normalizedSpec, warnings } = normalizeImageSpec(spec, gradeLevel);
+
+      if (warnings.length > 0) {
+        console.warn("Regenerated spec validation warnings", warnings);
       }
-      return sanitized;
+      return normalizedSpec;
     } catch (e) {
       console.error("Failed to parse regenerated ImageSpec JSON:", e);
       throw new Error("AI produced invalid JSON for image spec.");
@@ -1087,7 +1128,7 @@ export const extractTextFromImage = async (base64Data: string, mimeType: string)
 
   try {
     const response = await ai.models.generateContent({
-      model: "gemini-2.5-pro",
+      model: MODEL_SLIDE_GENERATION,
       contents: [
         {
           role: "user",

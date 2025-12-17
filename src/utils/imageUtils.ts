@@ -10,20 +10,18 @@ export function prepareSpecForSave(
     gradeLevel: string,
     subject: string
 ): { imageSpec: ImageSpec; renderedImagePrompt: string } {
-    // 1. Sanitize (clamp arrays, fill defaults)
-    const sanitized = sanitizeImageSpec(spec, gradeLevel);
+    const { spec: normalizedSpec, warnings } = normalizeImageSpec(spec, gradeLevel);
 
-    // 2. Validate (log warnings but don't block)
-    const errors = validateImageSpec(sanitized);
-    if (errors.length > 0) {
-        console.warn("Spec validation warnings:", errors);
+    // Log warnings if any
+    if (warnings.length > 0) {
+        console.warn("Spec validation warnings:", warnings);
     }
 
-    // 3. Format
-    const rendered = formatImageSpec(sanitized, { gradeLevel, subject });
+    // Format the normalized spec into a prompt
+    const rendered = formatImageSpec(normalizedSpec, { gradeLevel, subject });
 
     return {
-        imageSpec: sanitized,
+        imageSpec: normalizedSpec,
         renderedImagePrompt: rendered
     };
 }
@@ -39,17 +37,16 @@ export function validateImageSpec(spec: ImageSpec): string[] {
         return ['ImageSpec is null or undefined'];
     }
 
-    // REQUIRED FIELDS
+    // Required Fields
     if (!spec.primaryFocal || typeof spec.primaryFocal !== 'string' || spec.primaryFocal.trim() === '') {
         errors.push('imageSpec.primaryFocal is required');
     }
 
-    // NEW: conceptualPurpose is critical
     if (!spec.conceptualPurpose || typeof spec.conceptualPurpose !== 'string' || spec.conceptualPurpose.trim() === '') {
         errors.push('imageSpec.conceptualPurpose is required');
     }
 
-    // Checking Ranges
+    // Array Length Checks
     if (!Array.isArray(spec.subjects) || spec.subjects.length < 2 || spec.subjects.length > 5) {
         errors.push('imageSpec.subjects must have 2–5 items');
     }
@@ -160,8 +157,7 @@ export function parseGradeLevel(gradeLevel: string): number {
  * This should be called before formatting.
  */
 export function sanitizeImageSpec(spec: ImageSpec, gradeLevel: string): ImageSpec {
-    // 1. Compatibility Check: Handle Null/Undefined input gracefully
-    // If spec is missing but we're here, we must produce a valid placeholder.
+    // Compatibility Check: Handle Null/Undefined input gracefully
     if (!spec) {
         return {
             primaryFocal: 'Visual representation of the concept',
@@ -182,10 +178,10 @@ export function sanitizeImageSpec(spec: ImageSpec, gradeLevel: string): ImageSpe
         };
     }
 
-    // 2. Shallow clone + data repair
+    // Shallow clone + data repair
     const clone: ImageSpec = { ...spec };
 
-    // Backfill conceptualPurpose (Critical for legacy slides)
+    // Backfill conceptualPurpose
     if (!clone.conceptualPurpose || typeof clone.conceptualPurpose !== 'string' || clone.conceptualPurpose.trim() === '') {
         // Fallback: use primary focal as the base, or a generic purpose
         clone.conceptualPurpose = clone.primaryFocal
@@ -267,9 +263,141 @@ export function sanitizeImageSpec(spec: ImageSpec, gradeLevel: string): ImageSpe
     return clone;
 }
 
+
+
+/**
+ * Normalizes an ImageSpec by sanitizing and validating it.
+ * Returns the normalized spec along with any validation warnings.
+ * This is the single entry point for spec normalization.
+ */
+export function normalizeImageSpec(
+    spec: ImageSpec,
+    gradeLevel: string
+): {
+    spec: ImageSpec;
+    warnings: string[];
+} {
+    // Sanitize first (clamps arrays, fills defaults, enforces contracts)
+    const sanitized = sanitizeImageSpec(spec, gradeLevel);
+
+    // Validate the sanitized spec
+    const errors = validateImageSpec(sanitized);
+
+    // Return sanitized spec with any validation warnings
+    return {
+        spec: sanitized,
+        warnings: errors,
+    };
+}
+
 interface FormatContext {
     gradeLevel: string;
     subject: string;
+}
+
+/**
+ * Helper functions for formatting ImageSpec prompt sections
+ */
+
+function formatHeaderSection(ctx: FormatContext): string {
+    return `EDUCATIONAL VISUAL AID PROMPT
+${'='.repeat(40)}
+
+CONTEXT:
+- Grade Level: ${ctx.gradeLevel}
+- Subject: ${ctx.subject}`;
+}
+
+function formatTeachingPurposeSection(conceptualPurpose?: string): string {
+    return `
+TEACHING PURPOSE (Why this matters):
+${conceptualPurpose || 'Provide a visual aid for the concept.'}`;
+}
+
+function formatPrimaryVisualConceptSection(primaryFocal: string): string {
+    return `
+PRIMARY VISUAL CONCEPT:
+${primaryFocal}`;
+}
+
+function formatVisualElementsSection(subjects: string[]): string {
+    return `
+VISUAL ELEMENTS (Concrete objects):
+${subjects.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
+}
+
+function formatActionsSection(actions: string[]): string {
+    if (actions.length === 0) return '';
+    return `
+ACTIONS / INTERACTIONS:
+${actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}
+`;
+}
+
+function formatMustIncludeSection(mustInclude: string[]): string {
+    return `
+MUST INCLUDE (Critical details):
+${mustInclude.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
+}
+
+function formatCompositionSection(composition: ImageSpec['composition']): string {
+    return `
+COMPOSITION & LAYOUT:
+- Layout: ${composition.layout}
+- Viewpoint: ${composition.viewpoint}
+- Whitespace: ${composition.whitespace} (keep clean for text overlay)
+- Background: Minimal/Plain (standard educational style)`;
+}
+
+function formatTextPolicySection(
+    textPolicy: ImageTextPolicy,
+    allowedLabels: string[],
+    isNoLabels: boolean
+): string {
+    const section = `
+TEXT POLICY:`;
+
+    if (isNoLabels) {
+        return `${section}
+- STRICTLY NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere in the image.`;
+    } else {
+        return `${section}
+- Include ONLY these labels: ${allowedLabels.join(', ')}.
+- Use large, legible font.`;
+    }
+}
+
+function formatColorsSection(colors: string[]): string {
+    const section = `
+COLORS (Semantic & High Contrast):`;
+
+    if (colors.length > 0) {
+        return `${section}
+- Use this palette: ${colors.join(', ')}`;
+    } else {
+        return `${section}
+- Use high-contrast primary colors suitable for classroom projection.`;
+    }
+}
+
+function formatAvoidSection(avoid: string[]): string {
+    return `
+AVOID (Distractions):
+${avoid.map((a, i) => `${i + 1}. ${a}`).join('\n')}`;
+}
+
+function formatNegativePromptSection(finalNegativePrompt: string[]): string {
+    return `
+NEGATIVE PROMPT (Prevent these errors):
+${finalNegativePrompt.join(', ')}`;
+}
+
+function formatStyleToneSection(): string {
+    return `
+STYLE & TONE:
+- Educational illustration, suitable for textbooks or classroom slides.
+- Prioritize CLARITY over decorative flair.
+- Use clean lines and distinct shapes.`;
 }
 
 /**
@@ -291,92 +419,42 @@ export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
     } = spec;
 
     // Detect if we need strong text suppression
-    // BELT-AND-SUSPENDERS:
-    // Even though sanitizeImageSpec catches this, we re-check here to prevent "Include ONLY these labels: <empty>".
-    // If LIMITED is set but allowedLabels is empty, we MUST treat it as NO_LABELS.
     const effectivePolicy = (textPolicy === 'LIMITED_LABELS_1_TO_3' && (!allowedLabels || allowedLabels.length === 0))
         ? 'NO_LABELS'
         : textPolicy;
 
     const isNoLabels = effectivePolicy === 'NO_LABELS';
 
-    // Inject strong negative constraints if NO_LABELS
-    // These specific terms are proven to help diffusion models suppress text generation.
+    // Build negative prompt with text suppression logic
     const textSuppressionTerms = [
-        'text',
-        'labels',
-        'words',
-        'lettering',
-        'typography',
-        'annotations',
-        'watermark',
-        'signature',
-        'caption',
-        'numbers',
-        'legends'
+        'text', 'labels', 'words', 'lettering', 'typography',
+        'annotations', 'watermark', 'signature', 'caption', 'numbers', 'legends'
     ];
 
-    let finalNegativePrompt: string[] = [];
-
+    let finalNegativePrompt: string[];
     if (isNoLabels) {
-        // Merge strictly, ensuring we don't duplicate
         finalNegativePrompt = [...new Set([...negativePrompt, ...textSuppressionTerms])];
     } else {
-        // CONFLICT REMOVAL:
-        // If we ARE allowing labels, we must NOT have 'text', 'labels' etc in negative prompt,
-        // otherwise they fight the positive prompt.
         finalNegativePrompt = negativePrompt.filter(term => !textSuppressionTerms.includes(term.toLowerCase()));
     }
 
-    let prompt = `EDUCATIONAL VISUAL AID PROMPT
-${'='.repeat(40)}
+    // Build prompt sections
+    const sections = [
+        formatHeaderSection(ctx),
+        formatTeachingPurposeSection(conceptualPurpose),
+        formatPrimaryVisualConceptSection(primaryFocal),
+        formatVisualElementsSection(subjects),
+        formatActionsSection(actions),
+        formatMustIncludeSection(mustInclude),
+        formatCompositionSection(composition),
+        formatTextPolicySection(textPolicy, allowedLabels, isNoLabels),
+        formatColorsSection(colors),
+        formatAvoidSection(avoid),
+        formatNegativePromptSection(finalNegativePrompt),
+        formatStyleToneSection(),
+    ];
 
-CONTEXT:
-- Grade Level: ${ctx.gradeLevel}
-- Subject: ${ctx.subject}
-
-TEACHING PURPOSE (Why this matters):
-${conceptualPurpose || 'Provide a visual aid for the concept.'}
-
-PRIMARY VISUAL CONCEPT:
-${primaryFocal}
-
-VISUAL ELEMENTS (Concrete objects):
-${subjects.map((s, i) => `${i + 1}. ${s}`).join('\n')}
-
-${actions.length > 0 ? `ACTIONS / INTERACTIONS:\n${actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}\n` : ''}
-MUST INCLUDE (Critical details):
-${mustInclude.map((m, i) => `${i + 1}. ${m}`).join('\n')}
-
-COMPOSITION & LAYOUT:
-- Layout: ${composition.layout}
-- Viewpoint: ${composition.viewpoint}
-- Whitespace: ${composition.whitespace} (keep clean for text overlay)
-- Background: Minimal/Plain (standard educational style)
-
-TEXT POLICY:
-${isNoLabels
-            ? '- STRICTLY NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere in the image.'
-            : `- Include ONLY these labels: ${allowedLabels.join(', ')}.\n- Use large, legible font.`}
-
-COLORS (Semantic & High Contrast):
-${colors.length > 0
-            ? `- Use this palette: ${colors.join(', ')}`
-            : '- Use high-contrast primary colors suitable for classroom projection.'}
-
-AVOID (Distractions):
-${avoid.map((a, i) => `${i + 1}. ${a}`).join('\n')}
-
-NEGATIVE PROMPT (Prevent these errors):
-${finalNegativePrompt.join(', ')}
-
-STYLE & TONE:
-- Educational illustration, suitable for textbooks or classroom slides.
-- Prioritize CLARITY over decorative flair.
-- Use clean lines and distinct shapes.
-`;
-
-    return prompt;
+    return sections.filter(section => section.trim().length > 0).join('\n');
 }
 
 // Helper Types for UI Summary
