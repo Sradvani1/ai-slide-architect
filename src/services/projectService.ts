@@ -4,7 +4,6 @@ import {
     doc,
     setDoc,
     updateDoc,
-    addDoc,
     getDocs,
     getDoc,
     deleteDoc,
@@ -116,15 +115,8 @@ export interface ProjectData {
     updatedAt?: Timestamp;
 }
 
-export interface ProjectVersion {
-    versionNumber: number;
-    timestamp: Timestamp;
-    changeType: 'initial_generation' | 'manual_save' | 'restore';
-    slides: Slide[];
-}
-
 /**
- * Creates a new project in Firestore and initializes its history.
+ * Creates a new project in Firestore.
  */
 export const createProject = async (userId: string, data: Omit<ProjectData, 'userId' | 'createdAt' | 'updatedAt' | 'id'>) => {
     try {
@@ -162,15 +154,6 @@ export const createProject = async (userId: string, data: Omit<ProjectData, 'use
 
             await setDoc(slideDocRef, slideData);
         }));
-
-        // 4. Create the initial version in history subcollection (Snapshot is okay here)
-        const historyCollectionRef = collection(newProjectRef, 'history');
-        await addDoc(historyCollectionRef, {
-            versionNumber: 1,
-            timestamp: serverTimestamp(),
-            changeType: 'initial_generation',
-            slides: slides // History keeps full snapshot
-        });
 
         console.log(`Project created with ID: ${newProjectRef.id} and ${slides.length} slides.`);
         return newProjectRef.id;
@@ -230,41 +213,6 @@ export const updateSlide = async (userId: string, projectId: string, slideId: st
         console.log(`Slide ${slideId} updated (patch).`);
     } catch (error) {
         console.error(`Error updating slide ${slideId}:`, error);
-        throw error;
-    }
-};
-
-/**
- * Saves a simplified snapshot of the project as a new version in history.
- * NOTE: In a real app, you might want to fetch the current doc first to ensure consistency,
- * or pass the slides to be saved explicitly. Here we accept slides to be saved.
- */
-export const saveProjectVersion = async (userId: string, projectId: string, slides: Slide[], changeType: ProjectVersion['changeType'] = 'manual_save') => {
-    try {
-        const projectRef = doc(db, 'users', userId, 'projects', projectId);
-        const historyCollectionRef = collection(projectRef, 'history');
-
-        // Get the latest version number to increment (simple approach)
-        // A more robust approach might use a transaction or aggregation query.
-        // For now, we'll query for the most recent version.
-        // TODO: Implement rigorous version number checking if needed.
-
-        // Just adding a timestamp-based doc for now is safer for concurrency if we don't strictly need sequential integers 
-        // but the requirement asked for version numbers. 
-        // Let's just use strict timestamp ordering for retrieval and auto-ID for docs for now, 
-        // and we can calculate "Version N" on read if we want, or store a counter.
-        // For simplicity in this iteration: We'll just push the doc.
-
-        await addDoc(historyCollectionRef, {
-            slides,
-            timestamp: serverTimestamp(),
-            changeType
-        });
-
-        console.log(`Version saved for project ${projectId}`);
-
-    } catch (error) {
-        console.error("Error saving project version:", error);
         throw error;
     }
 };
