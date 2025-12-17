@@ -96,10 +96,9 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 throw new Error("No valid visual idea to generate from.");
             }
 
-            const { blob } = await generateImageFromSpec(imageSpec, gradeLevel, subject, {
-                temperature: creativityLevel,
-                aspectRatio: aspectRatio
-            });
+            // Use the rendered prompt string directly
+            const { blob } = await generateImageFromSpec(imageSpec, gradeLevel, subject, { aspectRatio });
+            // Note: generateImageFromSpec now returns blob directly (handled internally)
 
             // Handle result...
             if (userId && projectId) {
@@ -129,14 +128,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             console.error('Error generating image:', error);
 
             let message = 'Failed to generate image. Please try again.';
-            if (error instanceof Error && (error as any).isRetryable) {
-                const imgErr = error as ImageGenError;
-                if (imgErr.code === 'NO_IMAGE_DATA') {
-                    message = "No image returned from AI. Try regenerating the idea.";
-                } else if (imgErr.isRetryable) {
-                    message = "Temporary AI glitch. Please try clicking 'Generate Image' again.";
-                }
+            if (error instanceof Error && (error as any).isRetryable) { // Check if Error type needs casting or if custom error is preserved
+                // We re-exported ImageGenError in geminiService, maybe check validation
+                // For now generic check is fine or check error.code if propagated
+                message = "Temporary AI glitch. Please try clicking 'Generate Image' again.";
             }
+            // Specific error handling based on message content if codes aren't available on Error object directly in standard catch
+            if (String(error).includes('NO_IMAGE_DATA')) {
+                message = "No image returned from AI. Try regenerating the idea.";
+            }
+
             alert(message);
         } finally {
             setIsGeneratingImage(false);
@@ -155,13 +156,19 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         isRegeneratingSpecRef.current = true;
         setIsRegeneratingSpec(true);
         try {
-            // Generate NEW Spec
+            // Generate NEW Spec using the server endpoint
+            // We pass the current spec (if any) and a request instructions
+            const request = imageSpec
+                ? "Regenerate this visual specification to be more creative and aligned with the content."
+                : "Create a detailed visual specification for this slide.";
+
+            // Mock empty spec if null to satisfy type if needed, or server handles null
+            const validSpec = imageSpec || {} as ImageSpec;
+
             const newSpec = await regenerateImageSpec(
-                slide.title,
-                slide.content,
-                gradeLevel,
-                subject,
-                creativityLevel
+                validSpec,
+                request,
+                { title: slide.title, content: slide.content }
             );
 
             const patch = prepareSpecForSave(newSpec, gradeLevel, subject);

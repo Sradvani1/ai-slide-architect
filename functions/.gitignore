@@ -1,0 +1,4 @@
+# Compiled JavaScript files
+lib/
+node_modules/
+.env
