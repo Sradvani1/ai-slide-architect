@@ -1,5 +1,5 @@
 
-import { validateImageSpec, sanitizeImageSpec, formatImageSpec, parseGradeLevel } from '../src/utils/imageUtils';
+import { validateImageSpec, sanitizeImageSpec, formatImageSpec, parseGradeLevel } from '../shared/utils/imageUtils';
 import { ImageSpec } from '../src/types';
 
 function assert(condition: boolean, message: string) {
