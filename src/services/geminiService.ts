@@ -104,7 +104,7 @@ function validateSlideStructure(slide: any, idx: number): string[] {
   }
 
   // Required keys
-  const required = ['title', 'content', 'speakerNotes']; // imageSpec is NOT required here to allow Title slides to omit it potentially
+  const required = ['title', 'content', 'speakerNotes', 'imageSpec']; // imageSpec IS required now for all slides
   // Strict checking for top-level keys
 
 
@@ -401,13 +401,13 @@ export const generateSlidesFromDocument = async (
     1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound.
     2. Clarity: Use clear, concise language.
     3. Engagement: Speaker notes should be engaging and conversational (script format).
-    4. Citations: You MUST include a "Sources:" section at the very end of the speaker notes. List all used URLs (if Web Search) or filenames (if uploaded text).
+    4. Citations: You MUST include a "Sources:" section at the very end of the speaker notes. List all used URLs (if Web Search) or filenames (if uploaded text). DO NOT include citations or sources in the visible slide "content" array.
   `;
 
   // 5. STRUCTURE REQUIREMENTS
   prompt += `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"]. (No imageSpec required).
+    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"]. (MUST include imageSpec).
     - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes, Sources).
   `;
 
@@ -565,7 +565,7 @@ export const generateSlidesFromDocument = async (
         },
       },
 
-      required: ["title", "content", "layout", "speakerNotes"], // imageSpec removed from required to support Title slides
+      required: ["title", "content", "layout", "speakerNotes", "imageSpec"], // imageSpec is now required for ALL slides including Title
     },
   };
 
