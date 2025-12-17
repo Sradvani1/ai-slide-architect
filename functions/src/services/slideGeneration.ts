@@ -42,12 +42,14 @@ export async function generateSlides(
         const model = MODEL_SLIDE_GENERATION;
         const config: any = {
             temperature: temperature || DEFAULT_TEMPERATURE,
-            responseMimeType: "application/json",
         };
 
         // SDK specific tool definition
         if (useWebSearch) {
             config.tools = [{ googleSearch: {} }];
+        } else {
+            // Only enforce JSON mode if NO tools are used, as they are mutually exclusive in some models
+            config.responseMimeType = "application/json";
         }
 
         const result = await getAiClient().models.generateContent({
