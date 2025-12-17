@@ -2,6 +2,33 @@
 import type { ImageSpec, ImageLayout, Viewpoint, Whitespace, ImageTextPolicy } from '../types.ts';
 
 /**
+ * Prepares an ImageSpec for saving by sanitizing, validating, and formatting it.
+ * Centralizes the logic used in multiple places.
+ */
+export function prepareSpecForSave(
+    spec: ImageSpec,
+    gradeLevel: string,
+    subject: string
+): { imageSpec: ImageSpec; renderedImagePrompt: string } {
+    // 1. Sanitize (clamp arrays, fill defaults)
+    const sanitized = sanitizeImageSpec(spec, gradeLevel);
+
+    // 2. Validate (log warnings but don't block)
+    const errors = validateImageSpec(sanitized);
+    if (errors.length > 0) {
+        console.warn("Spec validation warnings:", errors);
+    }
+
+    // 3. Format
+    const rendered = formatImageSpec(sanitized, { gradeLevel, subject });
+
+    return {
+        imageSpec: sanitized,
+        renderedImagePrompt: rendered
+    };
+}
+
+/**
  * Validates an ImageSpec object at runtime.
  * Returns an array of error messages. Empty array means valid.
  */
@@ -74,6 +101,21 @@ export function validateImageSpec(spec: ImageSpec): string[] {
         if (!validPolicies.includes(spec.textPolicy)) {
             errors.push(`Invalid textPolicy: ${spec.textPolicy}`);
         }
+
+        // CONSISTENT VALIDATION WITH SANITIZATION
+        if (spec.textPolicy === 'LIMITED_LABELS_1_TO_3') {
+            const hasLabels = spec.allowedLabels && Array.isArray(spec.allowedLabels) && spec.allowedLabels.length > 0;
+            if (!hasLabels) {
+                errors.push('LIMITED_LABELS_1_TO_3 requires at least 1 allowedLabel');
+            }
+        }
+        if (spec.textPolicy === 'NO_LABELS') {
+            const hasLabels = spec.allowedLabels && Array.isArray(spec.allowedLabels) && spec.allowedLabels.length > 0;
+            if (hasLabels) {
+                errors.push('NO_LABELS must not have allowedLabels');
+            }
+        }
+
     } else {
         errors.push('imageSpec.textPolicy is required');
     }
@@ -178,10 +220,30 @@ export function sanitizeImageSpec(spec: ImageSpec, gradeLevel: string): ImageSpe
         clone.composition.viewpoint = gradeNum <= 2 ? 'child-eye-level' : 'front';
     }
 
-    // 5. Text Policy Defaults
+    // 5. Text Policy Defaults & strict enforcement
     if (!clone.textPolicy) {
         clone.textPolicy = 'NO_LABELS';
     }
+
+    // SANITIZE LABELS FIRST
+    // Trim, dedupe, and filter valid labels immediately
+    let cleanLabels = (spec.allowedLabels || [])
+        .map(l => l ? String(l).trim() : '')
+        .filter(l => l.length > 0 && l.length < 30) // Cap length to avoid prose
+        .slice(0, 3); // Hard cap at 3
+
+    // Deduplicate
+    cleanLabels = [...new Set(cleanLabels)];
+    clone.allowedLabels = cleanLabels;
+
+    // STRICT CONTRACT ENFORCEMENT:
+    // If LIMITED_LABELS_1_TO_3 is selected but no labels are provided (after clamping),
+    // automatically coerce to NO_LABELS to avoid hallucinated/gibberish text.
+    if (clone.textPolicy === 'LIMITED_LABELS_1_TO_3' && clone.allowedLabels.length === 0) {
+        clone.textPolicy = 'NO_LABELS';
+    }
+
+    // If NO_LABELS, ensure allowedLabels is strictly empty
     if (clone.textPolicy === 'NO_LABELS') {
         clone.allowedLabels = [];
     }
@@ -228,6 +290,44 @@ export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
         negativePrompt = [],
     } = spec;
 
+    // Detect if we need strong text suppression
+    // BELT-AND-SUSPENDERS:
+    // Even though sanitizeImageSpec catches this, we re-check here to prevent "Include ONLY these labels: <empty>".
+    // If LIMITED is set but allowedLabels is empty, we MUST treat it as NO_LABELS.
+    const effectivePolicy = (textPolicy === 'LIMITED_LABELS_1_TO_3' && (!allowedLabels || allowedLabels.length === 0))
+        ? 'NO_LABELS'
+        : textPolicy;
+
+    const isNoLabels = effectivePolicy === 'NO_LABELS';
+
+    // Inject strong negative constraints if NO_LABELS
+    // These specific terms are proven to help diffusion models suppress text generation.
+    const textSuppressionTerms = [
+        'text',
+        'labels',
+        'words',
+        'lettering',
+        'typography',
+        'annotations',
+        'watermark',
+        'signature',
+        'caption',
+        'numbers',
+        'legends'
+    ];
+
+    let finalNegativePrompt: string[] = [];
+
+    if (isNoLabels) {
+        // Merge strictly, ensuring we don't duplicate
+        finalNegativePrompt = [...new Set([...negativePrompt, ...textSuppressionTerms])];
+    } else {
+        // CONFLICT REMOVAL:
+        // If we ARE allowing labels, we must NOT have 'text', 'labels' etc in negative prompt,
+        // otherwise they fight the positive prompt.
+        finalNegativePrompt = negativePrompt.filter(term => !textSuppressionTerms.includes(term.toLowerCase()));
+    }
+
     let prompt = `EDUCATIONAL VISUAL AID PROMPT
 ${'='.repeat(40)}
 
@@ -255,8 +355,8 @@ COMPOSITION & LAYOUT:
 - Background: Minimal/Plain (standard educational style)
 
 TEXT POLICY:
-${textPolicy === 'NO_LABELS'
-            ? '- No text, labels, or lettering in the image.'
+${isNoLabels
+            ? '- STRICTLY NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere in the image.'
             : `- Include ONLY these labels: ${allowedLabels.join(', ')}.\n- Use large, legible font.`}
 
 COLORS (Semantic & High Contrast):
@@ -268,7 +368,7 @@ AVOID (Distractions):
 ${avoid.map((a, i) => `${i + 1}. ${a}`).join('\n')}
 
 NEGATIVE PROMPT (Prevent these errors):
-${negativePrompt.join(', ')}
+${finalNegativePrompt.join(', ')}
 
 STYLE & TONE:
 - Educational illustration, suitable for textbooks or classroom slides.
@@ -312,28 +412,4 @@ export function getVisualIdeaSummary(spec: ImageSpec): VisualIdeaSummary {
         elements: elementsStr
     };
 }
-export async function hashPrompt(prompt: string): Promise<string> {
-    const encoder = new TextEncoder();
-    const data = encoder.encode(prompt);
 
-    // Universal crypto check (Node 19+, Browser, or polyfill)
-    const subtle = globalThis.crypto?.subtle || (globalThis as any).crypto?.webcrypto?.subtle;
-
-    if (subtle) {
-        const hashBuffer = await subtle.digest('SHA-256', data);
-        const hashArray = Array.from(new Uint8Array(hashBuffer));
-        const hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
-        return hashHex;
-    }
-
-    // Fallback for simple unique ID if crypto is missing (less robust, but keeps app working)
-    // In a real Node environment we'd import 'crypto', but this file might be shared in browser bundle
-    console.warn("Crypto API not available, using simple fallback hash");
-    let hash = 0;
-    for (let i = 0; i < prompt.length; i++) {
-        const char = prompt.charCodeAt(i);
-        hash = ((hash << 5) - hash) + char;
-        hash = hash & hash; // Convert to 32bit integer
-    }
-    return hash.toString(16);
-}

@@ -7,7 +7,7 @@ export interface GeneratedImage {
   aspectRatio?: '16:9' | '1:1';
 }
 
-// NEW: Spec-first history record (Replacing legacy ImagePrompt)
+// DEPRECATED: Spec-first history record (Legacy)
 export interface ImagePromptRecord {
   id: string;               // UUID
   createdAt: number;
@@ -91,9 +91,7 @@ export interface Slide {
 
   imageSpec?: ImageSpec; // Structured image specification (Source of Truth)
   renderedImagePrompt?: string; // Deterministic prompt derived from spec (for display/API)
-  renderedImagePromptHash?: string; // SHA-256 hash of the rendered prompt for change detection
-  promptHistory?: ImagePromptRecord[]; // New history support (Spec-first)
-  selectedPromptId?: string; // ID of the currently selected prompt
+  generatedImages?: GeneratedImage[]; // Simple flat array of all images
   backgroundImage?: string; // URL for the generated image
   speakerNotes: string; // Required, defaults to empty string if missing
   sources?: string[];

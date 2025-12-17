@@ -6,9 +6,7 @@ import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import {
   validateImageSpec,
   sanitizeImageSpec,
-  formatImageSpec,
-  hashPrompt,
-  parseGradeLevel // Useful helper if needed internally
+  formatImageSpec
 } from '../utils/imageUtils';
 
 const API_KEY = process.env.API_KEY || ''; // Ensure string
@@ -242,7 +240,6 @@ async function retryWithBackoff<T>(fn: () => Promise<T>, retries = MAX_RETRIES, 
     return retryWithBackoff(fn, retries - 1, nextDelay, deadline);
   }
 }
-// IMAGE_STYLE_GUIDE removed - it is now part of formatImageSpec utility
 
 // Helper to extract JSON array safely
 function extractFirstJsonArray(text: string): any[] {
@@ -421,7 +418,6 @@ export const generateSlidesFromDocument = async (
     - No Markdown: Bullet points must be plain strings. NO bold (**), italics (*), or bullet characters (-) in the string itself.
   `;
 
-  // 7. IMAGE PROMPTING GUIDELINES
   // 7. IMAGE VISUAL SPECIFICATION (imageSpec)
   prompt += `
   IMAGE VISUAL SPECIFICATION (imageSpec)
@@ -429,7 +425,7 @@ export const generateSlidesFromDocument = async (
 
   TEACHING GOAL:
   - The image must teach a specific concept, not just decorate the slide.
-  - Define a \`conceptualPurpose\`: What should the student understand from this image? (e.g., "Show how evaporation leads to condensation").
+  - Define a \`conceptualPurpose\`: What should the student understand from this image?
 
   imageSpec rules:
   - \`conceptualPurpose\`: REQUIRED. explicit pedagogical goal.
@@ -442,8 +438,10 @@ export const generateSlidesFromDocument = async (
     - \`viewpoint\`: "front", "side", "overhead", "isometric-3d-cutaway" (for structures), "side-profile" (for layers/processes).
     - \`whitespace\`: "generous" (default) or "moderate".
   - Text policy:
-    - Default: "NO_LABELS" (no text).
-    - Only use "LIMITED_LABELS_1_TO_3" if critical for parts/diagrams.
+    - Default: "NO_LABELS". Choose this unless text labels improve learning.
+    - "LIMITED_LABELS_1_TO_3": Use for diagrams where parts need names.
+      - CONTRACT: If you choose this, you MUST provide 1-3 distinct strings in \`allowedLabels\`.
+      - If \`allowedLabels\` is empty, the system will FORCE "NO_LABELS".
   - Colors: 3–5 high-contrast colors.
   - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
 
@@ -769,9 +767,6 @@ export const generateSlidesFromDocument = async (
 
     // Validation & Sanitization Pass
     // Single pass to validate structure, sanitize markdown, and enforce constraints.
-
-    // Validation & Sanitization Pass
-    // Refactor to for...of loop to support await inside (for hashing)
     for (const [idx, slide] of slides.entries()) {
       // 0. ID & Order Injection (Critical for Subcollections)
       if (!slide.id) slide.id = crypto.randomUUID();
@@ -817,8 +812,6 @@ export const generateSlidesFromDocument = async (
 
       // 4. Image Spec Processing & Prompt Hashing
       // Unified block: If we have an imageSpec (Content slides), process it fully here.
-      // 4. Image Spec Processing & Prompt Hashing
-      // Unified block: If we have an imageSpec (Content slides), process it fully here.
       if (slide.imageSpec) {
         try {
           // 1. Validate (Collect warnings, don't fail)
@@ -834,7 +827,6 @@ export const generateSlidesFromDocument = async (
           // 3. deterministic Format for API
           slide.renderedImagePrompt = formatImageSpec(cleanSpec, { gradeLevel, subject });
 
-          // 4. Hash (Will happen in parallel pass below)
         } catch (e) {
           console.error("Image Spec processing failed", e);
           warnings.push(`Slide ${idx + 1}: Failed to process image spec.`);
@@ -866,27 +858,7 @@ export const generateSlidesFromDocument = async (
 
 
     }
-
-    // Async pass for Hashing (since we couldn't do it in forEach easily)
-    // Async pass for Hashing (since we couldn't do it in forEach easily)
-    await Promise.all(slides.map(async (slide) => {
-      if (slide.renderedImagePrompt) {
-        slide.renderedImagePromptHash = await hashPrompt(slide.renderedImagePrompt);
-
-        // Initialize History (Single Source of Truth)
-        if (slide.imageSpec) {
-          slide.promptHistory = [{
-            id: crypto.randomUUID(),
-            createdAt: Date.now(),
-            spec: slide.imageSpec,
-            renderedPrompt: slide.renderedImagePrompt,
-            promptHash: slide.renderedImagePromptHash,
-            generatedImages: []
-          }];
-          slide.selectedPromptId = slide.promptHistory[0].id;
-        }
-      }
-    }));
+    // Spec generation and formatting happens synchronously above.
 
     // Safe token usage
     const inputTokens = response.usageMetadata?.promptTokenCount ?? 0;

@@ -1,9 +1,11 @@
+
 import React, { useState, useEffect, useRef } from 'react';
-import type { Slide, ImagePromptRecord, GeneratedImage, ImageSpec, ImageGenError } from '../types';
-import { CopyIcon, CheckIcon, ImageIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import type { Slide, ImageSpec, ImageGenError } from '../types';
+import { CopyIcon, CheckIcon, ImageIcon } from './icons';
 import { generateImageFromSpec, regenerateImageSpec } from '../services/geminiService';
-import { formatImageSpec, hashPrompt, getVisualIdeaSummary } from '../utils/imageUtils';
+import { formatImageSpec, getVisualIdeaSummary, prepareSpecForSave } from '../utils/imageUtils';
 import { uploadImageToStorage } from '../services/projectService';
+import { ImageSpecEditor } from './ImageSpecEditor';
 
 interface SlideCardProps {
     slide: Slide;
@@ -40,40 +42,24 @@ export const cleanText = (text: string): string => {
         .replace(/\*(.*?)\*/g, '$1')     // Italic
         .replace(/__(.*?)__/g, '$1')     // Bold
         .replace(/_(.*?)_/g, '$1')       // Italic
-        .replace(/`([^`]+)`/g, '$1')    // Code
+        .replace(/`([^`]+)`/g, '$1')     // Code
         .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
 };
 
 export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, gradeLevel, subject, creativityLevel, userId, projectId }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-    const [isRegeneratingPrompt, setIsRegeneratingPrompt] = useState(false);
-    const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+    const [isRegeneratingSpec, setIsRegeneratingSpec] = useState(false);
+    const [isEditingSpec, setIsEditingSpec] = useState(false);
 
-    // History State
-    // We initialize this lazily to handle the legacy -> history migration on first render if needed
-    // However, for strict React purity, we should not mutate props. 
-    // We will derive the "display" prompts array on the fly.
-    // History State
-    // History State
-    const prompts: ImagePromptRecord[] = slide.promptHistory || [];
-
-    // Identify which prompt is selected. Default to the last one (most recent) if not specified.
-    // If selectedPromptId is set but not found, fallback to last.
-    const selectedPromptIndex = slide.selectedPromptId
-        ? prompts.findIndex(p => p.id === slide.selectedPromptId)
-        : prompts.length - 1;
-
-    // Safety check: if index -1 (not found), default to last.
-    const activeIndex = selectedPromptIndex >= 0 ? selectedPromptIndex : prompts.length - 1;
-    const activePrompt = prompts[activeIndex];
-
-    const [promptText, setPromptText] = useState(activePrompt?.renderedPrompt || '');
-    const textareaRef = useRef<HTMLTextAreaElement>(null);
-    const editContainerRef = useRef<HTMLDivElement>(null);
+    // Direct access to slide data (Source of Truth)
+    const imageSpec = slide.imageSpec;
+    const generatedImages = slide.generatedImages || [];
+    // Compute rendered prompt inline or default to empty
+    const renderedPrompt = slide.renderedImagePrompt || (imageSpec ? formatImageSpec(imageSpec, { gradeLevel, subject }) : '');
 
     // Hard Re-entrancy Locks
     const isGeneratingImageRef = useRef(false);
-    const isRegeneratingPromptRef = useRef(false);
+    const isRegeneratingSpecRef = useRef(false);
 
     const [isEditingContent, setIsEditingContent] = useState(false);
     const [contentText, setContentText] = useState(slide.content.join('\n'));
@@ -82,13 +68,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const contentToCopy = `${slide.title}\n\n${slide.content.map(item => `- ${item}`).join('\n')}`;
 
     // Auto-resize textareas
-    useEffect(() => {
-        if (isEditingPrompt && textareaRef.current) {
-            textareaRef.current.style.height = 'auto';
-            textareaRef.current.style.height = textareaRef.current.scrollHeight + 'px';
-        }
-    }, [promptText, isEditingPrompt]);
-
     useEffect(() => {
         if (isEditingContent && contentRef.current) {
             contentRef.current.style.height = 'auto';
@@ -99,24 +78,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     // Aspect Ratio State
     const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1'>('16:9');
 
-    // Sync local text state when active prompt changes
-    useEffect(() => {
-        setPromptText(activePrompt?.renderedPrompt || '');
-    }, [activePrompt?.id, activePrompt?.renderedPrompt]);
-
-    // Click outside to cancel prompt edit
-    useEffect(() => {
-        const handleClickOutside = (event: MouseEvent) => {
-            if (isEditingPrompt && editContainerRef.current && !editContainerRef.current.contains(event.target as Node)) {
-                handleCancelEdit();
-            }
-        };
-        document.addEventListener('mousedown', handleClickOutside);
-        return () => {
-            document.removeEventListener('mousedown', handleClickOutside);
-        };
-    }, [isEditingPrompt]);
-
     const sanitizeFilename = (filename: string): string => {
         return filename
             .replace(/[<>:"/\\|?*]/g, '-')
@@ -126,34 +87,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             .substring(0, 100);
     };
 
-    const handleNavigateHistory = (direction: 'prev' | 'next') => {
-        const newIndex = direction === 'prev' ? activeIndex - 1 : activeIndex + 1;
-        if (newIndex >= 0 && newIndex < prompts.length) {
-            const newPrompt = prompts[newIndex];
-            // Update parent with new selected ID
-            onUpdateSlide({
-                ...slide,
-                // Ensure prompts array is fully populated in the update if it wasn't before
-                promptHistory: prompts,
-                selectedPromptId: newPrompt.id,
-
-            });
-        }
-    };
-
     const handleGenerateImage = async () => {
         if (isGeneratingImageRef.current) return;
         isGeneratingImageRef.current = true;
         setIsGeneratingImage(true);
         try {
-            // New Flow: generateImageFromSpec
-            if (!activePrompt || !activePrompt.spec) {
-                throw new Error("No valid visual idea selected.");
+            if (!imageSpec) {
+                throw new Error("No valid visual idea to generate from.");
             }
 
-            const specToUse = activePrompt.spec;
-
-            const { blob, renderedPrompt } = await generateImageFromSpec(specToUse, gradeLevel, subject, {
+            const { blob } = await generateImageFromSpec(imageSpec, gradeLevel, subject, {
                 temperature: creativityLevel,
                 aspectRatio: aspectRatio
             });
@@ -161,36 +104,14 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             // Handle result...
             if (userId && projectId) {
                 const sanitizedTitle = sanitizeFilename(slide.title);
-                const filename = `img-${slideNumber}-${sanitizedTitle}.png`;
+                const filename = `img-${slideNumber}-${sanitizedTitle}-${Date.now()}.png`;
                 const generatedImage = await uploadImageToStorage(userId, projectId, blob, filename, aspectRatio);
 
-                // Update history
-                const updatedPrompts = [...prompts];
-                const updatedPrompt: ImagePromptRecord = {
-                    ...activePrompt,
-                    renderedPrompt: renderedPrompt, // Refresh render just in case
-                    generatedImages: [...(activePrompt.generatedImages || []), generatedImage],
-                };
-                updatedPrompts[activeIndex] = updatedPrompt;
-
                 onUpdateSlide({
-                    promptHistory: updatedPrompts,
-                    selectedPromptId: activePrompt.id,
+                    generatedImages: [...generatedImages, generatedImage],
                     backgroundImage: generatedImage.url,
+                    // No need to update renderedImagePrompt here as spec hasn't changed
                 });
-
-                // INVARIANT LOGGING (Production Signal)
-                console.groupCollapsed(`[Invariant] Image Generated: ${slide.id}`);
-                console.log({
-                    slideId: slide.id,
-                    promptId: activePrompt.id,
-                    promptHash: activePrompt.promptHash,
-                    generatedImagesLength: generatedImage ? activePrompt.generatedImages.length + 1 : activePrompt.generatedImages.length
-                });
-                if (updatedPrompts.length !== slide.promptHistory?.length) {
-                    console.error("Invariant Violation: Generate Image altered promptHistory length!");
-                }
-                console.groupEnd();
 
             } else {
                 // Fallback download
@@ -208,14 +129,12 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             console.error('Error generating image:', error);
 
             let message = 'Failed to generate image. Please try again.';
-            if (error instanceof Error && (error as any).isRetryable) { // Check for ImageGenError attributes
+            if (error instanceof Error && (error as any).isRetryable) {
                 const imgErr = error as ImageGenError;
                 if (imgErr.code === 'NO_IMAGE_DATA') {
-                    message = "No image returned from AI. Try clicking 'New Visual Idea' to reset the concept.";
+                    message = "No image returned from AI. Try regenerating the idea.";
                 } else if (imgErr.isRetryable) {
                     message = "Temporary AI glitch. Please try clicking 'Generate Image' again.";
-                } else if (imgErr.code === 'INVALID_MIME_TYPE') {
-                    message = "Unexpected image format received. Please report this issue.";
                 }
             }
             alert(message);
@@ -225,10 +144,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     };
 
-    const handleNewVisualIdea = async () => {
-        if (isRegeneratingPromptRef.current) return;
-        isRegeneratingPromptRef.current = true;
-        setIsRegeneratingPrompt(true);
+    const handleRegenerateSpec = async () => {
+        if (isRegeneratingSpecRef.current) return;
+
+        // Confirmation if manually triggered and spec exists
+        if (imageSpec && !window.confirm("This will overwrite your current visual idea. Continue?")) {
+            return;
+        }
+
+        isRegeneratingSpecRef.current = true;
+        setIsRegeneratingSpec(true);
         try {
             // Generate NEW Spec
             const newSpec = await regenerateImageSpec(
@@ -239,79 +164,22 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 creativityLevel
             );
 
-            // Create display string
-            const rendered = formatImageSpec(newSpec, { gradeLevel, subject });
-            const promptHash = await hashPrompt(rendered);
-
-            // Deduplication Check
-            const existingIndex = prompts.findIndex(p => p.promptHash === promptHash);
-
-            if (existingIndex !== -1) {
-                // Duplicate found: Switch to it
-                onUpdateSlide({
-                    ...slide,
-                    selectedPromptId: prompts[existingIndex].id
-                });
-                return;
-            }
-
-            // New unique idea
-            const newPromptRecord: ImagePromptRecord = {
-                id: crypto.randomUUID(),
-                spec: newSpec,
-                renderedPrompt: rendered,
-                promptHash: promptHash,
-                createdAt: Date.now(),
-                generatedImages: [],
-            };
-
-            const updatedPrompts = [...(slide.promptHistory || []), newPromptRecord];
-
-            onUpdateSlide({
-                promptHistory: updatedPrompts,
-                selectedPromptId: newPromptRecord.id
-            });
-
-            // INVARIANT LOGGING (Production Signal)
-            console.groupCollapsed(`[Invariant] New Visual Idea: ${slide.id}`);
-            console.log({
-                slideId: slide.id,
-                promptHash: promptHash,
-                promptHistoryLength: updatedPrompts.length,
-                isDuplicate: updatedPrompts.length === (slide.promptHistory?.length || 0)
-            });
-
-            // Check for Hash Duplicates in the new list
-            const hashes = updatedPrompts.map(p => p.promptHash);
-            const uniqueHashes = new Set(hashes);
-            if (hashes.length !== uniqueHashes.size) {
-                console.error("Invariant Violation: Duplicate promptHash detected in promptHistory!", { hashes });
-            }
-            console.groupEnd();
+            const patch = prepareSpecForSave(newSpec, gradeLevel, subject);
+            onUpdateSlide(patch);
 
         } catch (error) {
             console.error('Error generating new visual idea:', error);
             alert('Failed to create new visual idea. Please try again.');
         } finally {
-            setIsRegeneratingPrompt(false);
-            isRegeneratingPromptRef.current = false;
+            setIsRegeneratingSpec(false);
+            isRegeneratingSpecRef.current = false;
         }
     };
 
-    const handlePromptChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setPromptText(e.target.value);
-    };
-
-    const handleCancelEdit = () => {
-        setPromptText(activePrompt?.renderedPrompt || '');
-        setIsEditingPrompt(false);
-    };
-
-    // Derived UI Data
-    const visualSummary = activePrompt?.spec ? getVisualIdeaSummary(activePrompt.spec) : { title: 'No Idea', subtitle: '', elements: '' };
-
-    const handleContentChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
-        setContentText(e.target.value);
+    const handleSaveSpec = (updatedSpec: ImageSpec) => {
+        const patch = prepareSpecForSave(updatedSpec, gradeLevel, subject);
+        onUpdateSlide(patch);
+        setIsEditingSpec(false);
     };
 
     const handleSaveContent = () => {
@@ -324,6 +192,9 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setContentText(slide.content.join('\n'));
         setIsEditingContent(false);
     };
+
+    // Derived UI Data
+    const visualSummary = imageSpec ? getVisualIdeaSummary(imageSpec) : { title: 'No Idea', subtitle: '', elements: '' };
 
     return (
         <div className="glass-card rounded-2xl overflow-hidden group border border-[#rgba(0,0,0,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -351,16 +222,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             value={contentText}
                             onChange={e => setContentText(e.target.value)}
                             onBlur={() => {
-                                setIsEditingContent(false);
-                                if (contentText !== slide.content.join('\n')) {
-                                    // Split by newline and filter out empty lines, then clean text
-                                    const newContent = contentText.split('\n')
-                                        .map(line => line.trim())
-                                        .filter(line => line.length > 0)
-                                        .map(cleanText); // Ensure clean markdown
-
-                                    onUpdateSlide({ content: newContent });
-                                }
+                                // Optional auto-save on blur logic can go here or remain in the save button
                             }}
                             className="w-full h-full min-h-[300px] resize-none outline-none text-secondary-text leading-relaxed bg-transparent"
                         />
@@ -403,134 +265,89 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 )}
             </div>
 
-            {/* Footer / Image Prompt v2.0 */}
+            {/* Footer / Image Prompt Logic */}
             <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
                 <div className="flex items-start gap-3 w-full">
-                    {/* Icon - Constant */}
                     <div className="mt-1 p-1.5 bg-white border border-slate-200 rounded-lg text-slate-400 shadow-sm">
                         <ImageIcon className="w-4 h-4" />
                     </div>
 
                     <div className="flex-grow min-w-0">
-                        {/* Prompt Header: Label + Navigation + Actions */}
+                        {/* Control Header */}
                         <div className="flex items-center justify-between mb-2">
                             <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Idea</span>
 
-                            {/* Navigation Controls */}
-                            <div className="flex items-center space-x-2">
-                                {prompts.length > 1 && (
-                                    <div className="flex items-center bg-white border border-slate-200 rounded-md shadow-sm h-7">
+                            {/* Actions */}
+                            <div className="flex items-center space-x-1">
+                                {!isEditingSpec && (
+                                    <>
                                         <button
-                                            onClick={() => handleNavigateHistory('prev')}
-                                            disabled={activeIndex <= 0}
-                                            className="px-2 h-full hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-white text-slate-500 transition-colors border-r border-slate-100"
-                                            title="Previous Version"
+                                            onClick={() => setIsEditingSpec(true)}
+                                            disabled={!imageSpec}
+                                            className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded disabled:opacity-30"
+                                            title="Edit Visual Specification"
                                         >
-                                            <ChevronLeftIcon className="w-3 h-3" />
-                                        </button>
-                                        <span className="px-2 text-[10px] font-semibold text-slate-500 tabular-nums select-none">
-                                            {activeIndex + 1} / {prompts.length}
-                                        </span>
-                                        <button
-                                            onClick={() => handleNavigateHistory('next')}
-                                            disabled={activeIndex >= prompts.length - 1}
-                                            className="px-2 h-full hover:bg-slate-50 disabled:opacity-30 disabled:hover:bg-white text-slate-500 transition-colors border-l border-slate-100"
-                                            title="Next Version"
-                                        >
-                                            <ChevronRightIcon className="w-3 h-3" />
-                                        </button>
-                                    </div>
-                                )}
-
-                                {!isEditingPrompt && (
-                                    <div className="flex items-center space-x-1">
-                                        <button
-                                            onClick={() => setIsEditingPrompt(true)}
-                                            className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded"
-                                            title="View Full Prompt (Advanced)"
-                                        >
-                                            View Prompt
+                                            Edit Spec
                                         </button>
                                         <button
-                                            onClick={handleNewVisualIdea}
-                                            disabled={isRegeneratingPrompt}
+                                            onClick={handleRegenerateSpec}
+                                            disabled={isRegeneratingSpec}
                                             className="flex items-center space-x-1 px-2 py-1 hover:bg-slate-100 rounded text-xs text-secondary-text hover:text-accent transition-colors disabled:opacity-50 border border-transparent hover:border-slate-200"
-                                            title="Get New Visual Idea (New Spec)"
+                                            title="Regenerate from text content"
                                         >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${isRegeneratingPrompt ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${isRegeneratingSpec ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
                                                 <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
                                             </svg>
-                                            <span className="font-semibold">New Idea</span>
+                                            <span className="font-semibold">{imageSpec ? 'Regenerate' : 'Create Idea'}</span>
                                         </button>
-                                    </div>
+                                    </>
                                 )}
                             </div>
                         </div>
 
-
-                        {/* Visual Idea Summary / Prompt View */}
-                        {(prompts.length === 0) ? (
+                        {/* Visual Idea Display or Editor */}
+                        {!imageSpec ? (
                             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
                                 <p className="text-sm text-slate-500 mb-3">No visual idea generated for this slide yet.</p>
                                 <button
-                                    onClick={handleNewVisualIdea}
-                                    disabled={isRegeneratingPrompt}
+                                    onClick={handleRegenerateSpec}
+                                    disabled={isRegeneratingSpec}
                                     className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
                                 >
-                                    {isRegeneratingPrompt ? 'Generating Idea...' : 'Create Visual Idea'}
+                                    {isRegeneratingSpec ? 'Generating Idea...' : 'Create Visual Idea'}
                                 </button>
                             </div>
-                        ) : isEditingPrompt ? (
-                            <div className="w-full animate-fade-in" ref={editContainerRef}>
-                                <div className="p-2 mb-2 bg-slate-50 text-slate-500 text-xs rounded border border-slate-200">
-                                    <strong>Advanced View:</strong> This is the verbatim prompt sent to the image generator.
-                                </div>
-                                <textarea
-                                    ref={textareaRef}
-                                    value={promptText}
-                                    onChange={handlePromptChange}
-                                    readOnly={false}
-                                    className="input-field text-[10px] font-mono leading-tight min-h-[120px] bg-slate-100 text-slate-600 cursor-text"
-                                    rows={6}
-                                />
-                                <div className="flex justify-end space-x-2 mt-2">
-                                    <button
-                                        onClick={handleCancelEdit}
-                                        className="px-2 py-1 text-xs font-medium text-secondary-text hover:text-primary-text transition-colors"
-                                    >
-                                        Close
-                                    </button>
-                                </div>
-                            </div>
+                        ) : isEditingSpec ? (
+                            <ImageSpecEditor
+                                spec={imageSpec}
+                                gradeLevel={gradeLevel}
+                                subject={subject}
+                                onSave={handleSaveSpec}
+                                onCancel={() => setIsEditingSpec(false)}
+                            />
                         ) : (
                             <div className="relative group/prompt">
-                                {activePrompt?.spec ? (
-                                    <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-colors">
-                                        <div className="flex gap-2 mb-1">
-                                            <span className="text-xs font-bold text-primary-text">{visualSummary.title}</span>
-                                        </div>
-                                        <p className="text-xs text-secondary-text mb-2 line-clamp-2">{visualSummary.subtitle}</p>
-
-                                        <div className="flex flex-wrap gap-1">
-                                            {visualSummary.elements.split(',').map((elem, i) => (
-                                                <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-                                                    {elem.trim()}
-                                                </span>
-                                            ))}
-                                        </div>
+                                <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-colors">
+                                    <div className="flex gap-2 mb-1">
+                                        <span className="text-xs font-bold text-primary-text">{visualSummary.title}</span>
                                     </div>
-                                ) : (
-                                    <p className="text-sm text-secondary-text italic cursor-pointer hover:text-primary-text transition-colors line-clamp-3" onClick={() => setIsEditingPrompt(true)}>
-                                        {activePrompt?.renderedPrompt || "No visual idea available."}
-                                    </p>
-                                )}
+                                    <p className="text-xs text-secondary-text mb-2 line-clamp-2">{visualSummary.subtitle}</p>
+
+                                    <div className="flex flex-wrap gap-1">
+                                        {visualSummary.elements.split(',').map((elem, i) => (
+                                            <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
+                                                {elem.trim()}
+                                            </span>
+                                        ))}
+                                    </div>
+                                </div>
                             </div>
                         )}
 
-                        {/* Recent Images Strip - Robust against undefined arrays */}
-                        {activePrompt?.generatedImages && activePrompt.generatedImages.length > 0 && (
+                        {/* Recent Images Strip */}
+                        {generatedImages.length > 0 && (
                             <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
-                                {activePrompt.generatedImages.map((img) => (
+                                {generatedImages.map((img) => (
                                     <a
                                         key={img.id}
                                         href={img.url}
@@ -588,7 +405,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         )}
                         <span>Generate Image</span>
                     </button>
-                    <CopyButton textToCopy={activePrompt?.renderedPrompt || ''} />
+                    <CopyButton textToCopy={renderedPrompt} />
                 </div>
             </footer>
         </div>
