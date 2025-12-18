@@ -18,29 +18,18 @@ function buildSubjectNarrative(spec: ImageSpec): string {
 function buildActionNarrative(spec: ImageSpec): string {
     if (!spec.visualizationDynamics || spec.visualizationDynamics.length === 0) return '';
 
-    // Use present participle formatting ensuring proper grammar
-    const actions = spec.visualizationDynamics.map(v => {
-        const lower = v.toLowerCase();
-        // If already ends in 'ing', use as-is
-        if (lower.endsWith('ing')) return v;
-
-        // Handle common verb endings
-        if (lower.endsWith('e')) return v.slice(0, -1) + 'ing'; // "evaporate" -> "evaporating"
-
-        // Simple default add 'ing' - heuristic, not perfect but better than nothing
-        return v + 'ing';
-    }).join(' and ');
-
-    return actions;
+    // LLM is instructed to provide gerunds (ending in -ing), so we can trust the input
+    // Just join them naturally
+    return spec.visualizationDynamics.join(' and ');
 }
 
 function buildLocationNarrative(spec: ImageSpec): string {
     const parts = [];
     if (spec.environment) parts.push(spec.environment);
     if (spec.contextualDetails && spec.contextualDetails.length > 0) {
-        parts.push(spec.contextualDetails.join(', '));
+        parts.push(`featuring ${spec.contextualDetails.join(', ')}`);
     }
-    return parts.length > 0 ? parts.join(' with ') : '';
+    return parts.length > 0 ? parts.join(', ') : '';
 }
 
 function buildLightingNarrative(spec: ImageSpec, gradeLevel: string): string {
@@ -48,25 +37,7 @@ function buildLightingNarrative(spec: ImageSpec, gradeLevel: string): string {
     const l = spec.lighting;
     const parts = [];
 
-    // Check for explicit elementary indicators using regex to avoid partial matches (e.g. "10th" matching "1")
-    const lower = gradeLevel.toLowerCase();
-    const gradeMatch = lower.match(/(\d+)(?:st|nd|rd|th)?\s*grade/);
-    let isElementary = false;
-
-    if (gradeMatch) {
-        const gradeNum = parseInt(gradeMatch[1], 10);
-        if (gradeNum >= 1 && gradeNum <= 5) {
-            isElementary = true;
-        }
-    } else {
-        // Fallback for non-numeric grade strings
-        isElementary = lower.includes('kindergarten') ||
-            lower.includes('preschool') ||
-            lower.includes('pre-k') ||
-            lower.includes('elementary') ||
-            lower.includes('primary');
-    }
-
+    // Note: App focuses on 6th-12th grade, so all lighting details are appropriate
     if (l.quality && l.direction) {
         parts.push(`${l.quality} ${l.direction} lighting`);
     } else if (l.quality) {
@@ -75,7 +46,7 @@ function buildLightingNarrative(spec: ImageSpec, gradeLevel: string): string {
         parts.push(`${l.direction} lighting`);
     }
 
-    if (l.colorTemperature && !isElementary) {
+    if (l.colorTemperature) {
         parts.push(`${l.colorTemperature} color temperature`);
     }
 
@@ -84,6 +55,45 @@ function buildLightingNarrative(spec: ImageSpec, gradeLevel: string): string {
     }
 
     return parts.length > 0 ? `Illuminated by ${parts.join(', ')}.` : '';
+}
+
+/**
+ * Builds a cohesive narrative scene description weaving all 5 Core Components
+ * into a single flowing prose paragraph.
+ */
+function buildFullNarrativeScene(spec: ImageSpec, ctx: FormatContext): string {
+    const subjectPart = buildSubjectNarrative(spec);
+    const actionPart = buildActionNarrative(spec);
+    const locationPart = buildLocationNarrative(spec);
+    const lightingPart = buildLightingNarrative(spec, ctx.gradeLevel);
+
+    // Start with subject
+    let narrative = subjectPart;
+
+    // Integrate action naturally
+    if (actionPart) {
+        // If subject doesn't already imply action, add it
+        narrative += ` ${actionPart}`;
+    }
+
+    // Add location context
+    if (locationPart) {
+        narrative += ` inside ${locationPart}`;
+    }
+
+    // Ensure proper punctuation before lighting
+    if (!narrative.endsWith('.')) {
+        narrative += '.';
+    }
+
+    // Add lighting as a separate sentence for clarity
+    if (lightingPart) {
+        narrative += ` ${lightingPart}`;
+    } else if (!narrative.endsWith('.')) {
+        narrative += '.';
+    }
+
+    return narrative;
 }
 
 // --- Technical Section Formatters ---
@@ -101,16 +111,23 @@ function formatCompositionSection(spec: ImageSpec): string {
     }
 
     if (c.depthOfField) {
-        description += `, ${c.depthOfField} depth of field`;
-        if (c.depthOfField === 'shallow') description += ' (f/1.8)';
+        if (c.depthOfField === 'shallow') {
+            description += ', shallow depth of field with blurred background to emphasize the subject';
+        } else {
+            description += ', deep depth of field with sharp focus throughout';
+        }
     }
 
-    if (c.framingRationale) {
-        description += `. ${c.framingRationale}`;
-    }
-
-    return `COMPOSITION & CAMERA ANGLE:
+    let compositionSection = `COMPOSITION & CAMERA ANGLE:
 ${description}.`;
+
+    // Add pedagogical framing as separate section if present
+    if (c.framingRationale) {
+        compositionSection += `\n\nPEDAGOGICAL FRAMING:
+This ${c.viewpoint.replace(/-/g, ' ')} viewpoint is chosen because: ${c.framingRationale}`;
+    }
+
+    return compositionSection;
 }
 
 function formatTextPolicySection(spec: ImageSpec): string {
@@ -146,10 +163,11 @@ Complex diagram with a clear legend. Include labels: ${labels}, positioned ${pla
  * Deterministically formats an ImageSpec into a prompt string for Gemini.
  */
 export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
-    // 1. Negative Prompt Logic (Strict Text Suppression)
+    // 1. Negative Prompt Logic (Strict Text Suppression + Educational Safety)
     let negativePrompt = spec.negativePrompt ? [...spec.negativePrompt] : [];
     const isNoLabels = spec.textPolicy === 'NO_LABELS';
 
+    // Add text suppression terms if NO_LABELS
     if (isNoLabels) {
         const textSuppressionTerms = [
             'text', 'labels', 'words', 'lettering', 'typography',
@@ -162,30 +180,18 @@ export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
         });
     }
 
-    // 2. Build Narrative Scene (Cohesive Paragraph)
-    const subjectPart = buildSubjectNarrative(spec);
-    const actionPart = buildActionNarrative(spec);
-    const locationPart = buildLocationNarrative(spec);
-    const lightingPart = buildLightingNarrative(spec, ctx.gradeLevel);
+    // Always add educational safety terms (regardless of textPolicy)
+    const educationalSafetyTerms = [
+        'blurry', 'low-resolution', 'pixelated', 'distorted',
+        'overexposed', 'completely dark', 'confusing', 'cluttered'
+    ];
 
-    let visualSceneDescription = subjectPart;
+    educationalSafetyTerms.forEach(term => {
+        if (!negativePrompt.includes(term)) negativePrompt.push(term);
+    });
 
-    if (actionPart) {
-        visualSceneDescription += ` ${actionPart}`;
-    }
-
-    if (locationPart) {
-        visualSceneDescription += ` inside ${locationPart}`;
-    }
-
-    // Add punctuation if missing
-    if (!visualSceneDescription.endsWith('.')) {
-        visualSceneDescription += '.';
-    }
-
-    if (lightingPart) {
-        visualSceneDescription += ` ${lightingPart}`;
-    }
+    // 2. Build Narrative Scene (Cohesive Paragraph using helper)
+    const visualSceneDescription = buildFullNarrativeScene(spec, ctx);
 
     // 3. Assemble Prompt Sections
     const sections = [
@@ -229,5 +235,8 @@ ${negativePrompt.join(', ')}`
 Educational illustration suitable for textbooks or classroom slides. Prioritize CLARITY and ACCURACY over decorative flair. Use clean lines and distinct shapes. Appropriate for ${ctx.gradeLevel} educational content.`
     ];
 
-    return sections.filter(section => section.trim().length > 0).join('\n\n');
+    return sections
+        .filter(section => section.trim().length > 0)
+        .map((section, idx) => idx > 0 ? `\n\n---\n\n${section}` : section)
+        .join('');
 }

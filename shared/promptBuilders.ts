@@ -86,6 +86,14 @@ function buildImageSpecInstructionsSection(): string {
   EXAMPLE: Instead of "robot", use "a translucent glass robot barista with LED eyes".
   EXAMPLE: Instead of "evaporating", use "water molecules evaporating from the surface, rising as visible steam".
 
+  CRITICAL: When specifying \`visualizationDynamics\`, always use the gerund (verb+ing) form:
+  - "evaporating" (not "evaporate")
+  - "colliding" (not "collide")
+  - "flowing" (not "flow")
+  - "dividing" (not "divide")
+  - "reacting" (not "react")
+  This ensures the narrative flows naturally.
+
   5 CORE COMPONENTS (Required):
   1. SUBJECT: \`primaryFocal\` and \`subjects\`. The main visual elements.
   2. ACTION/DYNAMICS: \`visualizationDynamics\`. Describe processes (e.g., "evaporating", "colliding", "flowing"). Static images do not teach processes; describe the action!
@@ -95,8 +103,9 @@ function buildImageSpecInstructionsSection(): string {
 
   imageSpec rules details:
   - \`conceptualPurpose\`: REQUIRED. explicit pedagogical goal.
-  - \`visualizationDynamics\`: Array of strings describing movement/change.
+  - \`visualizationDynamics\`: Array of strings describing movement/change. MUST be gerunds (ending in -ing).
   - \`environment\`: The specific setting.
+  - \`contextualDetails\`: Additional environmental details that enhance the scene.
   - \`mustInclude\`: 2–6 critical details to include.
   - \`avoid\`: List distracting elements to exclude.
   - Composition:
@@ -104,7 +113,7 @@ function buildImageSpecInstructionsSection(): string {
     - \`viewpoint\`: Use professional camera terminology:
       - "isometric-3d-cutaway" for structures (buildings, molecules, organs)
       - "side-profile" for layers/geology (rock layers, atmospheric layers)
-      - "macro-close-up" for details (cells, textures) - specify "shallow depth of field (f/1.8)"
+      - "macro-close-up" for details (cells, textures) - specify "shallow depth of field"
       - "overhead" or "bird's-eye-view" for maps, diagrams, top-down views
       - "dutch-angle" for tension, dynamics, or dramatic effect
       - "child-eye-level" for relatable perspectives in elementary content
@@ -114,8 +123,18 @@ function buildImageSpecInstructionsSection(): string {
     - Default: "NO_LABELS". Choose this unless text labels improve learning.
     - "LIMITED_LABELS_1_TO_3": For simple diagrams. Requires \`allowedLabels\`.
     - "DIAGRAM_LABELS_WITH_LEGEND": For complex charts. Requires \`allowedLabels\`.
+    - When labels are used, specify \`labelPlacement\` (e.g., "next to arrows", "below each element") and \`labelFont\` (e.g., "bold sans-serif", "Arial").
   - Grounding:
-    - \`requiresGrounding\`: Set to true if the image represents specific factual data (maps, charts) that needs verification.
+    - \`requiresGrounding\`: Set to true ONLY for images that represent specific factual data requiring verification:
+      * Maps that must show current/accurate geography
+      * Charts with specific data (election results, weather forecasts, stock prices)
+      * Timeline visualizations with factual dates
+      * Scientific diagrams with current research accuracy
+    - Examples:
+      * "Visualize the 2025 solar cycle" → requiresGrounding: true
+      * "A fantasy dragon in a medieval castle" → requiresGrounding: false
+      * "Current population density map of Africa" → requiresGrounding: true
+      * "Abstract representation of photosynthesis" → requiresGrounding: false
   - Colors: 3–5 high-contrast colors.
   - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
 
@@ -126,7 +145,7 @@ function buildImageSpecInstructionsSection(): string {
 function buildOutputFormatSection(): string {
   return `
   OUTPUT FORMAT
-  Return a valid JSON array of objects.Do not include markdown code fences(like \`\`\`json).
+  Return a valid JSON array of objects. Do not include markdown code fences (like \`\`\`json).
   JSON Structure:
   [
     {
@@ -135,11 +154,33 @@ function buildOutputFormatSection(): string {
       "layout": "Title Slide" | "Content",
       "imageSpec": {
         "primaryFocal": "string",
+        "conceptualPurpose": "string",
         "subjects": ["string"],
+        "visualizationDynamics": ["string"],
+        "environment": "string",
+        "contextualDetails": ["string"],
         "mustInclude": ["string"],
         "avoid": ["string"],
-        "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
-        "textPolicy": "string"
+        "composition": {
+          "layout": "string",
+          "viewpoint": "string",
+          "whitespace": "string",
+          "depthOfField": "shallow" | "deep",
+          "framingRationale": "string"
+        },
+        "lighting": {
+          "quality": "string",
+          "direction": "string",
+          "colorTemperature": "string",
+          "mood": "string"
+        },
+        "textPolicy": "string",
+        "allowedLabels": ["string"],
+        "labelPlacement": "string",
+        "labelFont": "string",
+        "requiresGrounding": boolean,
+        "colors": ["string"],
+        "negativePrompt": ["string"]
       }, 
       "speakerNotes": "string (Script only)",
       "sources": ["url1", "url2"]
