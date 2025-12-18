@@ -75,7 +75,7 @@ const testCases = [
             labelFont: 'Arial'
         } as ImageSpec
     }
-];
+] as { name: string; grade: string; spec: ImageSpec }[];
 
 console.log("=== Image Prompt Generation Verification ===\n");
 
