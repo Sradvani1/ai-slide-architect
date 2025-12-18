@@ -1,4 +1,3 @@
-
 import { formatImageSpec } from '../shared/utils/imageUtils';
 import { ImageSpec } from '../shared/types';
 
@@ -6,120 +5,138 @@ const mockSpecBase: ImageSpec = {
     primaryFocal: 'robot',
     conceptualPurpose: 'Show robotics interaction',
     subjects: ['cup', 'spoon'],
-    visualizationDynamics: ['pouring', 'colliding'], // Using gerunds as instructed
+    visualizationDynamics: ['pouring', 'colliding'],
     mustInclude: ['LED eyes'],
     avoid: ['blurry'],
     composition: {
         layout: 'single-focal-subject-centered',
-        viewpoint: 'front',
-        whitespace: 'moderate'
+        viewpoint: 'front-on',
+        whitespace: 'generous',
+        depthOfField: 'sharp-throughout'
     },
     textPolicy: 'NO_LABELS',
     colors: ['red', 'blue'],
-    negativePrompt: ['darkness']
+    negativePrompt: ['darkness'],
+    isEducationalDiagram: true,
+    illustrationStyle: 'flat-vector',
+    background: { style: 'pure-white', texture: 'flat' },
+    lighting: { approach: 'technical-neutral' }
 };
 
 const testCases = [
     {
-        name: "Elementary Grade (1st Grade) - Allowed Color Temp",
-        grade: "1st Grade",
-        spec: {
-            ...mockSpecBase,
-            lighting: { quality: 'soft', direction: 'side', colorTemperature: 'warm', mood: 'happy' }
-        }
-    },
-    {
-        name: "Pedagogical Framing & Generous Whitespace",
+        name: "Standard Educational Diagram (History)",
         grade: "5th Grade",
         spec: {
             ...mockSpecBase,
+            illustrationStyle: 'clean-line-diagram',
             composition: {
                 ...mockSpecBase.composition,
-                whitespace: 'generous',
-                framingRationale: 'This angle best shows the pouring mechanism clearly to students.'
+                viewpoint: 'isometric-3d',
+                framingRationale: 'Shows 3D structure clearly.'
             }
-        }
+        },
+        subject: 'History' // Should NOT have Scientific Accuracy
     },
     {
-        name: "Narrative Flow & 'Featuring'",
-        grade: "8th Grade",
+        name: "Biological Diagram (Science Subject)",
+        grade: "10th Grade",
         spec: {
             ...mockSpecBase,
-            primaryFocal: 'volcano',
-            subjects: ['lava', 'smoke'],
-            visualizationDynamics: ['erupting', 'flowing'],
-            environment: 'tropical island',
-            contextualDetails: ['palm trees', 'ocean']
-        }
+            primaryFocal: 'cell',
+            subjects: ['nucleus', 'mitochondria'],
+            illustrationStyle: 'technical-diagram',
+            composition: {
+                ...mockSpecBase.composition,
+                viewpoint: 'cross-section-side',
+                layout: 'diagram-with-flow'
+            },
+            lighting: { approach: 'even-flat' }
+        },
+        subject: 'Biology' // Trigger Scientific Accuracy
     }
-] as { name: string; grade: string; spec: ImageSpec }[];
+] as { name: string; grade: string; spec: ImageSpec; subject?: string }[];
 
-console.log("=== Image Prompt Generation Verification (Phase 2) ===\n");
+console.log("=== Image Prompt Generation Verification (Phase 4) ===\n");
 
 testCases.forEach(test => {
     console.log(`--- Test Case: ${test.name} ---`);
     console.log(`Input Grade: "${test.grade}"`);
-    const result = formatImageSpec(test.spec, { gradeLevel: test.grade, subject: 'Science' });
+    const result = formatImageSpec(test.spec, { gradeLevel: test.grade, subject: test.subject || 'History' });
 
-    // Check for Separators
-    if (result.includes('\n\n---\n\n')) {
-        console.log("   [PASS] Section separators (---) detected");
+    // Check for INSTRUCTION STYLE
+    if (result.includes('INSTRUCTION STYLE') && result.includes('FACTUAL DIAGRAM')) {
+        console.log("   [PASS] INSTRUCTION STYLE (Factual Diagram) detected");
     } else {
-        console.log("   [FAIL] Section separators missing");
+        console.log("   [FAIL] INSTRUCTION STYLE missing");
     }
 
-    // Check for Safety Terms in Negative Prompt
-    const negPromptMatch = result.match(/NEGATIVE PROMPT:\n(.*)/s);
-    if (negPromptMatch) {
-        if (negPromptMatch[1].includes('blurry') && negPromptMatch[1].includes('low-resolution')) {
-            console.log("   [PASS] Educational safety terms detected in Negative Prompt");
+    // Check Background
+    if (result.includes('BACKGROUND:') && result.includes('Pure white background')) {
+        console.log("   [PASS] Pure white background enforcement detected");
+    } else {
+        console.log("   [FAIL] Background section missing or incorrect");
+    }
+
+    // Check Scientific Accuracy (Conditional)
+    if (test.subject === 'Biology') {
+        if (result.includes('SCIENTIFIC ACCURACY')) {
+            console.log("   [PASS] Scientific Accuracy section detected for Science subject");
         } else {
-            console.log("   [FAIL] Educational safety terms missing");
+            console.log("   [FAIL] Scientific Accuracy section missing for Science subject");
         }
     } else {
-        console.log("   [FAIL] Negative Prompt block missing");
-    }
-
-    // Extract key sections for validation
-    const visualDescMatch = result.match(/VISUAL SCENE DESCRIPTION:\n(.*)/);
-    const lightingMatch = result.match(/Illuminated by .*?\./);
-    const compositionMatch = result.match(/COMPOSITION & CAMERA ANGLE:\n(.*?)(?=\n\n---\n\n|$)/s);
-
-    console.log("Visual Scene:", visualDescMatch ? visualDescMatch[1] : "NOT FOUND");
-
-    if (lightingMatch) {
-        console.log("Lighting:", lightingMatch[0]);
-        if (test.name.includes("Elementary") && lightingMatch[0].includes("color temperature")) {
-            console.log("   [PASS] Color temperature correctly included (allowed for all grades)");
-        }
-    }
-
-    if (compositionMatch) {
-        const compText = compositionMatch[1].trim();
-        console.log("Composition Section (excerpt):", compText.split('\n')[0] + "...");
-
-        if (test.spec.composition.whitespace === 'generous') {
-            if (compText.includes('generous negative space')) console.log("   [PASS] Generous whitespace detected");
-            else console.log("   [FAIL] Generous whitespace text missing");
-        }
-
-        if (test.spec.composition.framingRationale) {
-            if (compText.includes('PEDAGOGICAL FRAMING') && compText.includes(test.spec.composition.framingRationale)) {
-                console.log("   [PASS] Pedagogical Framing detected and matches rationale");
-            } else {
-                console.log("   [FAIL] Pedagogical Framing missing or incorrect");
-                console.log("   Actual:", compText);
-            }
-        }
-    }
-
-    // Check for "featuring" in location (if relevant)
-    if (test.spec.contextualDetails && test.spec.contextualDetails.length > 0) {
-        if (visualDescMatch && visualDescMatch[1].includes('featuring')) {
-            console.log("   [PASS] 'featuring' keyword used for contextual details");
+        if (!result.includes('SCIENTIFIC ACCURACY')) {
+            console.log("   [PASS] Scientific Accuracy correctly omitted for non-science subject");
         } else {
-            console.log("   [FAIL] 'featuring' keyword missing");
+            console.log("   [FAIL] Scientific Accuracy present for non-science subject");
         }
+    }
+
+    // Check Illustration Style
+    if (result.includes('STYLE:')) {
+        let styleMatch = false;
+        const styleKey = test.spec.illustrationStyle;
+
+        if (styleKey === 'flat-vector' && result.includes('Flat Vector Illustration')) styleMatch = true;
+        if (styleKey === 'clean-line-diagram' && result.includes('Technical Line Diagram')) styleMatch = true;
+        if (styleKey === 'infographic' && result.includes('Educational Infographic')) styleMatch = true;
+        if (styleKey === 'technical-diagram' && result.includes('Scientific Technical Diagram')) styleMatch = true;
+
+        if (styleMatch) {
+            console.log(`   [PASS] Style "${styleKey}" description detected`);
+        } else {
+            console.log(`   [FAIL] Style description mismatch for "${styleKey}"`);
+        }
+    } else {
+        console.log("   [FAIL] Style section missing");
+    }
+
+    // Check Lighting (Simplified)
+    // Should be a single line, no complex description
+    if (result.includes('LIGHTING:') && result.includes('Lighting:')) {
+        console.log("   [PASS] Simplified Lighting instructions detected");
+    }
+
+    // Check Composition for "Strictness"
+    if (result.includes('Composition is SIMPLE and DIRECT')) {
+        console.log("   [PASS] Composition Strictness detected");
+    } else {
+        console.log("   [FAIL] Composition Strictness missing");
+    }
+
+    // Check Colors (Strict)
+    if (result.includes('COLORS (Restricted Palette - STRICT)')) {
+        console.log("   [PASS] Strict Color Constraints detected");
+    } else {
+        console.log("   [FAIL] Strict Color Constraints missing");
+    }
+
+    // Check Negative Prompt for Artistic Suppressors
+    if (result.includes('artistic rendering') && result.includes('creative interpretation')) {
+        console.log("   [PASS] Artistic Interpretation suppressors detected");
+    } else {
+        console.log("   [FAIL] Artistic Interpretation suppressors missing");
     }
 
     console.log("\n");

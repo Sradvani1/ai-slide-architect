@@ -9,7 +9,6 @@ interface FormatContext {
 
 function buildSubjectNarrative(spec: ImageSpec): string {
     if (spec.subjects && spec.subjects.length > 0) {
-        // Natural integration: "A [primaryFocal] with [subjects]"
         return `A ${spec.primaryFocal} with ${spec.subjects.join(', ')}`;
     }
     return `A ${spec.primaryFocal}`;
@@ -17,9 +16,6 @@ function buildSubjectNarrative(spec: ImageSpec): string {
 
 function buildActionNarrative(spec: ImageSpec): string {
     if (!spec.visualizationDynamics || spec.visualizationDynamics.length === 0) return '';
-
-    // LLM is instructed to provide gerunds (ending in -ing), so we can trust the input
-    // Just join them naturally
     return spec.visualizationDynamics.join(' and ');
 }
 
@@ -33,63 +29,36 @@ function buildLocationNarrative(spec: ImageSpec): string {
 }
 
 function buildLightingNarrative(spec: ImageSpec, gradeLevel: string): string {
-    if (!spec.lighting) return '';
-    const l = spec.lighting;
-    const parts = [];
-
-    // Note: App focuses on 6th-12th grade, so all lighting details are appropriate
-    if (l.quality && l.direction) {
-        parts.push(`${l.quality} ${l.direction} lighting`);
-    } else if (l.quality) {
-        parts.push(`${l.quality} lighting`);
-    } else if (l.direction) {
-        parts.push(`${l.direction} lighting`);
+    if (!spec.lighting || !spec.lighting.approach) {
+        return `Lighting: Neutral, uniform, technical. Equal illumination of all elements. NO shadows, gradients, depth effects, or mood-based color.`;
     }
 
-    if (l.colorTemperature) {
-        parts.push(`${l.colorTemperature} color temperature`);
-    }
+    const approaches: Record<string, string> = {
+        'technical-neutral': `Lighting: Neutral and uniform. All elements equally illuminated. NO shadows, gradients, or atmospheric effects.`,
+        'even-flat': `Lighting: Completely uniform and flat. NO shadows or directional cues.`,
+        'diagram-clarity': `Lighting: Neutral technical light with minimal directional detail. Show form only, no drama. NO shadows or mood-based color.`
+    };
 
-    if (l.mood) {
-        parts.push(`creating a ${l.mood} atmosphere`);
-    }
-
-    return parts.length > 0 ? `Illuminated by ${parts.join(', ')}.` : '';
+    return approaches[spec.lighting.approach] || approaches['technical-neutral'];
 }
 
-/**
- * Builds a cohesive narrative scene description weaving all 5 Core Components
- * into a single flowing prose paragraph.
- */
 function buildFullNarrativeScene(spec: ImageSpec, ctx: FormatContext): string {
     const subjectPart = buildSubjectNarrative(spec);
     const actionPart = buildActionNarrative(spec);
     const locationPart = buildLocationNarrative(spec);
-    const lightingPart = buildLightingNarrative(spec, ctx.gradeLevel);
 
-    // Start with subject
+    // Build FACTUAL, NON-CINEMATIC narrative
     let narrative = subjectPart;
 
-    // Integrate action naturally
     if (actionPart) {
-        // If subject doesn't already imply action, add it
         narrative += ` ${actionPart}`;
     }
 
-    // Add location context
     if (locationPart) {
-        narrative += ` inside ${locationPart}`;
+        narrative += ` in ${locationPart}`;
     }
 
-    // Ensure proper punctuation before lighting
     if (!narrative.endsWith('.')) {
-        narrative += '.';
-    }
-
-    // Add lighting as a separate sentence for clarity
-    if (lightingPart) {
-        narrative += ` ${lightingPart}`;
-    } else if (!narrative.endsWith('.')) {
         narrative += '.';
     }
 
@@ -98,145 +67,371 @@ function buildFullNarrativeScene(spec: ImageSpec, ctx: FormatContext): string {
 
 // --- Technical Section Formatters ---
 
+function formatColorPaletteSection(spec: ImageSpec): string {
+    if (!spec.colors || spec.colors.length === 0) {
+        return `COLORS (Restricted Palette):
+Use primary educational colors only: Primary Blue, Education Green, Alert Orange, Neutral Gray, Pure White.
+Constraint: Solid flat colors ONLY. NO gradients. NO color transitions. NO blending.
+Each color is used as a distinct, unmixed block.`;
+    }
+
+    return `COLORS (Restricted Palette - STRICT):
+Use ONLY these colors, EXACTLY as specified:
+${spec.colors.map(c => `• ${c}`).join('\n')}
+
+CRITICAL CONSTRAINT:
+- Solid flat colors only. NO gradients between these colors.
+- NO blending or color transitions.
+- NO subtle tints or shades within each color.
+- Each color appears as a distinct, uniform block.
+- High contrast for classroom projection and accessibility.
+- Semantic use: Each color has a specific teaching purpose.`;
+}
+
+function formatIllustrationStyleSection(spec: ImageSpec): string {
+    if (!spec.illustrationStyle) {
+        return `STYLE:
+Flat vector educational illustration. Solid flat colors. No shading, gradients, or 3D effects.
+Similar to: Google Material Design, Apple system icons, educational infographics.`;
+    }
+
+    const styleGuides: Record<string, string> = {
+        'flat-vector': `STYLE: Flat Vector Illustration
+Reference style: Google Material Design, Apple iOS icons, Material.io designs
+Visual rules:
+- Solid flat colors, NO shading or gradients
+- Geometric, angular shapes (no soft, organic curves unless essential)
+- Consistent line weight or no lines at all
+- Simple silhouettes when possible
+- Minimize details; maximum clarity
+Do NOT: Add shadows, gradients, textures, or dimensional effects.`,
+
+        'clean-line-diagram': `STYLE: Technical Line Diagram
+Reference style: Biology textbook diagrams, medical illustrations, engineering drawings
+Visual rules:
+- Crisp black or very dark gray lines on pure white background
+- Minimal fill; mostly line-based
+- Lines have consistent weight or vary strategically
+- Labels adjacent to lines pointing to structures
+- Anatomically or technically accurate proportions
+Do NOT: Add soft shading, gradients, or photorealistic details.`,
+
+        'infographic': `STYLE: Educational Infographic
+Reference style: WHO health posters, CDC infographics, educational data visualizations
+Visual rules:
+- Clear visual hierarchy (size, color, position indicate importance)
+- Limited color palette (3-5 colors maximum)
+- Icons/simplified shapes combined with text
+- Flow direction clear (top-to-bottom, left-to-right)
+- Flat design throughout
+Do NOT: Add shadows, 3D effects, or decorative background.`,
+
+        'technical-diagram': `STYLE: Scientific Technical Diagram
+Reference style: Anatomy charts, physics diagrams, chemistry molecule illustrations
+Visual rules:
+- Accuracy over aesthetics
+- Simplified structures showing key features only
+- Minimal but clear labeling
+- Monochromatic or 3-4 colors maximum
+- Functional design; every element teaches
+Do NOT: Add artistic embellishment, atmospheric effects, or stylistic flourishes.`
+    };
+
+    return styleGuides[spec.illustrationStyle] || styleGuides['flat-vector'];
+}
+
+function formatBackgroundSection(spec: ImageSpec): string {
+    // Default to pure white if not specified
+    const bg = spec.background || { style: 'pure-white', texture: 'flat' };
+
+    const backgroundRules = `BACKGROUND:
+Pure white background (#FFFFFF). Absolutely flat and uniform.
+- NO gradient (vertical, horizontal, or diagonal)
+- NO texture or pattern
+- NO shadow cast on background
+- NO fog, mist, or atmospheric haze
+- NO particles, dust, or floating elements
+- NO color shift or tint
+- Completely invisible - does not compete with subject matter
+
+This is CRITICAL. The background should disappear. All focus is on educational content.`;
+
+    return backgroundRules;
+}
+
+function formatAccuracyConstraintSection(spec: ImageSpec, ctx: FormatContext): string {
+    const subject = ctx.subject.toLowerCase();
+
+    // Only add if subject is science/technical
+    const scienceSubjects = ['science', 'biology', 'chemistry', 'physics', 'anatomy',
+        'geography', 'earth science', 'geology', 'astronomy',
+        'engineering', 'technology'];
+
+    const isScienceSubject = scienceSubjects.some(s => subject.includes(s));
+
+    if (isScienceSubject) {
+        return `\n---\n
+SCIENTIFIC ACCURACY:
+This image must be scientifically accurate for ${ctx.subject}.
+- NO anatomical errors
+- NO geographic inaccuracies
+- NO physical/chemical impossibilities
+- NO outdated or debunked information
+If uncertain, err toward simplified accuracy rather than decorative inaccuracy.`;
+    }
+
+    return '';
+}
+
 function formatCompositionSection(spec: ImageSpec): string {
     const c = spec.composition;
-    let description = `${c.viewpoint.replace(/-/g, ' ')} shot`;
+
+    // Build description without cinematic language
+    let description = `${c.viewpoint.replace(/-/g, ' ')} view`;
 
     if (c.layout !== 'single-focal-subject-centered') {
-        description += `, ${c.layout.replace(/-/g, ' ')} composition`;
+        description += `, with ${c.layout.replace(/-/g, ' ')} layout`;
     }
 
     if (c.whitespace === 'generous') {
-        description += ', generous negative space for text overlay';
+        description += ', generous white space for clarity and text';
     }
 
-    if (c.depthOfField) {
-        if (c.depthOfField === 'shallow') {
-            description += ', shallow depth of field with blurred background to emphasize the subject';
-        } else {
-            description += ', deep depth of field with sharp focus throughout';
-        }
-    }
+    // Enforce sharp focus and strict composition
+    description += `, everything in sharp focus`;
+    description += `. Composition is SIMPLE and DIRECT.`;
+    description += ` No exaggeration of perspective.`;
+    description += ` No distortion for emphasis.`;
+    description += ` No unusual angles or artistic framing.`;
 
-    let compositionSection = `COMPOSITION & CAMERA ANGLE:
-${description}.`;
+    let section = `COMPOSITION & FRAMING:
+${description}`;
 
-    // Add pedagogical framing as separate section if present
+    // Add pedagogical framing if present
     if (c.framingRationale) {
-        compositionSection += `\n\nPEDAGOGICAL FRAMING:
-This ${c.viewpoint.replace(/-/g, ' ')} viewpoint is chosen because: ${c.framingRationale}`;
-    }
-
-    return compositionSection;
-}
-
-function formatTextPolicySection(spec: ImageSpec): string {
-    const policy = spec.textPolicy;
-    const labels = spec.allowedLabels ? spec.allowedLabels.join(', ') : 'None';
-    const placement = spec.labelPlacement || 'clearly legible';
-    const font = spec.labelFont || 'standard educational sans-serif';
-
-    let section = `TEXT POLICY:`;
-
-    if (policy === 'NO_LABELS') {
-        return `${section}
-Strictly NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere in the image.`;
-    }
-
-    if (policy === 'LIMITED_LABELS_1_TO_3') {
-        return `${section}
-Include ONLY these labels: ${labels}.
-They should be placed ${placement} using a ${font} font.`;
-    }
-
-    if (policy === 'DIAGRAM_LABELS_WITH_LEGEND') {
-        return `${section}
-Complex diagram with a clear legend. Include labels: ${labels}, positioned ${placement} using ${font} font.`;
+        section += `\n\nWhy this viewpoint teaches better:
+${c.framingRationale}`;
     }
 
     return section;
 }
 
-// --- Main Formatter ---
+function formatTextPolicySection(spec: ImageSpec): string {
+    const policy = spec.textPolicy;
+    const labels = spec.allowedLabels ? spec.allowedLabels.join(', ') : 'None';
+    const placement = spec.labelPlacement || 'clearly visible positions';
+    const font = spec.labelFont || 'bold sans-serif';
 
-/**
- * Deterministically formats an ImageSpec into a prompt string for Gemini.
- */
-export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
-    // 1. Negative Prompt Logic (Strict Text Suppression + Educational Safety)
-    let negativePrompt = spec.negativePrompt ? [...spec.negativePrompt] : [];
-    const isNoLabels = spec.textPolicy === 'NO_LABELS';
+    let section = `TEXT POLICY:`;
 
-    // Add text suppression terms if NO_LABELS
-    if (isNoLabels) {
-        const textSuppressionTerms = [
-            'text', 'labels', 'words', 'lettering', 'typography',
-            'annotations', 'watermark', 'signature', 'caption',
-            'numbers', 'legends', 'text overlay', 'written text'
-        ];
-
-        textSuppressionTerms.forEach(term => {
-            if (!negativePrompt.includes(term)) negativePrompt.push(term);
-        });
+    if (policy === 'NO_LABELS') {
+        return `${section}
+Strictly NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere.
+The concept must be communicated visually through composition and color.`;
     }
 
-    // Always add educational safety terms (regardless of textPolicy)
-    const educationalSafetyTerms = [
-        'blurry', 'low-resolution', 'pixelated', 'distorted',
-        'overexposed', 'completely dark', 'confusing', 'cluttered'
+    if (policy === 'LIMITED_LABELS_1_TO_3') {
+        return `${section}
+Include ONLY these labels: ${labels}
+- Font: ${font}
+- Placement: ${placement}
+- Size: Large and legible for classroom projection
+- Background: Use contrasting background for readability if needed`;
+    }
+
+    if (policy === 'DIAGRAM_LABELS_WITH_LEGEND') {
+        return `${section}
+Complex diagram with legend. Labels: ${labels}
+- Font: ${font}
+- Placement: ${placement}
+- Legend: Clear legend showing label meanings
+- Format: Suitable for technical/scientific diagrams`;
+    }
+
+    return section;
+}
+
+// --- Negative Prompt Helpers ---
+
+function buildCinematographySuppressors(): string[] {
+    return [
+        // Lighting effects
+        'cinematic', 'dramatic lighting', 'moody', 'atmospheric', 'volumetric lighting',
+        'rim lighting', 'backlighting', 'chiaroscuro', 'film noir', 'low-key lighting',
+        'three-point lighting', 'studio lighting effect', 'professional lighting',
+
+        // Emotional/artistic effects
+        'dreamy', 'surreal', 'magical', 'ethereal', 'mystical', 'fantasy',
+        'emotional', 'poetic', 'artistic expression', 'fine art', 'gallery quality',
+        'masterpiece', 'trending on artstation', 'ArtStation', 'award winning',
+
+        // Artistic Interpretation (NEW)
+        'stylized', 'interpretation', 'creative interpretation',
+        'artistic rendering',
+
+        // Depth & dimension effects
+        'shadows', 'deep shadows', 'shadow detail', 'volumetric', 'depth of field',
+        'bokeh', 'blur', 'blurred background', 'misty', 'foggy', 'hazy',
+        'particles floating', 'light rays', 'god rays', 'lens flare', 'glow',
+
+        // Photography/realism effects
+        'photorealistic', 'hyperrealistic', 'photorealistic rendering', '8k', '4k',
+        'ultra HD', 'high resolution', 'ultra detailed', 'ultra high detail',
+        'texture detail', 'grain', 'film grain', 'shallow depth of field',
+        '85mm lens', '50mm lens', 'cinematic composition',
+
+        // Color & saturation issues
+        'vibrant colors', 'vibrant', 'saturated', 'intense colors', 'neon',
+        'glowing', 'bright colors', 'warm atmospheric', 'cool atmospheric',
+        'color grading', 'color correction', 'warm tones', 'cool tones',
+
+        // Style issues
+        'painting style', 'brush strokes', 'watercolor', 'oil painting', 'digital art',
+        'illustration with shading', 'comic book style', 'anime', 'cartoon',
+        'doodle', 'sketch', 'hand-drawn', 'rough edges', 'artistic style',
+
+        // Text/typography (if NO_LABELS checked separately)
+        'watermark', 'signature'
     ];
+}
 
-    educationalSafetyTerms.forEach(term => {
-        if (!negativePrompt.includes(term)) negativePrompt.push(term);
-    });
+function buildNegativePromptList(
+    spec: ImageSpec,
+    customNegativePrompt: string[] = [],
+    avoid: string[] = []
+): string[] {
+    let finalList: string[] = [];
 
-    // 2. Build Narrative Scene (Cohesive Paragraph using helper)
-    const visualSceneDescription = buildFullNarrativeScene(spec, ctx);
+    // ALWAYS add cinematography suppressors for educational diagrams
+    // (We default `isEducationalDiagram` to true if undefined, so basically always)
+    if (spec.isEducationalDiagram !== false) {
+        const cinematicSuppressors = buildCinematographySuppressors();
+        finalList.push(...cinematicSuppressors);
+    }
 
-    // 3. Assemble Prompt Sections
+    // Add text suppression if NO_LABELS
+    if (spec.textPolicy === 'NO_LABELS') {
+        const textSuppressionTerms = [
+            'text', 'labels', 'words', 'lettering', 'typography',
+            'annotations', 'caption', 'numbers',
+            'legends', 'letters', 'writing', 'text overlay'
+        ];
+        finalList.push(...textSuppressionTerms);
+    }
+
+    // Add custom negative prompts
+    finalList.push(...customNegativePrompt);
+
+    // Add avoid list
+    finalList.push(...avoid);
+
+    // Always add educational safety terms
+    const educationalSafetyTerms = [
+        'blurry', 'low-resolution', 'pixelated', 'distorted', 'overexposed',
+        'completely dark', 'confusing', 'cluttered', 'incomprehensible'
+    ];
+    finalList.push(...educationalSafetyTerms);
+
+    // Deduplicate
+    return [...new Set(finalList)];
+}
+
+// --- Main Formatter ---
+
+export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
+    // Build negative prompt with cinematography suppressors
+    const negativePrompt = buildNegativePromptList(
+        spec,
+        spec.negativePrompt || [],
+        spec.avoid || []
+    );
+
+    // Build all sections in logical order
     const sections = [
+        // 1. Context
         `EDUCATIONAL VISUAL AID PROMPT
 ========================================
 CONTEXT:
 - Grade Level: ${ctx.gradeLevel}
-- Subject: ${ctx.subject}`,
+- Subject: ${ctx.subject}
+- Teaching Purpose: ${spec.conceptualPurpose}
 
-        `TEACHING PURPOSE:
-${spec.conceptualPurpose}`,
+CRITICAL CONSTRAINT:
+This image is a pedagogical visual aid for textbooks or classroom use.
+It should look like educational material, NOT artwork or cinema.
+Clarity and accuracy matter more than beauty or emotional impact.
 
-        `VISUAL SCENE DESCRIPTION:
-${visualSceneDescription}`,
+INSTRUCTION STYLE:
+Generate this as a FACTUAL DIAGRAM, not an artistic interpretation.
+- NO creative reinterpretation of the concept
+- NO stylistic flourishes or embellishment
+- NO artistic license or interpretation
+- Strict adherence to educational conventions
+Treat this like documenting facts, not creating art.`,
 
-        formatCompositionSection(spec),
+        // 2. Visual scene (factual, no emotion)
+        `\n---\n
+VISUAL SCENE DESCRIPTION:
+${buildFullNarrativeScene(spec, ctx)}`,
 
-        formatTextPolicySection(spec),
+        // 3. Illustration style
+        `\n---\n
+${formatIllustrationStyleSection(spec)}`,
 
+        // 4. Background
+        `\n---\n
+${formatBackgroundSection(spec)}`,
+
+        // 4.5 Scientific Accuracy (Conditional)
+        formatAccuracyConstraintSection(spec, ctx),
+
+        // 5. Composition
+        `\n---\n
+${formatCompositionSection(spec)}`,
+
+        // 6. Lighting (technical only)
+        `\n---\n
+LIGHTING:
+${buildLightingNarrative(spec, ctx.gradeLevel)}`,
+
+        // 7. Colors
+        `\n---\n
+${formatColorPaletteSection(spec)}`,
+
+        // 8. Text policy
+        `\n---\n
+${formatTextPolicySection(spec)}`,
+
+        // 9. Must include
         spec.mustInclude && spec.mustInclude.length > 0
-            ? `MUST INCLUDE:
-The image must prominently feature ${spec.mustInclude.join(', ')}.`
+            ? `\n---\n
+MUST INCLUDE:
+${spec.mustInclude.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
             : '',
 
+        // 10. Must avoid
         spec.avoid && spec.avoid.length > 0
-            ? `AVOID:
-Avoid including ${spec.avoid.join(', ')}.`
+            ? `\n---\n
+MUST AVOID:
+${spec.avoid.map((item, i) => `${i + 1}. ${item}`).join('\n')}`
             : '',
 
-        spec.colors && spec.colors.length > 0
-            ? `COLORS:
-Use a palette of ${spec.colors.join(', ')}. Ensure high contrast for classroom projection.`
-            : '',
+        // 11. Negative prompt
+        `\n---\n
+NEGATIVE PROMPT (Prevent Failures):
+${negativePrompt.join(', ')}`,
 
-        negativePrompt.length > 0
-            ? `NEGATIVE PROMPT:
-${negativePrompt.join(', ')}`
-            : '',
-
-        `STYLE & MEDIA:
-Educational illustration suitable for textbooks or classroom slides. Prioritize CLARITY and ACCURACY over decorative flair. Use clean lines and distinct shapes. Appropriate for ${ctx.gradeLevel} educational content.`
+        // 12. Final constraints
+        `\n---\n
+FINAL REQUIREMENTS:
+- This should look like it came from a textbook
+- Accuracy and clarity over aesthetics
+- Suitable as a standalone visual aid
+- Teachers should understand it immediately
+- Clean, professional, educational in appearance`
     ];
 
     return sections
-        .filter(section => section.trim().length > 0)
-        .map((section, idx) => idx > 0 ? `\n\n---\n\n${section}` : section)
-        .join('');
+        .filter(s => s && s.trim().length > 0)
+        .join('\n');
 }

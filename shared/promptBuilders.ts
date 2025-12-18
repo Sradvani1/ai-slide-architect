@@ -98,7 +98,7 @@ function buildImageSpecInstructionsSection(): string {
   1. SUBJECT: \`primaryFocal\` and \`subjects\`. The main visual elements.
   2. ACTION/DYNAMICS: \`visualizationDynamics\`. Describe processes (e.g., "evaporating", "colliding", "flowing"). Static images do not teach processes; describe the action!
   3. ENVIRONMENT: \`environment\` (setting) and \`contextualDetails\`. Where is this happening?
-  4. LIGHTING: \`lighting\` object. Set the mood, quality (e.g. "soft", "dramatic"), and direction.
+  4. LIGHTING: \`lighting\` object. Set the technical approach for clarity.
   5. COMPOSITION: \`composition\` object. Layout and viewpoint.
 
   imageSpec rules details:
@@ -108,22 +108,46 @@ function buildImageSpecInstructionsSection(): string {
   - \`contextualDetails\`: Additional environmental details that enhance the scene.
   - \`mustInclude\`: 2–6 critical details to include.
   - \`avoid\`: List distracting elements to exclude.
+  
+  - ILLUSTRATION STYLE (CRITICAL):
+    \`illustrationStyle\`: Select ONE:
+    - "flat-vector": Solid flat colors, geometric precision, NO shading or gradients. (Material Design, icons).
+    - "clean-line-diagram": Technical lines with minimal shading, high contrast. (Textbooks, blueprints).
+    - "infographic": Minimal decoration, clear hierarchy, flat design. (Data viz, posters).
+    - "technical-diagram": Scientific accuracy over aesthetics. (Anatomy, molecules).
+
+  - BACKGROUND (MANDATORY):
+    \`background\`:
+    - style: "pure-white" (Recommended for all educational diagrams).
+    - texture: "flat" (Uniform).
+    CRITICAL: The background should be INVISIBLE. No gradients, shadows, or fog.
+
   - Composition:
     - \`layout\`: "single-focal-subject-centered", "balanced-pair", "comparison-split-screen", "diagram-with-flow", "simple-sequence-2-panel".
-    - \`viewpoint\`: Use professional camera terminology:
-      - "isometric-3d-cutaway" for structures (buildings, molecules, organs)
-      - "side-profile" for layers/geology (rock layers, atmospheric layers)
-      - "macro-close-up" for details (cells, textures) - specify "shallow depth of field"
-      - "overhead" or "bird's-eye-view" for maps, diagrams, top-down views
-      - "dutch-angle" for tension, dynamics, or dramatic effect
-      - "child-eye-level" for relatable perspectives in elementary content
-    - \`depthOfField\`: "shallow" (focus on subject) or "deep" (context).
+    - \`viewpoint\`: Choose educational options only:
+      - "front-on": Direct view, clear subject.
+      - "side-profile": Shows structure, layers.
+      - "overhead": Top-down layout/relationships.
+      - "bird-eye-view": Map-like perspective.
+      - "isometric-3d": 3D structure without drama (buildings, molecules).
+      - "cross-section-side": Internal parts/layers (geology, anatomy).
+      - "flow-diagram": Process visualization.
+    - \`depthOfField\`: ALWAYS "sharp-throughout". Everything in focus.
     - \`framingRationale\`: Briefly explain why this viewpoint helps the educational goal.
+
+  - LIGHTING FOR EDUCATIONAL DIAGRAMS:
+    \`lighting.approach\`: Choose ONE:
+    - "technical-neutral": Neutral, flat, clinical lighting (diagrams).
+    - "even-flat": Completely uniform lighting (technical illustrations).
+    - "diagram-clarity": Slight directional light only to show form, no drama.
+    NO "mood", "atmosphere", or "dramatic" lighting.
+
   - Text policy:
     - Default: "NO_LABELS". Choose this unless text labels improve learning.
     - "LIMITED_LABELS_1_TO_3": For simple diagrams. Requires \`allowedLabels\`.
     - "DIAGRAM_LABELS_WITH_LEGEND": For complex charts. Requires \`allowedLabels\`.
-    - When labels are used, specify \`labelPlacement\` (e.g., "next to arrows", "below each element") and \`labelFont\` (e.g., "bold sans-serif", "Arial").
+    - When labels are used, specify \`labelPlacement\` (e.g., "next to arrows") and \`labelFont\` (e.g., "bold sans-serif", "Arial").
+
   - Grounding:
     - \`requiresGrounding\`: Set to true ONLY for images that represent specific factual data requiring verification:
       * Maps that must show current/accurate geography
@@ -135,6 +159,7 @@ function buildImageSpecInstructionsSection(): string {
       * "A fantasy dragon in a medieval castle" → requiresGrounding: false
       * "Current population density map of Africa" → requiresGrounding: true
       * "Abstract representation of photosynthesis" → requiresGrounding: false
+
   - Colors: 3–5 high-contrast colors.
   - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
 
@@ -165,20 +190,23 @@ function buildOutputFormatSection(): string {
           "layout": "string",
           "viewpoint": "string",
           "whitespace": "string",
-          "depthOfField": "shallow" | "deep",
+          "depthOfField": "sharp-throughout",
           "framingRationale": "string"
         },
+        "illustrationStyle": "flat-vector" | "clean-line-diagram" | "infographic" | "technical-diagram",
+        "background": {
+          "style": "pure-white",
+          "texture": "flat"
+        },
         "lighting": {
-          "quality": "string",
-          "direction": "string",
-          "colorTemperature": "string",
-          "mood": "string"
+          "approach": "technical-neutral" | "even-flat" | "diagram-clarity"
         },
         "textPolicy": "string",
         "allowedLabels": ["string"],
         "labelPlacement": "string",
         "labelFont": "string",
         "requiresGrounding": boolean,
+        "isEducationalDiagram": boolean,
         "colors": ["string"],
         "negativePrompt": ["string"]
       }, 

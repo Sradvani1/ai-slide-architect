@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { ImageSpec, ImageLayout, Viewpoint, Whitespace } from '../types';
+import { ImageSpec, ImageLayout, Viewpoint, Whitespace, IllustrationStyle, LightingApproach } from '../types';
 
 interface ImageSpecEditorProps {
     spec: ImageSpec;
@@ -18,16 +18,28 @@ const LAYOUT_OPTIONS: ImageLayout[] = [
 ];
 
 const VIEWPOINT_OPTIONS: Viewpoint[] = [
-    'front',
+    'front-on',
     'three-quarter',
-    'side',
-    'overhead',
-    'macro-close-up',
-    'dutch-angle',
-    'child-eye-level',
     'side-profile',
-    'isometric-3d-cutaway',
-    'bird\'s-eye-view',
+    'overhead',
+    'bird-eye-view',
+    'isometric-3d',
+    'cross-section-side',
+    'flow-diagram',
+    'child-eye-level',
+];
+
+const STYLE_OPTIONS: IllustrationStyle[] = [
+    'flat-vector',
+    'clean-line-diagram',
+    'infographic',
+    'technical-diagram',
+];
+
+const LIGHTING_OPTIONS: LightingApproach[] = [
+    'technical-neutral',
+    'even-flat',
+    'diagram-clarity',
 ];
 
 const WHITESPACE_OPTIONS: Whitespace[] = ['generous', 'moderate'];
@@ -57,6 +69,13 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
         setEditedSpec((prev) => ({
             ...prev,
             composition: { ...prev.composition, [field]: value },
+        }));
+    };
+
+    const handleLightingChange = (approach: LightingApproach) => {
+        setEditedSpec((prev) => ({
+            ...prev,
+            lighting: { ...prev.lighting, approach },
         }));
     };
 
@@ -123,7 +142,7 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
 
     return (
         <div className="bg-white p-6 rounded-lg shadow-lg border border-gray-200 max-w-2xl w-full mx-auto my-4">
-            <h3 className="text-xl font-bold mb-4 text-gray-800">Edit Image Specification</h3>
+            <h3 className="text-xl font-bold mb-4 text-gray-800">Edit Image Specification (Educational)</h3>
 
             <div className="space-y-6 max-h-[70vh] overflow-y-auto pr-2">
                 {/* Core Concept */}
@@ -147,13 +166,24 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
                             rows={2}
                         />
                     </div>
+                    <div className="mb-4">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={editedSpec.isEducationalDiagram !== false} // Default true
+                                onChange={(e) => handleChange('isEducationalDiagram', e.target.checked)}
+                                className="form-checkbox text-blue-600 h-4 w-4 rounded border-gray-300"
+                            />
+                            <span className="text-sm font-medium text-gray-700">Educational Diagram Mode (Strict)</span>
+                        </label>
+                    </div>
                 </section>
 
                 {/* Elements */}
                 <section>
                     <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Elements</h4>
                     {renderArrayInput('subjects', 'Subjects', 2)}
-                    {renderArrayInput('visualizationDynamics', 'Actions / Dynamics')}
+                    {renderArrayInput('visualizationDynamics', 'Actions / Dynamics (Gerunds)')}
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-1">Environment / Setting</label>
@@ -173,8 +203,35 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
 
                 {/* Composition */}
                 <section>
-                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Composition</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Composition & Style</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Illustration Style</label>
+                            <select
+                                value={editedSpec.illustrationStyle || 'flat-vector'}
+                                onChange={(e) => handleChange('illustrationStyle', e.target.value)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                {STYLE_OPTIONS.map((opt) => (
+                                    <option key={opt} value={opt}>{opt.replace(/-/g, ' ')}</option>
+                                ))}
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Lighting Approach</label>
+                            <select
+                                value={editedSpec.lighting?.approach || 'technical-neutral'}
+                                onChange={(e) => handleLightingChange(e.target.value as LightingApproach)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                {LIGHTING_OPTIONS.map((opt) => (
+                                    <option key={opt} value={opt}>{opt.replace(/-/g, ' ')}</option>
+                                ))}
+                            </select>
+                        </div>
+                    </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mt-4">
                         <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Layout</label>
                             <select
@@ -215,18 +272,6 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Depth of Field</label>
-                            <select
-                                value={editedSpec.composition.depthOfField || ''}
-                                onChange={(e) => handleCompositionChange('depthOfField', e.target.value)}
-                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                                <option value="">Default</option>
-                                <option value="shallow">Shallow (Focus on subject)</option>
-                                <option value="deep">Deep (Everything in focus)</option>
-                            </select>
-                        </div>
-                        <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Framing Rationale</label>
                             <input
                                 type="text"
@@ -239,59 +284,10 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
                     </div>
                 </section>
 
-                {/* Lighting */}
+                {/* Text Policy */}
                 <section>
-                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Lighting</h4>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Quality</label>
-                            <input
-                                type="text"
-                                value={editedSpec.lighting?.quality || ''}
-                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, quality: e.target.value })}
-                                className="w-full p-2 border rounded-md text-sm border-gray-300"
-                                placeholder="e.g. Soft, Hard, Diffused"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
-                            <input
-                                type="text"
-                                value={editedSpec.lighting?.direction || ''}
-                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, direction: e.target.value })}
-                                className="w-full p-2 border rounded-md text-sm border-gray-300"
-                                placeholder="e.g. Side, Backlit"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Color Temp</label>
-                            <input
-                                type="text"
-                                value={editedSpec.lighting?.colorTemperature || ''}
-                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, colorTemperature: e.target.value })}
-                                className="w-full p-2 border rounded-md text-sm border-gray-300"
-                                placeholder="e.g. Warm, Cool, Neutral"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-sm font-medium text-gray-700 mb-1">Mood</label>
-                            <input
-                                type="text"
-                                value={editedSpec.lighting?.mood || ''}
-                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, mood: e.target.value })}
-                                className="w-full p-2 border rounded-md text-sm border-gray-300"
-                                placeholder="e.g. Cheerful, Mysterious"
-                            />
-                        </div>
-                    </div>
-                </section>
-
-                {/* Style & Text */}
-                <section>
-                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Style & Text</h4>
-
+                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Text Policy</h4>
                     <div className="mb-4">
-                        <label className="block text-sm font-medium text-gray-700 mb-2">Text Policy</label>
                         <div className="flex flex-col space-y-2">
                             <label className="inline-flex items-center">
                                 <input

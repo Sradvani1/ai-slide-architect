@@ -54,16 +54,15 @@ export const IMAGE_SPEC_SCHEMA = {
                 viewpoint: {
                     type: "string",
                     enum: [
-                        "front",
+                        "front-on",
                         "three-quarter",
-                        "side",
-                        "overhead",
-                        "macro-close-up",
-                        "dutch-angle",
-                        "child-eye-level",
                         "side-profile",
-                        "isometric-3d-cutaway",
-                        "bird's-eye-view",
+                        "overhead",
+                        "bird-eye-view",
+                        "isometric-3d",
+                        "cross-section-side",
+                        "flow-diagram",
+                        "child-eye-level",
                     ],
                 },
                 whitespace: {
@@ -72,7 +71,7 @@ export const IMAGE_SPEC_SCHEMA = {
                 },
                 depthOfField: {
                     type: "string",
-                    enum: ["shallow", "deep"],
+                    enum: ["sharp-throughout"],
                 },
                 framingRationale: {
                     type: "string",
@@ -81,13 +80,30 @@ export const IMAGE_SPEC_SCHEMA = {
             },
             required: ["layout", "viewpoint", "whitespace"],
         },
+        illustrationStyle: {
+            type: "string",
+            enum: [
+                "flat-vector",
+                "clean-line-diagram",
+                "infographic",
+                "technical-diagram",
+            ],
+        },
+        background: {
+            type: "object",
+            properties: {
+                style: { type: "string", enum: ["pure-white", "light-gray"] },
+                texture: { type: "string", enum: ["flat", "subtle-texture"] },
+            },
+        },
+        isEducationalDiagram: { type: "boolean" },
         lighting: {
             type: "object",
             properties: {
-                quality: { type: "string" },
-                direction: { type: "string" },
-                colorTemperature: { type: "string" },
-                mood: { type: "string" },
+                approach: {
+                    type: "string",
+                    enum: ["technical-neutral", "even-flat", "diagram-clarity"],
+                },
             },
         },
         textPolicy: {

@@ -10,7 +10,6 @@ export interface GeneratedImage {
 }
 
 /** Controls how the AI generator handles text/labels within the image */
-/** Controls how the AI generator handles text/labels within the image */
 export type ImageTextPolicy = 'NO_LABELS' | 'LIMITED_LABELS_1_TO_3' | 'DIAGRAM_LABELS_WITH_LEGEND';
 
 /** Defines the visual structure and framing of the generated image */
@@ -23,20 +22,29 @@ export type ImageLayout =
 
 /** Camera angle / perspective for the image */
 export type Viewpoint =
-    | 'front'
-    | 'three-quarter'
-    | 'side'
-    | 'overhead'
-    // New specific camera terms
-    | 'macro-close-up'
-    | 'dutch-angle'
-    | 'child-eye-level'
-    | 'side-profile'
-    | 'isometric-3d-cutaway'
-    | 'bird\'s-eye-view';
+    | 'front-on'           // Direct, clear (was 'front')
+    | 'three-quarter'      // Standard product/object view
+    | 'side-profile'       // Structure/layers
+    | 'overhead'           // Layout/relationships
+    | 'bird-eye-view'      // Map-like (was 'bird's-eye-view')
+    | 'isometric-3d'       // 3D structure (was 'isometric-3d-cutaway')
+    | 'cross-section-side' // Internal parts
+    | 'flow-diagram'       // Process visualization
+    | 'child-eye-level';   // Relatable perspective
 
 /** Amount of empty space around subjects */
 export type Whitespace = 'generous' | 'moderate';
+
+export type IllustrationStyle =
+    | 'flat-vector'
+    | 'clean-line-diagram'
+    | 'infographic'
+    | 'technical-diagram';
+
+export type LightingApproach =
+    | 'technical-neutral'
+    | 'even-flat'
+    | 'diagram-clarity';
 
 /**
  * Structured specification for AI image generation.
@@ -61,15 +69,21 @@ export interface ImageSpec {
         layout: ImageLayout;
         viewpoint: Viewpoint;
         whitespace: Whitespace;
-        depthOfField?: 'shallow' | 'deep';
+        depthOfField?: 'sharp-throughout'; // Educational constraint
         framingRationale?: string; // Explain why this viewpoint is chosen
     };
 
+    illustrationStyle?: IllustrationStyle;
+
+    background?: {
+        style: 'pure-white' | 'light-gray';
+        texture: 'flat' | 'subtle-texture';
+    };
+
+    isEducationalDiagram?: boolean;
+
     lighting?: {
-        quality?: string;      // e.g. soft, dramatic
-        direction?: string;
-        colorTemperature?: string;
-        mood?: string;
+        approach?: LightingApproach;
     };
 
     // Typography
