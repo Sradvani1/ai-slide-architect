@@ -12,6 +12,8 @@ out/
 .turbo/
 .vercel/
 .parcel-cache/
+functions/src/shared/
+lib/
 
 # Testing
 coverage/
