@@ -141,4 +141,7 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
 });
 
 // Export the API
-export const api = functions.https.onRequest(app);
+export const api = functions.https.onRequest(
+    { timeoutSeconds: 300, memory: '1GiB' },
+    app
+);
