@@ -1,6 +1,6 @@
 ---
 name: Store Narrative and Simplify UI
-overview: Generate and store narrative prompts during initial slide generation, remove regenerate/edit spec functionality, and update UI to show only the Visual Scene Description with a "Full Prompt" toggle. The Visual Scene Description will be editable, and users can toggle to see the complete prompt sent to the API.
+overview: Generate and store narrative prompts during initial slide generation, remove regenerate spec functionality, keep ImageSpecEditor for editing JSON fields, and update UI to show Visual Scene Description with a "Full Prompt" toggle. Users see the Visual Scene Description by default, can click "Full Prompt" to see the complete prompt, and can edit the spec via ImageSpecEditor which updates the database.
 todos:
   - id: generate-narrative-on-creation
     content: Update functions/src/services/slideGeneration.ts to generate and store renderedImagePrompt during initial slide normalization
@@ -20,11 +20,11 @@ todos:
   - id: delete-spec-regeneration-file
     content: Delete entire file functions/src/services/specRegeneration.ts
     status: pending
-  - id: remove-edit-spec-ui
-    content: Remove ImageSpecEditor import, isEditingSpec state, handleSaveSpec function, and ImageSpecEditor component usage from src/components/SlideCard.tsx
+  - id: add-full-prompt-button
+    content: Add "Full Prompt" button in src/components/SlideCard.tsx that toggles between Visual Scene Description and Full Prompt view, keep "Edit Spec" button separate
     status: pending
-  - id: delete-image-spec-editor
-    content: Delete entire file src/components/ImageSpecEditor.tsx
+  - id: enhance-image-spec-editor
+    content: "Add missing fields to ImageSpecEditor.tsx: depthOfField in composition section and background object (style and texture)"
     status: pending
   - id: remove-visual-summary-utils
     content: Remove getVisualIdeaSummary function and VisualIdeaSummary interface from src/utils/imageUtils.ts
@@ -36,7 +36,7 @@ todos:
     content: Update CopyButton in SlideCard to copy Visual Scene Description (or full prompt if in full prompt view)
     status: pending
   - id: clean-imports
-    content: Remove all unused imports from SlideCard.tsx (getVisualIdeaSummary, prepareSpecForSave, ImageSpecEditor, regenerateImageSpec)
+    content: Remove unused imports from SlideCard.tsx (getVisualIdeaSummary, regenerateImageSpec) but keep prepareSpecForSave and ImageSpecEditor
     status: pending
   - id: update-exports
     content: Add extractVisualSceneDescription to exports in shared/utils/imageUtils.ts and src/utils/imageUtils.ts
@@ -205,53 +205,139 @@ const isRegeneratingSpecRef = useRef(false);
 
 **Reason**: No longer needed since regenerate functionality is removed.
 
-## Part 4: Remove Edit Spec Functionality
+## Part 4: Update Edit Spec to Full Prompt Toggle
 
 ### File: `src/components/SlideCard.tsx`
 
-**Remove**:
-
-1. Import: `ImageSpecEditor` (line 8)
-2. Import: `prepareSpecForSave` from utils (line 6)
-3. Import: `getVisualIdeaSummary` from utils (line 6)
-4. State: `isEditingSpec` (line 52)
-5. Function: `handleSaveSpec()` (lines 196-200)
-6. UI: `ImageSpecEditor` component usage (lines 337-344)
-7. UI: "Edit Spec" button (find where it's called)
-
-**Specific Changes**:
+**Changes Required**:
 
 1. **Update imports** (line 6):
 ```typescript
-// REMOVE: getVisualIdeaSummary, prepareSpecForSave
-// REMOVE: ImageSpecEditor import (line 8)
-// KEEP: formatImageSpec, extractVisualSceneDescription (new)
-import { formatImageSpec, extractVisualSceneDescription } from '../utils/imageUtils';
+// REMOVE: getVisualIdeaSummary
+// KEEP: prepareSpecForSave (needed for handleSaveSpec)
+// KEEP: ImageSpecEditor import (line 8)
+// ADD: extractVisualSceneDescription
+import { formatImageSpec, extractVisualSceneDescription, prepareSpecForSave } from '../utils/imageUtils';
+import { ImageSpecEditor } from './ImageSpecEditor';
 ```
 
-2. **Remove state** (line 52):
+2. **Add new state for view toggle** (after line 52):
 ```typescript
-// REMOVE: const [isEditingSpec, setIsEditingSpec] = useState(false);
+const [showFullPrompt, setShowFullPrompt] = useState(false);
 ```
 
-3. **Remove function** (lines 196-200):
+3. **Keep existing state and functions**:
+- KEEP: `isEditingSpec` state (line 52)
+- KEEP: `handleSaveSpec()` function (lines 196-200) - this already updates DB via `prepareSpecForSave` and `onUpdateSlide`
+
+4. **Update button layout** (around line 299-321):
+   - Keep "Edit Spec" button but ensure it opens ImageSpecEditor
+   - Add new "Full Prompt" button that toggles the view
+   - Remove "Regenerate" button
+
 ```typescript
-// DELETE entire handleSaveSpec function
+{/* Actions */}
+<div className="flex items-center space-x-1">
+    {!isEditingSpec && (
+        <>
+            <button
+                onClick={() => setShowFullPrompt(!showFullPrompt)}
+                className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded"
+                title={showFullPrompt ? "Show Visual Scene Description" : "Show Full Prompt"}
+            >
+                {showFullPrompt ? 'Show Scene' : 'Full Prompt'}
+            </button>
+            <button
+                onClick={() => setIsEditingSpec(true)}
+                disabled={!imageSpec}
+                className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded disabled:opacity-30"
+                title="Edit Image Specification"
+            >
+                Edit Spec
+            </button>
+        </>
+    )}
+</div>
 ```
 
-4. **Remove ImageSpecEditor usage** (lines 337-344):
-```typescript
-// DELETE the entire conditional block:
-// ) : isEditingSpec ? (
-//     <ImageSpecEditor ... />
-```
+5. **Keep ImageSpecEditor usage** (lines 337-344) - no changes needed, it already works correctly
 
+## Part 5: Enhance ImageSpecEditor with Missing Fields
 
 ### File: `src/components/ImageSpecEditor.tsx`
 
-**Action**: Delete entire file
+**Current Issue**: ImageSpecEditor is missing some fields from the ImageSpec type:
+- `composition.depthOfField` (optional field)
+- `background` object (style and texture)
 
-**Reason**: No longer needed since edit functionality is removed.
+**Changes Required**:
+
+1. **Add depthOfField to Composition section** (after line 283, in the composition section):
+
+```typescript
+<div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+    <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Framing Rationale</label>
+        <input
+            type="text"
+            value={editedSpec.composition.framingRationale || ''}
+            onChange={(e) => handleCompositionChange('framingRationale', e.target.value)}
+            className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+            placeholder="Why this angle?"
+        />
+    </div>
+    <div>
+        <label className="block text-sm font-medium text-gray-700 mb-1">Depth of Field</label>
+        <select
+            value={editedSpec.composition.depthOfField || ''}
+            onChange={(e) => handleCompositionChange('depthOfField', e.target.value || undefined)}
+            className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+        >
+            <option value="">Default (Sharp Throughout)</option>
+            <option value="sharp-throughout">Sharp Throughout</option>
+        </select>
+    </div>
+</div>
+```
+
+2. **Add Background section** (after Composition section, before Text Policy section, around line 285):
+
+```typescript
+{/* Background */}
+<section>
+    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Background</h4>
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Background Style</label>
+            <select
+                value={editedSpec.background?.style || 'pure-white'}
+                onChange={(e) => handleChange('background', {
+                    ...editedSpec.background,
+                    style: e.target.value as 'pure-white' | 'light-gray'
+                })}
+                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+            >
+                <option value="pure-white">Pure White</option>
+                <option value="light-gray">Light Gray</option>
+            </select>
+        </div>
+        <div>
+            <label className="block text-sm font-medium text-gray-700 mb-1">Background Texture</label>
+            <select
+                value={editedSpec.background?.texture || 'flat'}
+                onChange={(e) => handleChange('background', {
+                    ...editedSpec.background,
+                    texture: e.target.value as 'flat' | 'subtle-texture'
+                })}
+                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+            >
+                <option value="flat">Flat</option>
+                <option value="subtle-texture">Subtle Texture</option>
+            </select>
+        </div>
+    </div>
+</section>
+```
 
 ### File: `src/utils/imageUtils.ts`
 
@@ -285,24 +371,17 @@ import { formatImageSpec, extractVisualSceneDescription } from '../utils/imageUt
 export { extractVisualSceneDescription } from '../../shared/utils/imageUtils';
 ```
 
-## Part 5: Update UI to Show Visual Scene Description
+## Part 6: Update UI to Show Visual Scene Description
 
 ### File: `src/components/SlideCard.tsx`
 
 **Current State**: Lines 346-361 show `visualSummary` (title, subtitle, elements)
 
-**New State**: Show editable Visual Scene Description with "Full Prompt" toggle
+**New State**: Show Visual Scene Description by default, with "Full Prompt" toggle and "Edit Spec" button
 
 **Implementation**:
 
-1. **Add new state for view toggle** (after line 52):
-```typescript
-const [showFullPrompt, setShowFullPrompt] = useState(false);
-const [editedVisualScene, setEditedVisualScene] = useState('');
-const [isEditingVisualScene, setIsEditingVisualScene] = useState(false);
-```
-
-2. **Extract Visual Scene Description** (replace line 58):
+1. **Extract Visual Scene Description** (replace line 58):
 ```typescript
 // Get full rendered prompt
 const renderedPrompt = slide.renderedImagePrompt || (imageSpec ? formatImageSpec(imageSpec, { gradeLevel, subject }) : '');
@@ -311,50 +390,42 @@ const renderedPrompt = slide.renderedImagePrompt || (imageSpec ? formatImageSpec
 const visualSceneDescription = renderedPrompt 
     ? extractVisualSceneDescription(renderedPrompt)
     : '';
-
-// Initialize edited state
-useEffect(() => {
-    if (visualSceneDescription && !editedVisualScene) {
-        setEditedVisualScene(visualSceneDescription);
-    }
-}, [visualSceneDescription]);
 ```
 
-3. **Add handler for saving edited visual scene** (after handleSaveContent):
-```typescript
-const handleSaveVisualScene = () => {
-    // When user edits the visual scene, we need to update the full prompt
-    // For now, just update the visual scene part (in Phase 2, we'll rebuild full prompt)
-    // For Phase 1, we'll store the edited text but note: this won't regenerate the full prompt
-    // This is a placeholder for future multi-turn editing
-    
-    // TODO: In Phase 2, rebuild full prompt from edited visual scene
-    // For now, we'll just note that it was edited
-    setIsEditingVisualScene(false);
-    
-    // Optionally save to a new field like editedVisualSceneDescription
-    // But for Phase 1, we'll keep it simple
-};
-```
-
-4. **Replace the visual summary UI** (lines 346-361) with:
+2. **Replace the visual summary UI** (lines 346-361) with:
 ```typescript
 {!imageSpec ? (
     <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
         <p className="text-sm text-slate-500">No visual idea generated for this slide yet.</p>
     </div>
+) : isEditingSpec ? (
+    <ImageSpecEditor
+        spec={imageSpec}
+        gradeLevel={gradeLevel}
+        subject={subject}
+        onSave={handleSaveSpec}
+        onCancel={() => setIsEditingSpec(false)}
+    />
 ) : (
     <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm">
         <div className="flex items-center justify-between mb-2">
             <h4 className="text-xs font-semibold text-primary-text uppercase tracking-wide">
                 {showFullPrompt ? 'Full Prompt' : 'Visual Scene Description'}
             </h4>
-            <button
-                onClick={() => setShowFullPrompt(!showFullPrompt)}
-                className="text-xs text-blue-600 hover:text-blue-800 font-medium"
-            >
-                {showFullPrompt ? 'Show Scene Only' : 'Full Prompt'}
-            </button>
+            <div className="flex items-center gap-2">
+                <button
+                    onClick={() => setShowFullPrompt(!showFullPrompt)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                    {showFullPrompt ? 'Show Scene' : 'Full Prompt'}
+                </button>
+                <button
+                    onClick={() => setIsEditingSpec(true)}
+                    className="text-xs text-blue-600 hover:text-blue-800 font-medium"
+                >
+                    Edit Spec
+                </button>
+            </div>
         </div>
         
         {showFullPrompt ? (
@@ -365,48 +436,9 @@ const handleSaveVisualScene = () => {
             </div>
         ) : (
             <div className="mt-2">
-                {isEditingVisualScene ? (
-                    <div>
-                        <textarea
-                            value={editedVisualScene}
-                            onChange={(e) => setEditedVisualScene(e.target.value)}
-                            className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500 min-h-[100px] font-mono text-xs"
-                            placeholder="Edit the visual scene description..."
-                        />
-                        <div className="flex justify-end gap-2 mt-2">
-                            <button
-                                onClick={() => {
-                                    setIsEditingVisualScene(false);
-                                    setEditedVisualScene(visualSceneDescription);
-                                }}
-                                className="px-3 py-1 text-xs bg-gray-100 text-gray-700 rounded hover:bg-gray-200"
-                            >
-                                Cancel
-                            </button>
-                            <button
-                                onClick={handleSaveVisualScene}
-                                className="px-3 py-1 text-xs bg-blue-600 text-white rounded hover:bg-blue-700"
-                            >
-                                Save
-                            </button>
-                        </div>
-                    </div>
-                ) : (
-                    <div className="relative group">
-                        <p 
-                            className="text-xs text-secondary-text whitespace-pre-wrap cursor-text hover:bg-slate-50 p-2 rounded transition-colors"
-                            onClick={() => setIsEditingVisualScene(true)}
-                            title="Click to edit"
-                        >
-                            {editedVisualScene || visualSceneDescription || 'No visual scene description available.'}
-                        </p>
-                        {editedVisualScene && (
-                            <span className="absolute top-0 right-0 text-[10px] text-blue-600 bg-blue-50 px-1 rounded">
-                                Edited
-                            </span>
-                        )}
-                    </div>
-                )}
+                <p className="text-xs text-secondary-text whitespace-pre-wrap">
+                    {visualSceneDescription || 'No visual scene description available.'}
+                </p>
             </div>
         )}
     </div>
@@ -414,7 +446,7 @@ const handleSaveVisualScene = () => {
 ```
 
 
-## Part 6: Update Copy Button
+## Part 7: Update Copy Button
 
 ### File: `src/components/SlideCard.tsx`
 
@@ -427,27 +459,31 @@ const handleSaveVisualScene = () => {
 Update the CopyButton usage (line 431):
 
 ```typescript
-<CopyButton textToCopy={showFullPrompt ? renderedPrompt : (editedVisualScene || visualSceneDescription)} />
+<CopyButton textToCopy={showFullPrompt ? renderedPrompt : visualSceneDescription} />
 ```
 
-## Part 7: Clean Up Unused Imports and Code
+## Part 8: Clean Up Unused Imports and Code
 
 ### File: `src/components/SlideCard.tsx`
 
 **Remove unused imports**:
 
 - `getVisualIdeaSummary` (if still imported)
-- `prepareSpecForSave` (if still imported)
-- `ImageSpecEditor` (already removed)
 - `regenerateImageSpec` (already removed)
+
+**Keep imports**:
+
+- `prepareSpecForSave` - KEEP (needed for handleSaveSpec)
+- `ImageSpecEditor` - KEEP (needed for editing)
 
 **Add new imports**:
 
 ```typescript
-import { formatImageSpec, extractVisualSceneDescription } from '../utils/imageUtils';
+import { formatImageSpec, extractVisualSceneDescription, prepareSpecForSave } from '../utils/imageUtils';
+import { ImageSpecEditor } from './ImageSpecEditor';
 ```
 
-## Part 8: Update Shared Utils Exports
+## Part 9: Update Shared Utils Exports
 
 ### File: `shared/utils/imageUtils.ts`
 
@@ -465,7 +501,7 @@ export { formatImageSpec, extractVisualSceneDescription };
 export { formatImageSpec, extractVisualSceneDescription } from '../../shared/utils/imageUtils';
 ```
 
-## Part 9: Remove Unused Server Endpoint
+## Part 10: Remove Unused Server Endpoint
 
 ### File: `functions/src/index.ts`
 
@@ -475,7 +511,29 @@ export { formatImageSpec, extractVisualSceneDescription } from '../../shared/uti
 - Ensure `regenerateImageSpec` import is removed
 - No other code references this endpoint
 
-## Part 10: Update Type Definitions (if needed)
+## Part 11: Verify Database Update Flow
+
+### File: `src/components/SlideCard.tsx`
+
+**Verify**: `handleSaveSpec()` function (lines 196-200) correctly updates the database.
+
+**Current Implementation**:
+```typescript
+const handleSaveSpec = (updatedSpec: ImageSpec) => {
+    const patch = prepareSpecForSave(updatedSpec, gradeLevel, subject);
+    onUpdateSlide(patch);
+    setIsEditingSpec(false);
+};
+```
+
+**How it works**:
+1. `prepareSpecForSave()` formats the spec and generates new `renderedImagePrompt`
+2. Returns `{ imageSpec: updatedSpec, renderedImagePrompt: newPrompt }`
+3. `onUpdateSlide(patch)` saves both to Firebase via `updateSlide()` in projectService
+
+**Verification**: This flow is already correct and will update both `imageSpec` and `renderedImagePrompt` in the database when user saves changes.
+
+## Part 12: Update Type Definitions (if needed)
 
 ### File: `shared/types.ts`
 
@@ -487,15 +545,15 @@ export { formatImageSpec, extractVisualSceneDescription } from '../../shared/uti
 
 1. `functions/src/services/slideGeneration.ts` - Add narrative generation
 2. `shared/utils/imageUtils.ts` - Add `extractVisualSceneDescription()` helper
-3. `src/components/SlideCard.tsx` - Major UI refactor
-4. `src/utils/imageUtils.ts` - Remove unused functions, add new export
-5. `src/services/geminiService.ts` - Remove `regenerateImageSpec`
-6. `functions/src/index.ts` - Remove `/regenerate-spec` endpoint
+3. `src/components/SlideCard.tsx` - Update UI to show Visual Scene Description, add Full Prompt toggle, change Edit Spec button
+4. `src/components/ImageSpecEditor.tsx` - Add missing fields (depthOfField, background)
+5. `src/utils/imageUtils.ts` - Remove `getVisualIdeaSummary`, add `extractVisualSceneDescription` export
+6. `src/services/geminiService.ts` - Remove `regenerateImageSpec`
+7. `functions/src/index.ts` - Remove `/regenerate-spec` endpoint
 
 ### Files to Delete:
 
-1. `src/components/ImageSpecEditor.tsx` - Entire file
-2. `functions/src/services/specRegeneration.ts` - Entire file
+1. `functions/src/services/specRegeneration.ts` - Entire file (regenerate functionality removed)
 
 ### Files to Verify (no changes expected):
 
@@ -507,12 +565,13 @@ export { formatImageSpec, extractVisualSceneDescription } from '../../shared/uti
 After implementation, verify:
 
 - [ ] New slides have `renderedImagePrompt` stored in Firebase
-- [ ] Visual Scene Description displays correctly
-- [ ] "Full Prompt" toggle works
-- [ ] Visual Scene Description is editable
-- [ ] Copy button copies correct content (scene or full prompt)
+- [ ] Visual Scene Description displays correctly by default
+- [ ] "Full Prompt" button toggles to show complete prompt
+- [ ] "Edit Spec" button opens ImageSpecEditor
+- [ ] ImageSpecEditor has all fields: depthOfField, background (style, texture)
+- [ ] Saving changes in ImageSpecEditor updates both imageSpec and renderedImagePrompt in Firebase
+- [ ] Copy button copies Visual Scene Description (or full prompt if in full prompt view)
 - [ ] No regenerate buttons appear
-- [ ] No edit spec buttons appear
-- [ ] ImageSpecEditor component is removed
 - [ ] Regenerate endpoint returns 404 or is removed
 - [ ] No console errors related to removed functions
+- [ ] Visual Scene Description is extracted correctly from full prompt

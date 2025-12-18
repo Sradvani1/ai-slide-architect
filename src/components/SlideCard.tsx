@@ -1,9 +1,8 @@
-
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageSpec, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon } from './icons';
-import { generateImageFromSpec, regenerateImageSpec } from '../services/geminiService';
-import { formatImageSpec, getVisualIdeaSummary, prepareSpecForSave } from '../utils/imageUtils';
+import { generateImageFromSpec } from '../services/geminiService';
+import { formatImageSpec, extractVisualSceneDescription, prepareSpecForSave } from '../utils/imageUtils';
 import { uploadImageToStorage } from '../services/projectService';
 import { ImageSpecEditor } from './ImageSpecEditor';
 
@@ -48,8 +47,8 @@ export const cleanText = (text: string): string => {
 
 export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, gradeLevel, subject, creativityLevel, userId, projectId }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-    const [isRegeneratingSpec, setIsRegeneratingSpec] = useState(false);
     const [isEditingSpec, setIsEditingSpec] = useState(false);
+    const [showFullPrompt, setShowFullPrompt] = useState(false);
 
     // Direct access to slide data (Source of Truth)
     const imageSpec = slide.imageSpec;
@@ -57,9 +56,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     // Compute rendered prompt inline or default to empty
     const renderedPrompt = slide.renderedImagePrompt || (imageSpec ? formatImageSpec(imageSpec, { gradeLevel, subject }) : '');
 
+    // Extract Visual Scene Description using shared utility
+    // Add fallback if empty (e.g. for legacy prompts or extraction failure)
+    const visualSceneDescription = extractVisualSceneDescription(renderedPrompt) ||
+        (renderedPrompt ? 'Visual scene description not available' : '');
+
     // Hard Re-entrancy Locks
     const isGeneratingImageRef = useRef(false);
-    const isRegeneratingSpecRef = useRef(false);
 
     const [isEditingContent, setIsEditingContent] = useState(false);
     const [contentText, setContentText] = useState(slide.content.join('\n'));
@@ -155,44 +158,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     };
 
-    const handleRegenerateSpec = async () => {
-        if (isRegeneratingSpecRef.current) return;
-
-        // Confirmation if manually triggered and spec exists
-        if (imageSpec && !window.confirm("This will overwrite your current visual idea. Continue?")) {
-            return;
-        }
-
-        isRegeneratingSpecRef.current = true;
-        setIsRegeneratingSpec(true);
-        try {
-            // Generate NEW Spec using the server endpoint
-            // We pass the current spec (if any) and a request instructions
-            const request = imageSpec
-                ? "Regenerate this visual specification to be more creative and aligned with the content."
-                : "Create a detailed visual specification for this slide.";
-
-            // Mock empty spec if null to satisfy type if needed, or server handles null
-            const validSpec = imageSpec || {} as ImageSpec;
-
-            const newSpec = await regenerateImageSpec(
-                validSpec,
-                request,
-                { title: slide.title, content: slide.content }
-            );
-
-            const patch = prepareSpecForSave(newSpec, gradeLevel, subject);
-            onUpdateSlide(patch);
-
-        } catch (error) {
-            console.error('Error generating new visual idea:', error);
-            alert('Failed to create new visual idea. Please try again.');
-        } finally {
-            setIsRegeneratingSpec(false);
-            isRegeneratingSpecRef.current = false;
-        }
-    };
-
     const handleSaveSpec = (updatedSpec: ImageSpec) => {
         const patch = prepareSpecForSave(updatedSpec, gradeLevel, subject);
         onUpdateSlide(patch);
@@ -209,9 +174,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setContentText(slide.content.join('\n'));
         setIsEditingContent(false);
     };
-
-    // Derived UI Data
-    const visualSummary = imageSpec ? getVisualIdeaSummary(imageSpec) : { title: 'No Idea', subtitle: '', elements: '' };
 
     return (
         <div className="glass-card rounded-2xl overflow-hidden group border border-[#rgba(0,0,0,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -292,12 +254,19 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     <div className="flex-grow min-w-0">
                         {/* Control Header */}
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Idea</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Scene Description</span>
 
                             {/* Actions */}
                             <div className="flex items-center space-x-1">
                                 {!isEditingSpec && (
                                     <>
+                                        <button
+                                            onClick={() => setShowFullPrompt(!showFullPrompt)}
+                                            className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded"
+                                            title="Toggle Full Prompt"
+                                        >
+                                            {showFullPrompt ? "Hide Full Prompt" : "Full Prompt"}
+                                        </button>
                                         <button
                                             onClick={() => setIsEditingSpec(true)}
                                             disabled={!imageSpec}
@@ -305,17 +274,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                             title="Edit Visual Specification"
                                         >
                                             Edit Spec
-                                        </button>
-                                        <button
-                                            onClick={handleRegenerateSpec}
-                                            disabled={isRegeneratingSpec}
-                                            className="flex items-center space-x-1 px-2 py-1 hover:bg-slate-100 rounded text-xs text-secondary-text hover:text-accent transition-colors disabled:opacity-50 border border-transparent hover:border-slate-200"
-                                            title="Regenerate from text content"
-                                        >
-                                            <svg xmlns="http://www.w3.org/2000/svg" className={`h-3.5 w-3.5 ${isRegeneratingSpec ? 'animate-spin' : ''}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                                <path strokeLinecap="round" strokeLinejoin="round" d="M19.428 15.428a2 2 0 00-1.022-.547l-2.384-.477a6 6 0 00-3.86.517l-.318.158a6 6 0 01-3.86.517L6.05 15.21a2 2 0 00-1.806.547M8 4h8l-1 1v5.172a2 2 0 00.586 1.414l5 5c1.26 1.26.367 3.414-1.415 3.414H4.828c-1.782 0-2.674-2.154-1.414-3.414l5-5A2 2 0 009 10.172V5L8 4z" />
-                                            </svg>
-                                            <span className="font-semibold">{imageSpec ? 'Regenerate' : 'Create Idea'}</span>
                                         </button>
                                     </>
                                 )}
@@ -326,13 +284,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         {!imageSpec ? (
                             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
                                 <p className="text-sm text-slate-500 mb-3">No visual idea generated for this slide yet.</p>
-                                <button
-                                    onClick={handleRegenerateSpec}
-                                    disabled={isRegeneratingSpec}
-                                    className="px-4 py-2 bg-primary text-white text-sm font-semibold rounded-lg hover:bg-primary-dark transition-colors disabled:opacity-50"
-                                >
-                                    {isRegeneratingSpec ? 'Generating Idea...' : 'Create Visual Idea'}
-                                </button>
                             </div>
                         ) : isEditingSpec ? (
                             <ImageSpecEditor
@@ -345,17 +296,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         ) : (
                             <div className="relative group/prompt">
                                 <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-colors">
-                                    <div className="flex gap-2 mb-1">
-                                        <span className="text-xs font-bold text-primary-text">{visualSummary.title}</span>
-                                    </div>
-                                    <p className="text-xs text-secondary-text mb-2 line-clamp-2">{visualSummary.subtitle}</p>
-
-                                    <div className="flex flex-wrap gap-1">
-                                        {visualSummary.elements.split(',').map((elem, i) => (
-                                            <span key={i} className="inline-flex items-center px-1.5 py-0.5 rounded text-[10px] font-medium bg-slate-100 text-slate-600">
-                                                {elem.trim()}
-                                            </span>
-                                        ))}
+                                    <div className="prose prose-sm max-w-none text-secondary-text text-sm">
+                                        <p className="whitespace-pre-wrap leading-relaxed">
+                                            {showFullPrompt ? renderedPrompt : visualSceneDescription}
+                                        </p>
                                     </div>
                                 </div>
                             </div>
@@ -428,7 +372,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         )}
                         <span>Generate Image</span>
                     </button>
-                    <CopyButton textToCopy={renderedPrompt} />
+                    <CopyButton textToCopy={showFullPrompt ? renderedPrompt : visualSceneDescription} />
                 </div>
             </footer>
         </div>

@@ -1,5 +1,6 @@
 import { getAiClient } from '../utils/geminiClient';
 import { buildSlideGenerationPrompt } from '@shared/promptBuilders';
+import { formatImageSpec } from '@shared/utils/imageUtils';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
@@ -114,15 +115,28 @@ export async function generateSlides(
         });
 
         // Normalize slides (add IDs, etc)
-        const normalizedSlides: Slide[] = slides.map((s, i) => ({
-            ...s,
-            id: `slide-${Date.now()}-${i}`,
-            sortOrder: i,
-            // Ensure compatibility
-            content: Array.isArray(s.content) ? s.content : [String(s.content)],
-            speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
-            sources: getUniqueSources(sources, uploadedFileNames, sourceMaterial, s.sources)
-        }));
+        const normalizedSlides: Slide[] = slides.map((s, i) => {
+            // Generate the rendered image prompt if spec exists
+            let renderedPrompt = undefined;
+            if (s.imageSpec) {
+                try {
+                    renderedPrompt = formatImageSpec(s.imageSpec, { gradeLevel, subject });
+                } catch (e) {
+                    console.warn(`Failed to format image spec for slide ${i}:`, e);
+                }
+            }
+
+            return {
+                ...s,
+                id: `slide-${Date.now()}-${i}`,
+                sortOrder: i,
+                // Ensure compatibility
+                content: Array.isArray(s.content) ? s.content : [String(s.content)],
+                speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
+                sources: getUniqueSources(sources, uploadedFileNames, sourceMaterial, s.sources),
+                renderedImagePrompt: renderedPrompt
+            };
+        });
 
         return {
             slides: normalizedSlides,

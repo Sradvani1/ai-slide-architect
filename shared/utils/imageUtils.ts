@@ -435,3 +435,26 @@ FINAL REQUIREMENTS:
         .filter(s => s && s.trim().length > 0)
         .join('\n');
 }
+
+/**
+ * Extracts the Visual Scene Description from a full image prompt.
+ */
+export function extractVisualSceneDescription(renderedPrompt: string): string {
+    if (!renderedPrompt) return '';
+    // Match the VISUAL SCENE DESCRIPTION section
+    // It starts with "VISUAL SCENE DESCRIPTION:" and ends at the next section separator "---" or "STYLE:" or "BACKGROUND:"
+    const match = renderedPrompt.match(/VISUAL SCENE DESCRIPTION:\s*([\s\S]*?)(?=\n---|STYLE:|BACKGROUND:|$)/i);
+    // Alternatively, use the user's recommended regex if strict:
+    // /VISUAL SCENE DESCRIPTION:\s*\n(.*?)(?=\n\n---\n\n|$)/s
+    // My existing regex in SlideCard was: 
+    // /VISUAL SCENE DESCRIPTION:\s*([\s\S]*?)(?=\n---|STYLE:|BACKGROUND:|$)/i
+    // The shared/utils used `\n---\n` separators.
+
+    // Let's use a robust one matching the format in formatImageSpec:
+    // `VISUAL SCENE DESCRIPTION:\n${content}` followed by `\n---\n`
+
+    if (match && match[1]) {
+        return match[1].trim();
+    }
+    return '';
+}

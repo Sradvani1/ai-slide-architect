@@ -11,7 +11,7 @@ import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
-import { regenerateImageSpec } from './services/specRegeneration';
+
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { GeminiError, ImageGenError } from '@shared/errors';
 
@@ -97,24 +97,7 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
     }
 });
 
-// 3. Regenerate Image Spec
-app.post('/regenerate-spec', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
-    try {
-        const { currentSpec, changeRequest, slideContext } = req.body;
 
-        if (!currentSpec || !changeRequest || !slideContext) {
-            res.status(400).json({ error: "Missing required fields" });
-            return;
-        }
-
-        const result = await regenerateImageSpec(currentSpec, changeRequest, slideContext);
-        res.json(result);
-
-    } catch (error: any) {
-        console.error("Regenerate Spec Error:", error);
-        res.status(500).json({ error: error.message || "Failed to update spec" });
-    }
-});
 
 // 4. Extract Text from Image
 app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {

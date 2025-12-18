@@ -79,6 +79,19 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
         }));
     };
 
+    const handleBackgroundChange = (field: 'style' | 'texture', value: string) => {
+        setEditedSpec(prev => ({
+            ...prev,
+            background: {
+                // Ensure background object exists (schema defines it as optional but we treat it as always having defaults in UI)
+                style: 'pure-white',
+                texture: 'flat',
+                ...prev.background,
+                [field]: value
+            }
+        }));
+    };
+
     const handleArrayChange = (field: ArrayField, index: number, value: string) => {
         // No runtime check needed - TypeScript ensures type safety via ArrayField
         const array = (editedSpec[field] as string[]) || [];
@@ -272,6 +285,16 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
                         <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Depth of Field</label>
+                            <select
+                                value={editedSpec.composition.depthOfField || 'sharp-throughout'}
+                                onChange={(e) => handleCompositionChange('depthOfField', e.target.value)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="sharp-throughout">Sharp Throughout</option>
+                            </select>
+                        </div>
+                        <div>
                             <label className="block text-sm font-medium text-gray-700 mb-1">Framing Rationale</label>
                             <input
                                 type="text"
@@ -280,6 +303,35 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
                                 className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
                                 placeholder="Why this angle?"
                             />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Background */}
+                <section>
+                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Background</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Background Style</label>
+                            <select
+                                value={editedSpec.background?.style || 'pure-white'}
+                                onChange={(e) => handleBackgroundChange('style', e.target.value)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="pure-white">Pure White</option>
+                                <option value="light-gray">Light Gray</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Texture</label>
+                            <select
+                                value={editedSpec.background?.texture || 'flat'}
+                                onChange={(e) => handleBackgroundChange('texture', e.target.value)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="flat">Flat</option>
+                                <option value="subtle-texture">Subtle Texture</option>
+                            </select>
                         </div>
                     </div>
                 </section>
