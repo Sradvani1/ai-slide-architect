@@ -1,168 +1,242 @@
-import type { ImageSpec, ImageTextPolicy } from '../types';
+import type { ImageSpec } from '../types';
 
 interface FormatContext {
     gradeLevel: string;
     subject: string;
 }
 
+// --- Narrative Building Helpers ---
+
+function buildSubjectNarrative(spec: ImageSpec): string {
+    if (spec.subjects && spec.subjects.length > 0) {
+        // Natural integration: "A [primaryFocal] with [subjects]"
+        return `A ${spec.primaryFocal} with ${spec.subjects.join(', ')}`;
+    }
+    return `A ${spec.primaryFocal}`;
+}
+
+function buildActionNarrative(spec: ImageSpec): string {
+    if (!spec.visualizationDynamics || spec.visualizationDynamics.length === 0) return '';
+
+    // LLM is instructed to provide gerunds (ending in -ing), so we can trust the input
+    // Just join them naturally
+    return spec.visualizationDynamics.join(' and ');
+}
+
+function buildLocationNarrative(spec: ImageSpec): string {
+    const parts = [];
+    if (spec.environment) parts.push(spec.environment);
+    if (spec.contextualDetails && spec.contextualDetails.length > 0) {
+        parts.push(`featuring ${spec.contextualDetails.join(', ')}`);
+    }
+    return parts.length > 0 ? parts.join(', ') : '';
+}
+
+function buildLightingNarrative(spec: ImageSpec, gradeLevel: string): string {
+    if (!spec.lighting) return '';
+    const l = spec.lighting;
+    const parts = [];
+
+    // Note: App focuses on 6th-12th grade, so all lighting details are appropriate
+    if (l.quality && l.direction) {
+        parts.push(`${l.quality} ${l.direction} lighting`);
+    } else if (l.quality) {
+        parts.push(`${l.quality} lighting`);
+    } else if (l.direction) {
+        parts.push(`${l.direction} lighting`);
+    }
+
+    if (l.colorTemperature) {
+        parts.push(`${l.colorTemperature} color temperature`);
+    }
+
+    if (l.mood) {
+        parts.push(`creating a ${l.mood} atmosphere`);
+    }
+
+    return parts.length > 0 ? `Illuminated by ${parts.join(', ')}.` : '';
+}
+
 /**
- * Helper functions for formatting ImageSpec prompt sections
+ * Builds a cohesive narrative scene description weaving all 5 Core Components
+ * into a single flowing prose paragraph.
  */
+function buildFullNarrativeScene(spec: ImageSpec, ctx: FormatContext): string {
+    const subjectPart = buildSubjectNarrative(spec);
+    const actionPart = buildActionNarrative(spec);
+    const locationPart = buildLocationNarrative(spec);
+    const lightingPart = buildLightingNarrative(spec, ctx.gradeLevel);
 
-function formatHeaderSection(ctx: FormatContext): string {
-    return `EDUCATIONAL VISUAL AID PROMPT
-${'='.repeat(40)}
+    // Start with subject
+    let narrative = subjectPart;
 
-CONTEXT:
-- Grade Level: ${ctx.gradeLevel}
-- Subject: ${ctx.subject}`;
-}
-
-function formatTeachingPurposeSection(conceptualPurpose?: string): string {
-    return `
-TEACHING PURPOSE (Why this matters):
-${conceptualPurpose || 'Provide a visual aid for the concept.'}`;
-}
-
-function formatPrimaryVisualConceptSection(primaryFocal: string): string {
-    return `
-PRIMARY VISUAL CONCEPT:
-${primaryFocal}`;
-}
-
-function formatVisualElementsSection(subjects: string[]): string {
-    return `
-VISUAL ELEMENTS (Concrete objects):
-${subjects.map((s, i) => `${i + 1}. ${s}`).join('\n')}`;
-}
-
-function formatActionsSection(actions: string[]): string {
-    if (actions.length === 0) return '';
-    return `
-ACTIONS / INTERACTIONS:
-${actions.map((a, i) => `${i + 1}. ${a}`).join('\n')}
-`;
-}
-
-function formatMustIncludeSection(mustInclude: string[]): string {
-    return `
-MUST INCLUDE (Critical details):
-${mustInclude.map((m, i) => `${i + 1}. ${m}`).join('\n')}`;
-}
-
-function formatCompositionSection(composition: ImageSpec['composition']): string {
-    return `
-COMPOSITION & LAYOUT:
-- Layout: ${composition.layout}
-- Viewpoint: ${composition.viewpoint}
-- Whitespace: ${composition.whitespace} (keep clean for text overlay)
-- Background: Minimal/Plain (standard educational style)`;
-}
-
-function formatTextPolicySection(
-    textPolicy: ImageTextPolicy,
-    allowedLabels: string[],
-    isNoLabels: boolean
-): string {
-    const section = `
-TEXT POLICY:`;
-
-    if (isNoLabels) {
-        return `${section}
-- STRICTLY NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere in the image.`;
-    } else {
-        return `${section}
-- Include ONLY these labels: ${allowedLabels.join(', ')}.
-- Use large, legible font.`;
+    // Integrate action naturally
+    if (actionPart) {
+        // If subject doesn't already imply action, add it
+        narrative += ` ${actionPart}`;
     }
-}
 
-function formatColorsSection(colors: string[]): string {
-    const section = `
-COLORS (Semantic & High Contrast):`;
-
-    if (colors.length > 0) {
-        return `${section}
-- Use this palette: ${colors.join(', ')}`;
-    } else {
-        return `${section}
-- Use high-contrast primary colors suitable for classroom projection.`;
+    // Add location context
+    if (locationPart) {
+        narrative += ` inside ${locationPart}`;
     }
+
+    // Ensure proper punctuation before lighting
+    if (!narrative.endsWith('.')) {
+        narrative += '.';
+    }
+
+    // Add lighting as a separate sentence for clarity
+    if (lightingPart) {
+        narrative += ` ${lightingPart}`;
+    } else if (!narrative.endsWith('.')) {
+        narrative += '.';
+    }
+
+    return narrative;
 }
 
-function formatAvoidSection(avoid: string[]): string {
-    return `
-AVOID (Distractions):
-${avoid.map((a, i) => `${i + 1}. ${a}`).join('\n')}`;
+// --- Technical Section Formatters ---
+
+function formatCompositionSection(spec: ImageSpec): string {
+    const c = spec.composition;
+    let description = `${c.viewpoint.replace(/-/g, ' ')} shot`;
+
+    if (c.layout !== 'single-focal-subject-centered') {
+        description += `, ${c.layout.replace(/-/g, ' ')} composition`;
+    }
+
+    if (c.whitespace === 'generous') {
+        description += ', generous negative space for text overlay';
+    }
+
+    if (c.depthOfField) {
+        if (c.depthOfField === 'shallow') {
+            description += ', shallow depth of field with blurred background to emphasize the subject';
+        } else {
+            description += ', deep depth of field with sharp focus throughout';
+        }
+    }
+
+    let compositionSection = `COMPOSITION & CAMERA ANGLE:
+${description}.`;
+
+    // Add pedagogical framing as separate section if present
+    if (c.framingRationale) {
+        compositionSection += `\n\nPEDAGOGICAL FRAMING:
+This ${c.viewpoint.replace(/-/g, ' ')} viewpoint is chosen because: ${c.framingRationale}`;
+    }
+
+    return compositionSection;
 }
 
-function formatNegativePromptSection(finalNegativePrompt: string[]): string {
-    return `
-NEGATIVE PROMPT (Prevent these errors):
-${finalNegativePrompt.join(', ')}`;
+function formatTextPolicySection(spec: ImageSpec): string {
+    const policy = spec.textPolicy;
+    const labels = spec.allowedLabels ? spec.allowedLabels.join(', ') : 'None';
+    const placement = spec.labelPlacement || 'clearly legible';
+    const font = spec.labelFont || 'standard educational sans-serif';
+
+    let section = `TEXT POLICY:`;
+
+    if (policy === 'NO_LABELS') {
+        return `${section}
+Strictly NO TEXT: No letters, numbers, labels, legends, or watermarks anywhere in the image.`;
+    }
+
+    if (policy === 'LIMITED_LABELS_1_TO_3') {
+        return `${section}
+Include ONLY these labels: ${labels}.
+They should be placed ${placement} using a ${font} font.`;
+    }
+
+    if (policy === 'DIAGRAM_LABELS_WITH_LEGEND') {
+        return `${section}
+Complex diagram with a clear legend. Include labels: ${labels}, positioned ${placement} using ${font} font.`;
+    }
+
+    return section;
 }
 
-function formatStyleToneSection(): string {
-    return `
-STYLE & TONE:
-- Educational illustration, suitable for textbooks or classroom slides.
-- Prioritize CLARITY over decorative flair.
-- Use clean lines and distinct shapes.`;
-}
+// --- Main Formatter ---
 
 /**
  * Deterministically formats an ImageSpec into a prompt string for Gemini.
  */
 export function formatImageSpec(spec: ImageSpec, ctx: FormatContext): string {
-    const {
-        primaryFocal,
-        conceptualPurpose,
-        subjects,
-        actions = [],
-        mustInclude,
-        avoid,
-        composition,
-        textPolicy,
-        allowedLabels = [],
-        colors = [],
-        negativePrompt = [],
-    } = spec;
+    // 1. Negative Prompt Logic (Strict Text Suppression + Educational Safety)
+    let negativePrompt = spec.negativePrompt ? [...spec.negativePrompt] : [];
+    const isNoLabels = spec.textPolicy === 'NO_LABELS';
 
-    // Detect if we need strong text suppression
-    const effectivePolicy = (textPolicy === 'LIMITED_LABELS_1_TO_3' && (!allowedLabels || allowedLabels.length === 0))
-        ? 'NO_LABELS'
-        : textPolicy;
-
-    const isNoLabels = effectivePolicy === 'NO_LABELS';
-
-    // Build negative prompt with text suppression logic
-    const textSuppressionTerms = [
-        'text', 'labels', 'words', 'lettering', 'typography',
-        'annotations', 'watermark', 'signature', 'caption', 'numbers', 'legends'
-    ];
-
-    let finalNegativePrompt: string[];
+    // Add text suppression terms if NO_LABELS
     if (isNoLabels) {
-        finalNegativePrompt = [...new Set([...negativePrompt, ...textSuppressionTerms])];
-    } else {
-        finalNegativePrompt = negativePrompt.filter(term => !textSuppressionTerms.includes(term.toLowerCase()));
+        const textSuppressionTerms = [
+            'text', 'labels', 'words', 'lettering', 'typography',
+            'annotations', 'watermark', 'signature', 'caption',
+            'numbers', 'legends', 'text overlay', 'written text'
+        ];
+
+        textSuppressionTerms.forEach(term => {
+            if (!negativePrompt.includes(term)) negativePrompt.push(term);
+        });
     }
 
-    // Build prompt sections
-    const sections = [
-        formatHeaderSection(ctx),
-        formatTeachingPurposeSection(conceptualPurpose),
-        formatPrimaryVisualConceptSection(primaryFocal),
-        formatVisualElementsSection(subjects),
-        formatActionsSection(actions),
-        formatMustIncludeSection(mustInclude),
-        formatCompositionSection(composition),
-        formatTextPolicySection(textPolicy, allowedLabels, isNoLabels),
-        formatColorsSection(colors),
-        formatAvoidSection(avoid),
-        formatNegativePromptSection(finalNegativePrompt),
-        formatStyleToneSection(),
+    // Always add educational safety terms (regardless of textPolicy)
+    const educationalSafetyTerms = [
+        'blurry', 'low-resolution', 'pixelated', 'distorted',
+        'overexposed', 'completely dark', 'confusing', 'cluttered'
     ];
 
-    return sections.filter(section => section.trim().length > 0).join('\n');
+    educationalSafetyTerms.forEach(term => {
+        if (!negativePrompt.includes(term)) negativePrompt.push(term);
+    });
+
+    // 2. Build Narrative Scene (Cohesive Paragraph using helper)
+    const visualSceneDescription = buildFullNarrativeScene(spec, ctx);
+
+    // 3. Assemble Prompt Sections
+    const sections = [
+        `EDUCATIONAL VISUAL AID PROMPT
+========================================
+CONTEXT:
+- Grade Level: ${ctx.gradeLevel}
+- Subject: ${ctx.subject}`,
+
+        `TEACHING PURPOSE:
+${spec.conceptualPurpose}`,
+
+        `VISUAL SCENE DESCRIPTION:
+${visualSceneDescription}`,
+
+        formatCompositionSection(spec),
+
+        formatTextPolicySection(spec),
+
+        spec.mustInclude && spec.mustInclude.length > 0
+            ? `MUST INCLUDE:
+The image must prominently feature ${spec.mustInclude.join(', ')}.`
+            : '',
+
+        spec.avoid && spec.avoid.length > 0
+            ? `AVOID:
+Avoid including ${spec.avoid.join(', ')}.`
+            : '',
+
+        spec.colors && spec.colors.length > 0
+            ? `COLORS:
+Use a palette of ${spec.colors.join(', ')}. Ensure high contrast for classroom projection.`
+            : '',
+
+        negativePrompt.length > 0
+            ? `NEGATIVE PROMPT:
+${negativePrompt.join(', ')}`
+            : '',
+
+        `STYLE & MEDIA:
+Educational illustration suitable for textbooks or classroom slides. Prioritize CLARITY and ACCURACY over decorative flair. Use clean lines and distinct shapes. Appropriate for ${ctx.gradeLevel} educational content.`
+    ];
+
+    return sections
+        .filter(section => section.trim().length > 0)
+        .map((section, idx) => idx > 0 ? `\n\n---\n\n${section}` : section)
+        .join('');
 }

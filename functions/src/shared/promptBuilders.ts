@@ -76,27 +76,65 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
 function buildImageSpecInstructionsSection(): string {
   return `
   IMAGE VISUAL SPECIFICATION (imageSpec)
-  You must output an \`imageSpec\` object for each slide. This object will be converted into an AI image generation prompt.
+  You must output an \`imageSpec\` object for each slide. This object will be converted into a rich narrative AI image generation prompt.
 
   TEACHING GOAL:
   - The image must teach a specific concept, not just decorate the slide.
   - Define a \`conceptualPurpose\`: What should the student understand from this image?
 
-  imageSpec rules:
+  INSTRUCTIONS: Use descriptive adjectives and verbs (narrative style) rather than single keywords.
+  EXAMPLE: Instead of "robot", use "a translucent glass robot barista with LED eyes".
+  EXAMPLE: Instead of "evaporating", use "water molecules evaporating from the surface, rising as visible steam".
+
+  CRITICAL: When specifying \`visualizationDynamics\`, always use the gerund (verb+ing) form:
+  - "evaporating" (not "evaporate")
+  - "colliding" (not "collide")
+  - "flowing" (not "flow")
+  - "dividing" (not "divide")
+  - "reacting" (not "react")
+  This ensures the narrative flows naturally.
+
+  5 CORE COMPONENTS (Required):
+  1. SUBJECT: \`primaryFocal\` and \`subjects\`. The main visual elements.
+  2. ACTION/DYNAMICS: \`visualizationDynamics\`. Describe processes (e.g., "evaporating", "colliding", "flowing"). Static images do not teach processes; describe the action!
+  3. ENVIRONMENT: \`environment\` (setting) and \`contextualDetails\`. Where is this happening?
+  4. LIGHTING: \`lighting\` object. Set the mood, quality (e.g. "soft", "dramatic"), and direction.
+  5. COMPOSITION: \`composition\` object. Layout and viewpoint.
+
+  imageSpec rules details:
   - \`conceptualPurpose\`: REQUIRED. explicit pedagogical goal.
-  - \`primaryFocal\`: The main visual subject.
-  - \`subjects\`: 2–5 concrete objects to draw.
+  - \`visualizationDynamics\`: Array of strings describing movement/change. MUST be gerunds (ending in -ing).
+  - \`environment\`: The specific setting.
+  - \`contextualDetails\`: Additional environmental details that enhance the scene.
   - \`mustInclude\`: 2–6 critical details to include.
   - \`avoid\`: List distracting elements to exclude.
   - Composition:
-    - \`layout\`: Choose best fit: "single-focal-subject-centered" (default), "balanced-pair" (comparisons), "comparison-split-screen" (before/after), "diagram-with-flow" (processes), "simple-sequence-2-panel" (steps).
-    - \`viewpoint\`: "front", "side", "overhead", "isometric-3d-cutaway" (for structures), "side-profile" (for layers/processes).
-    - \`whitespace\`: "generous" (default) or "moderate".
+    - \`layout\`: "single-focal-subject-centered", "balanced-pair", "comparison-split-screen", "diagram-with-flow", "simple-sequence-2-panel".
+    - \`viewpoint\`: Use professional camera terminology:
+      - "isometric-3d-cutaway" for structures (buildings, molecules, organs)
+      - "side-profile" for layers/geology (rock layers, atmospheric layers)
+      - "macro-close-up" for details (cells, textures) - specify "shallow depth of field"
+      - "overhead" or "bird's-eye-view" for maps, diagrams, top-down views
+      - "dutch-angle" for tension, dynamics, or dramatic effect
+      - "child-eye-level" for relatable perspectives in elementary content
+    - \`depthOfField\`: "shallow" (focus on subject) or "deep" (context).
+    - \`framingRationale\`: Briefly explain why this viewpoint helps the educational goal.
   - Text policy:
     - Default: "NO_LABELS". Choose this unless text labels improve learning.
-    - "LIMITED_LABELS_1_TO_3": Use for diagrams where parts need names.
-      - CONTRACT: If you choose this, you MUST provide 1-3 distinct strings in \`allowedLabels\`.
-      - If \`allowedLabels\` is empty, the system will FORCE "NO_LABELS".
+    - "LIMITED_LABELS_1_TO_3": For simple diagrams. Requires \`allowedLabels\`.
+    - "DIAGRAM_LABELS_WITH_LEGEND": For complex charts. Requires \`allowedLabels\`.
+    - When labels are used, specify \`labelPlacement\` (e.g., "next to arrows", "below each element") and \`labelFont\` (e.g., "bold sans-serif", "Arial").
+  - Grounding:
+    - \`requiresGrounding\`: Set to true ONLY for images that represent specific factual data requiring verification:
+      * Maps that must show current/accurate geography
+      * Charts with specific data (election results, weather forecasts, stock prices)
+      * Timeline visualizations with factual dates
+      * Scientific diagrams with current research accuracy
+    - Examples:
+      * "Visualize the 2025 solar cycle" → requiresGrounding: true
+      * "A fantasy dragon in a medieval castle" → requiresGrounding: false
+      * "Current population density map of Africa" → requiresGrounding: true
+      * "Abstract representation of photosynthesis" → requiresGrounding: false
   - Colors: 3–5 high-contrast colors.
   - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
 
@@ -107,7 +145,7 @@ function buildImageSpecInstructionsSection(): string {
 function buildOutputFormatSection(): string {
   return `
   OUTPUT FORMAT
-  Return a valid JSON array of objects.Do not include markdown code fences(like \`\`\`json).
+  Return a valid JSON array of objects. Do not include markdown code fences (like \`\`\`json).
   JSON Structure:
   [
     {
@@ -116,11 +154,33 @@ function buildOutputFormatSection(): string {
       "layout": "Title Slide" | "Content",
       "imageSpec": {
         "primaryFocal": "string",
+        "conceptualPurpose": "string",
         "subjects": ["string"],
+        "visualizationDynamics": ["string"],
+        "environment": "string",
+        "contextualDetails": ["string"],
         "mustInclude": ["string"],
         "avoid": ["string"],
-        "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
-        "textPolicy": "string"
+        "composition": {
+          "layout": "string",
+          "viewpoint": "string",
+          "whitespace": "string",
+          "depthOfField": "shallow" | "deep",
+          "framingRationale": "string"
+        },
+        "lighting": {
+          "quality": "string",
+          "direction": "string",
+          "colorTemperature": "string",
+          "mood": "string"
+        },
+        "textPolicy": "string",
+        "allowedLabels": ["string"],
+        "labelPlacement": "string",
+        "labelFont": "string",
+        "requiresGrounding": boolean,
+        "colors": ["string"],
+        "negativePrompt": ["string"]
       }, 
       "speakerNotes": "string (Script only)",
       "sources": ["url1", "url2"]
@@ -197,7 +257,9 @@ export function buildSpecRegenerationPrompt(
     INSTRUCTIONS:
     1. Modify the JSON to satisfy the user request.
     2. Maintain strict alignment with the slide concept.
-    3. Ensure the JSON schema is valid (same fields as input).
-    4. Return ONLY the JSON object.
+    3. Use descriptive adjectives and verbs (narrative style) rather than single keywords.
+    4. Ensure all 5 Core Components are considered: Subject, Action/Dynamics, Environment, Lighting, Composition.
+    5. Ensure the JSON schema is valid (same fields as input).
+    6. Return ONLY the JSON object.
     `;
 }
