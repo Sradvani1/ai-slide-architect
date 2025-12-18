@@ -76,27 +76,46 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
 function buildImageSpecInstructionsSection(): string {
   return `
   IMAGE VISUAL SPECIFICATION (imageSpec)
-  You must output an \`imageSpec\` object for each slide. This object will be converted into an AI image generation prompt.
+  You must output an \`imageSpec\` object for each slide. This object will be converted into a rich narrative AI image generation prompt.
 
   TEACHING GOAL:
   - The image must teach a specific concept, not just decorate the slide.
   - Define a \`conceptualPurpose\`: What should the student understand from this image?
 
-  imageSpec rules:
+  INSTRUCTIONS: Use descriptive adjectives and verbs (narrative style) rather than single keywords.
+  EXAMPLE: Instead of "robot", use "a translucent glass robot barista with LED eyes".
+  EXAMPLE: Instead of "evaporating", use "water molecules evaporating from the surface, rising as visible steam".
+
+  5 CORE COMPONENTS (Required):
+  1. SUBJECT: \`primaryFocal\` and \`subjects\`. The main visual elements.
+  2. ACTION/DYNAMICS: \`visualizationDynamics\`. Describe processes (e.g., "evaporating", "colliding", "flowing"). Static images do not teach processes; describe the action!
+  3. ENVIRONMENT: \`environment\` (setting) and \`contextualDetails\`. Where is this happening?
+  4. LIGHTING: \`lighting\` object. Set the mood, quality (e.g. "soft", "dramatic"), and direction.
+  5. COMPOSITION: \`composition\` object. Layout and viewpoint.
+
+  imageSpec rules details:
   - \`conceptualPurpose\`: REQUIRED. explicit pedagogical goal.
-  - \`primaryFocal\`: The main visual subject.
-  - \`subjects\`: 2–5 concrete objects to draw.
+  - \`visualizationDynamics\`: Array of strings describing movement/change.
+  - \`environment\`: The specific setting.
   - \`mustInclude\`: 2–6 critical details to include.
   - \`avoid\`: List distracting elements to exclude.
   - Composition:
-    - \`layout\`: Choose best fit: "single-focal-subject-centered" (default), "balanced-pair" (comparisons), "comparison-split-screen" (before/after), "diagram-with-flow" (processes), "simple-sequence-2-panel" (steps).
-    - \`viewpoint\`: "front", "side", "overhead", "bird's-eye-view" (top-down perspective), "isometric-3d-cutaway" (for structures), "side-profile" (for layers/processes).
-    - \`whitespace\`: "generous" (default) or "moderate".
+    - \`layout\`: "single-focal-subject-centered", "balanced-pair", "comparison-split-screen", "diagram-with-flow", "simple-sequence-2-panel".
+    - \`viewpoint\`: Use professional camera terminology:
+      - "isometric-3d-cutaway" for structures (buildings, molecules, organs)
+      - "side-profile" for layers/geology (rock layers, atmospheric layers)
+      - "macro-close-up" for details (cells, textures) - specify "shallow depth of field (f/1.8)"
+      - "overhead" or "bird's-eye-view" for maps, diagrams, top-down views
+      - "dutch-angle" for tension, dynamics, or dramatic effect
+      - "child-eye-level" for relatable perspectives in elementary content
+    - \`depthOfField\`: "shallow" (focus on subject) or "deep" (context).
+    - \`framingRationale\`: Briefly explain why this viewpoint helps the educational goal.
   - Text policy:
     - Default: "NO_LABELS". Choose this unless text labels improve learning.
-    - "LIMITED_LABELS_1_TO_3": Use for diagrams where parts need names.
-      - CONTRACT: If you choose this, you MUST provide 1-3 distinct strings in \`allowedLabels\`.
-      - If \`allowedLabels\` is empty, the system will FORCE "NO_LABELS".
+    - "LIMITED_LABELS_1_TO_3": For simple diagrams. Requires \`allowedLabels\`.
+    - "DIAGRAM_LABELS_WITH_LEGEND": For complex charts. Requires \`allowedLabels\`.
+  - Grounding:
+    - \`requiresGrounding\`: Set to true if the image represents specific factual data (maps, charts) that needs verification.
   - Colors: 3–5 high-contrast colors.
   - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
 
@@ -197,7 +216,9 @@ export function buildSpecRegenerationPrompt(
     INSTRUCTIONS:
     1. Modify the JSON to satisfy the user request.
     2. Maintain strict alignment with the slide concept.
-    3. Ensure the JSON schema is valid (same fields as input).
-    4. Return ONLY the JSON object.
+    3. Use descriptive adjectives and verbs (narrative style) rather than single keywords.
+    4. Ensure all 5 Core Components are considered: Subject, Action/Dynamics, Environment, Lighting, Composition.
+    5. Ensure the JSON schema is valid (same fields as input).
+    6. Return ONLY the JSON object.
     `;
 }

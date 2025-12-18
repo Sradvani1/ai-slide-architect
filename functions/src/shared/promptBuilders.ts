@@ -76,7 +76,7 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
 function buildImageSpecInstructionsSection(): string {
   return `
   IMAGE VISUAL SPECIFICATION (imageSpec)
-  You must output an \`imageSpec\` object for each slide (including the Title Slide). This object will be converted into an AI image generation prompt.
+  You must output an \`imageSpec\` object for each slide. This object will be converted into an AI image generation prompt.
 
   TEACHING GOAL:
   - The image must teach a specific concept, not just decorate the slide.

@@ -14,10 +14,19 @@ export const IMAGE_SPEC_SCHEMA = {
             items: { type: "string" },
             description: "2-5 concrete visual elements.",
         },
-        actions: {
+        visualizationDynamics: {
             type: "array",
             items: { type: "string" },
-            description: "0-3 interactions or movements.",
+            description: "Verbs describing processes (e.g. 'evaporating', 'colliding').",
+        },
+        environment: {
+            type: "string",
+            description: "Setting or location of the visualization.",
+        },
+        contextualDetails: {
+            type: "array",
+            items: { type: "string" },
+            description: "Details about the environment.",
         },
         mustInclude: {
             type: "array",
@@ -49,6 +58,8 @@ export const IMAGE_SPEC_SCHEMA = {
                         "three-quarter",
                         "side",
                         "overhead",
+                        "macro-close-up",
+                        "dutch-angle",
                         "child-eye-level",
                         "side-profile",
                         "isometric-3d-cutaway",
@@ -59,17 +70,37 @@ export const IMAGE_SPEC_SCHEMA = {
                     type: "string",
                     enum: ["generous", "moderate"],
                 },
+                depthOfField: {
+                    type: "string",
+                    enum: ["shallow", "deep"],
+                },
+                framingRationale: {
+                    type: "string",
+                    description: "Why this viewpoint is chosen.",
+                },
             },
             required: ["layout", "viewpoint", "whitespace"],
         },
+        lighting: {
+            type: "object",
+            properties: {
+                quality: { type: "string" },
+                direction: { type: "string" },
+                colorTemperature: { type: "string" },
+                mood: { type: "string" },
+            },
+        },
         textPolicy: {
             type: "string",
-            enum: ["NO_LABELS", "LIMITED_LABELS_1_TO_3"],
+            enum: ["NO_LABELS", "LIMITED_LABELS_1_TO_3", "DIAGRAM_LABELS_WITH_LEGEND"],
         },
         allowedLabels: {
             type: "array",
             items: { type: "string" },
         },
+        labelPlacement: { type: "string" },
+        labelFont: { type: "string" },
+        requiresGrounding: { type: "boolean" },
         colors: {
             type: "array",
             items: { type: "string" },

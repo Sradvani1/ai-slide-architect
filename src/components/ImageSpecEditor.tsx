@@ -22,14 +22,17 @@ const VIEWPOINT_OPTIONS: Viewpoint[] = [
     'three-quarter',
     'side',
     'overhead',
+    'macro-close-up',
+    'dutch-angle',
     'child-eye-level',
     'side-profile',
     'isometric-3d-cutaway',
+    'bird\'s-eye-view',
 ];
 
 const WHITESPACE_OPTIONS: Whitespace[] = ['generous', 'moderate'];
 
-type ArrayField = 'subjects' | 'actions' | 'mustInclude' | 'avoid' | 'colors' | 'negativePrompt' | 'allowedLabels';
+type ArrayField = 'subjects' | 'visualizationDynamics' | 'contextualDetails' | 'mustInclude' | 'avoid' | 'colors' | 'negativePrompt' | 'allowedLabels';
 
 export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
     spec,
@@ -150,7 +153,20 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
                 <section>
                     <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Elements</h4>
                     {renderArrayInput('subjects', 'Subjects', 2)}
-                    {renderArrayInput('actions', 'Actions')}
+                    {renderArrayInput('visualizationDynamics', 'Actions / Dynamics')}
+
+                    <div className="mb-4">
+                        <label className="block text-sm font-medium text-gray-700 mb-1">Environment / Setting</label>
+                        <input
+                            type="text"
+                            value={editedSpec.environment || ''}
+                            onChange={(e) => handleChange('environment', e.target.value)}
+                            className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            placeholder="e.g. Science Lab, Outdoor Park"
+                        />
+                    </div>
+                    {renderArrayInput('contextualDetails', 'Contextual Details')}
+
                     {renderArrayInput('mustInclude', 'Must Include', 2)}
                     {renderArrayInput('avoid', 'Elements to Avoid', 2)}
                 </section>
@@ -196,6 +212,78 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
                             </select>
                         </div>
                     </div>
+
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mt-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Depth of Field</label>
+                            <select
+                                value={editedSpec.composition.depthOfField || ''}
+                                onChange={(e) => handleCompositionChange('depthOfField', e.target.value)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                                <option value="">Default</option>
+                                <option value="shallow">Shallow (Focus on subject)</option>
+                                <option value="deep">Deep (Everything in focus)</option>
+                            </select>
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Framing Rationale</label>
+                            <input
+                                type="text"
+                                value={editedSpec.composition.framingRationale || ''}
+                                onChange={(e) => handleCompositionChange('framingRationale', e.target.value)}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300 focus:ring-blue-500 focus:border-blue-500"
+                                placeholder="Why this angle?"
+                            />
+                        </div>
+                    </div>
+                </section>
+
+                {/* Lighting */}
+                <section>
+                    <h4 className="text-md uppercase tracking-wide text-gray-500 font-semibold mb-3 border-b pb-1">Lighting</h4>
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Quality</label>
+                            <input
+                                type="text"
+                                value={editedSpec.lighting?.quality || ''}
+                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, quality: e.target.value })}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300"
+                                placeholder="e.g. Soft, Hard, Diffused"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Direction</label>
+                            <input
+                                type="text"
+                                value={editedSpec.lighting?.direction || ''}
+                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, direction: e.target.value })}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300"
+                                placeholder="e.g. Side, Backlit"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Color Temp</label>
+                            <input
+                                type="text"
+                                value={editedSpec.lighting?.colorTemperature || ''}
+                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, colorTemperature: e.target.value })}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300"
+                                placeholder="e.g. Warm, Cool, Neutral"
+                            />
+                        </div>
+                        <div>
+                            <label className="block text-sm font-medium text-gray-700 mb-1">Mood</label>
+                            <input
+                                type="text"
+                                value={editedSpec.lighting?.mood || ''}
+                                onChange={(e) => handleChange('lighting', { ...editedSpec.lighting, mood: e.target.value })}
+                                className="w-full p-2 border rounded-md text-sm border-gray-300"
+                                placeholder="e.g. Cheerful, Mysterious"
+                            />
+                        </div>
+                    </div>
                 </section>
 
                 {/* Style & Text */}
@@ -204,7 +292,7 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
 
                     <div className="mb-4">
                         <label className="block text-sm font-medium text-gray-700 mb-2">Text Policy</label>
-                        <div className="flex space-x-4">
+                        <div className="flex flex-col space-y-2">
                             <label className="inline-flex items-center">
                                 <input
                                     type="radio"
@@ -225,14 +313,57 @@ export const ImageSpecEditor: React.FC<ImageSpecEditorProps> = ({
                                 />
                                 <span className="ml-2 text-sm">Limited Labels (1-3)</span>
                             </label>
+                            <label className="inline-flex items-center">
+                                <input
+                                    type="radio"
+                                    value="DIAGRAM_LABELS_WITH_LEGEND"
+                                    checked={editedSpec.textPolicy === 'DIAGRAM_LABELS_WITH_LEGEND'}
+                                    onChange={() => handleChange('textPolicy', 'DIAGRAM_LABELS_WITH_LEGEND')}
+                                    className="form-radio text-blue-600"
+                                />
+                                <span className="ml-2 text-sm">Diagram with Legend</span>
+                            </label>
                         </div>
                     </div>
 
-                    {editedSpec.textPolicy === 'LIMITED_LABELS_1_TO_3' && (
-                        <div className="pl-4 border-l-2 border-blue-100">
+                    {editedSpec.textPolicy !== 'NO_LABELS' && (
+                        <div className="pl-4 border-l-2 border-blue-100 space-y-3">
                             {renderArrayInput('allowedLabels', 'Allowed Labels')}
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Label Placement</label>
+                                <input
+                                    type="text"
+                                    value={editedSpec.labelPlacement || ''}
+                                    onChange={(e) => handleChange('labelPlacement', e.target.value)}
+                                    className="w-full p-2 border rounded-md text-sm border-gray-300"
+                                    placeholder="e.g. Next to arrows"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-medium text-gray-700 mb-1">Label Font</label>
+                                <input
+                                    type="text"
+                                    value={editedSpec.labelFont || ''}
+                                    onChange={(e) => handleChange('labelFont', e.target.value)}
+                                    className="w-full p-2 border rounded-md text-sm border-gray-300"
+                                    placeholder="e.g. Bold Sans-serif"
+                                />
+                            </div>
                         </div>
                     )}
+
+                    <div className="mb-4 pt-2">
+                        <label className="flex items-center space-x-2 cursor-pointer">
+                            <input
+                                type="checkbox"
+                                checked={editedSpec.requiresGrounding || false}
+                                onChange={(e) => handleChange('requiresGrounding', e.target.checked)}
+                                className="form-checkbox text-blue-600 h-4 w-4 rounded border-gray-300"
+                            />
+                            <span className="text-sm font-medium text-gray-700">Requires Grounding (Check Facts)</span>
+                        </label>
+                        <p className="text-xs text-gray-500 ml-6">Check if this image represents specific data that needs Google Search verification.</p>
+                    </div>
 
                     {renderArrayInput('colors', 'Dominant Colors')}
                     {renderArrayInput('negativePrompt', 'Negative Constraints')}

@@ -10,7 +10,8 @@ export interface GeneratedImage {
 }
 
 /** Controls how the AI generator handles text/labels within the image */
-export type ImageTextPolicy = 'NO_LABELS' | 'LIMITED_LABELS_1_TO_3';
+/** Controls how the AI generator handles text/labels within the image */
+export type ImageTextPolicy = 'NO_LABELS' | 'LIMITED_LABELS_1_TO_3' | 'DIAGRAM_LABELS_WITH_LEGEND';
 
 /** Defines the visual structure and framing of the generated image */
 export type ImageLayout =
@@ -26,6 +27,9 @@ export type Viewpoint =
     | 'three-quarter'
     | 'side'
     | 'overhead'
+    // New specific camera terms
+    | 'macro-close-up'
+    | 'dutch-angle'
     | 'child-eye-level'
     | 'side-profile'
     | 'isometric-3d-cutaway'
@@ -43,7 +47,12 @@ export interface ImageSpec {
     primaryFocal: string;       // Main concept or action
     conceptualPurpose: string;  // The educational intent
     subjects: string[];         // 2–5 concrete objects to include
-    actions?: string[];         // Optional verbs/actions
+
+    // 5 Core Components Additions
+    visualizationDynamics?: string[]; // Verbs describing processes (e.g. "evaporating", "colliding")
+    environment?: string;       // Setting/location
+    contextualDetails?: string[]; // Details about the environment
+
     mustInclude: string[];      // Critical visible elements
     avoid: string[];            // Clutter or concepts to exclude
 
@@ -52,11 +61,25 @@ export interface ImageSpec {
         layout: ImageLayout;
         viewpoint: Viewpoint;
         whitespace: Whitespace;
+        depthOfField?: 'shallow' | 'deep';
+        framingRationale?: string; // Explain why this viewpoint is chosen
+    };
+
+    lighting?: {
+        quality?: string;      // e.g. soft, dramatic
+        direction?: string;
+        colorTemperature?: string;
+        mood?: string;
     };
 
     // Typography
     textPolicy: ImageTextPolicy;
     allowedLabels?: string[];     // Up to 3 labels if policy permits
+    labelPlacement?: string;      // e.g. "next to arrows"
+    labelFont?: string;           // e.g. "bold sans-serif"
+
+    // Grounding
+    requiresGrounding?: boolean; // Trigger Google Search for factual charts/maps
 
     // Presentation
     colors?: string[];            // Primary color palette

@@ -20,20 +20,25 @@ export async function generateImage(
         try {
             const model = MODEL_IMAGE_GENERATION;
 
+            const config: any = {
+                responseModalities: ['TEXT', 'IMAGE'],
+                temperature: temperature,
+                imageConfig: {
+                    aspectRatio: aspectRatio,
+                    imageSize: '1K'
+                }
+            };
+
+            // Enable Google Search grounding if required
+            if (spec.requiresGrounding) {
+                config.tools = [{ googleSearch: {} }];
+            }
+
             // Original approach using generateContent for image generation model
             const response = await getAiClient().models.generateContent({
                 model: model,
                 contents: [{ role: 'user', parts: [{ text: renderedPrompt }] }],
-                config: {
-                    // @ts-ignore - SDK types might not be fully updated for imageConfig if using strict types or if it's dynamic
-                    // But this matches the user's "original approach" request
-                    responseModalities: ['TEXT', 'IMAGE'],
-                    temperature: temperature,
-                    imageConfig: {
-                        aspectRatio: aspectRatio,
-                        imageSize: '1K'
-                    }
-                }
+                config: config
             });
 
             // Extract image from response parts
