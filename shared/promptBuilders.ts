@@ -2,7 +2,7 @@
 function buildSystemRoleSection(): string {
   return `
     You are an expert educational content creator and curriculum designer.
-    Your goal is to generate a professional, engaging slide deck that is perfectly tailored to the specified grade level.
+    Your goal is to generate a professional, engaging slide deck that is tailored to the specified grade level.
   `;
 }
 
@@ -54,15 +54,14 @@ function buildContentStandardsSection(): string {
     1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound.
     2. Clarity: Use clear, concise language.
     3. Engagement: Speaker notes should be engaging and conversational (script format).
-    4. Citations: You MUST include a "Sources:" section at the very end of the speaker notes. List all used URLs (if Web Search) or filenames (if uploaded text). DO NOT include citations or sources in the visible slide "content" array.
   `;
 }
 
 function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
   return `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"]. (MUST include imageSpec).
-    - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes, Sources).
+    - Slide 1: Title Slide (Title, Content, ImageSpec, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
+    - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes).
   `;
 }
 
@@ -77,7 +76,7 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
 function buildImageSpecInstructionsSection(): string {
   return `
   IMAGE VISUAL SPECIFICATION (imageSpec)
-  You must output an \`imageSpec\` object for each slide (including the Title Slide). This object will be converted into an AI image generation prompt.
+  You must output an \`imageSpec\` object for each slide. This object will be converted into an AI image generation prompt.
 
   TEACHING GOAL:
   - The image must teach a specific concept, not just decorate the slide.
@@ -91,7 +90,7 @@ function buildImageSpecInstructionsSection(): string {
   - \`avoid\`: List distracting elements to exclude.
   - Composition:
     - \`layout\`: Choose best fit: "single-focal-subject-centered" (default), "balanced-pair" (comparisons), "comparison-split-screen" (before/after), "diagram-with-flow" (processes), "simple-sequence-2-panel" (steps).
-    - \`viewpoint\`: "front", "side", "overhead", "isometric-3d-cutaway" (for structures), "side-profile" (for layers/processes).
+    - \`viewpoint\`: "front", "side", "overhead", "bird's-eye-view" (top-down perspective), "isometric-3d-cutaway" (for structures), "side-profile" (for layers/processes).
     - \`whitespace\`: "generous" (default) or "moderate".
   - Text policy:
     - Default: "NO_LABELS". Choose this unless text labels improve learning.
@@ -123,7 +122,7 @@ function buildOutputFormatSection(): string {
         "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
         "textPolicy": "string"
       }, 
-      "speakerNotes": "string (Script + 'Sources:' section at the end with URLs/filenames)",
+      "speakerNotes": "string (Script only)",
       "sources": ["url1", "url2"]
     }
   ]

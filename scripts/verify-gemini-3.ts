@@ -25,7 +25,7 @@ async function main() {
                 responseModalities: ["TEXT", "IMAGE"],
                 imageConfig: {
                     aspectRatio: "16:9",
-                    imageSize: "2K",
+                    imageSize: "1K",
                 } as any, // Cast to any if types are not perfectly aligned yet
             },
         });

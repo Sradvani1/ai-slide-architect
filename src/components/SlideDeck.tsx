@@ -64,24 +64,32 @@ const generateDocx = async (slides: Slide[]) => {
                 ];
 
                 const notes = slide.speakerNotes || "No speaker notes available.";
-                const sourcesIndex = notes.indexOf("Sources:");
+                let cleanNotes = notes;
+                let sourcesList: string[] = [];
 
-                let mainNotes = notes;
-                let sourcesSection = "";
-
-                if (sourcesIndex !== -1) {
-                    mainNotes = notes.substring(0, sourcesIndex).trim();
-                    sourcesSection = notes.substring(sourcesIndex).trim();
+                if (slide.sources && slide.sources.length > 0) {
+                    // New method: Use stored sources
+                    sourcesList = slide.sources;
+                    // Note: Notes are already cleaned by the backend
+                } else {
+                    // Fallback: Parse from speaker notes (Legacy)
+                    const sourcesIndex = notes.indexOf("Sources:");
+                    if (sourcesIndex !== -1) {
+                        cleanNotes = notes.substring(0, sourcesIndex).trim();
+                        const sourcesSection = notes.substring(sourcesIndex).trim();
+                        const sourceContent = sourcesSection.replace(/^Sources:?\s*/i, "");
+                        sourcesList = sourceContent.split('\n').map(s => s.trim()).filter(s => s);
+                    }
                 }
 
                 children.push(new Paragraph({
-                    text: mainNotes,
+                    text: cleanNotes,
                     spacing: {
                         after: 200,
                     },
                 }));
 
-                if (sourcesSection) {
+                if (sourcesList.length > 0) {
                     // Add spacing before sources
                     children.push(new Paragraph({ text: "" }));
 
@@ -95,11 +103,8 @@ const generateDocx = async (slides: Slide[]) => {
                     // Add spacing after header
                     children.push(new Paragraph({ text: "" }));
 
-                    // Parse sources
-                    const sourceContent = sourcesSection.replace(/^Sources:?\s*/i, "");
-                    const sourceLines = sourceContent.split('\n').map(s => s.trim()).filter(s => s);
-
-                    sourceLines.forEach(line => {
+                    // Format sources
+                    sourcesList.forEach(line => {
                         const urlRegex = /(https?:\/\/[^\s]+)/g;
                         const parts = line.split(urlRegex);
                         const paragraphChildren = [];
@@ -239,7 +244,10 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                 const slide = slides[i];
                 try {
                     if (slide.imageSpec) {
-                        const { blob } = await generateImageFromSpec(slide.imageSpec, gradeLevel, subject, { temperature: creativityLevel });
+                        const { blob } = await generateImageFromSpec(slide.imageSpec, gradeLevel, subject, {
+                            temperature: creativityLevel,
+                            aspectRatio: slide.aspectRatio || '16:9'
+                        });
                         const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
                         const filename = `slide-${i + 1}-${sanitizedTitle}.png`;
                         folder.file(filename, blob);

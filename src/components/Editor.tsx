@@ -12,38 +12,7 @@ interface EditorProps {
     user: User;
 }
 
-/**
- * Validated "First Principles" Fix for Style Pollution.
- * Uses Native Shadow DOM to create a hard CSS boundary around untrusted HTML.
- * This prevents third-party styles (like body { background: black }) from leaking out.
- */
-const ShadowSafeHTML: React.FC<{ html: string; className?: string }> = ({ html, className }) => {
-    const containerRef = React.useRef<HTMLDivElement>(null);
-    const shadowRootRef = React.useRef<ShadowRoot | null>(null);
 
-    useEffect(() => {
-        if (containerRef.current && !shadowRootRef.current) {
-            // mode: 'open' allows JS to access the shadow root if needed, standard for app components
-            shadowRootRef.current = containerRef.current.attachShadow({ mode: 'open' });
-        }
-
-        if (shadowRootRef.current) {
-            // Reset styles inside shadow root to ensure it behaves like a clean block
-            // and inject the HTML content.
-            // :host is the shadow host (the wrapper div).
-            const resetCss = `
-        <style>
-          :host { display: block; all: initial; font-family: inherit; }
-          /* Ensure content doesn't overflow horizontally inside the widget either */
-          * { max-width: 100%; box-sizing: border-box; }
-        </style>
-      `;
-            shadowRootRef.current.innerHTML = resetCss + html;
-        }
-    }, [html]);
-
-    return <div ref={containerRef} className={className} />;
-};
 
 export const Editor: React.FC<EditorProps> = ({ user }) => {
     const { projectId } = useParams<{ projectId: string }>();
@@ -69,8 +38,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
-    const [searchEntryPoint, setSearchEntryPoint] = useState<string | null>(null);
-    const [sources, setSources] = useState<Array<{ uri: string; title?: string }>>([]);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -159,22 +126,12 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             // Simplest: Generate the slots content first (AI), then Create Project, then Upload Files, then Update Project with files.
 
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
+            const uploadedFileNames = uploadedFiles.map(f => f.name);
 
-            const { slides: generatedSlides, inputTokens, outputTokens, sources, warnings, searchEntryPoint, webSearchQueries } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions);
+            const { slides: generatedSlides, inputTokens, outputTokens, warnings, webSearchQueries } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, uploadedFileNames);
             setSlides(generatedSlides);
 
-            // Grounding UI: Sources & Search Entry Point
-            if (sources && sources.length > 0) {
-                setSources(sources);
-            } else {
-                setSources([]);
-            }
-
-            if (searchEntryPoint) {
-                setSearchEntryPoint(searchEntryPoint);
-            } else {
-                setSearchEntryPoint(null);
-            }
+            // Grounding UI data is no longer displayed here, as it's stored in slides directly now.
 
             if (warnings && warnings.length > 0) {
                 console.warn("Generation Warnings:", warnings);
@@ -333,45 +290,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         projectId={currentProjectId}
                     />
 
-                    {/* Grounding & Citations UI */}
-                    {(searchEntryPoint || (sources && sources.length > 0)) && (
-                        <div className="mt-12 pt-8 border-t border-white/10">
 
-                            {/* Google Search Grounding Widget (Required if present) */}
-                            {searchEntryPoint && (
-                                <div className="mb-8 p-4 bg-white rounded-lg shadow-sm">
-                                    <h3 className="text-slate-800 text-sm font-semibold mb-2">Google Search Context</h3>
-                                    {/* Shadow DOM Isolation for Third-Party Content */}
-                                    <ShadowSafeHTML
-                                        html={searchEntryPoint}
-                                        className="grounding-widget"
-                                    />
-                                </div>
-                            )}
-
-                            {/* Works Cited Section */}
-                            {sources && sources.length > 0 && (
-                                <div className="sources-section">
-                                    <h3 className="text-xl font-bold text-white mb-4">Works Cited</h3>
-                                    <ul className="space-y-2">
-                                        {sources.map((source, idx) => (
-                                            <li key={idx} className="flex items-start">
-                                                <span className="text-slate-500 mr-2">{idx + 1}.</span>
-                                                <a
-                                                    href={source.uri}
-                                                    target="_blank"
-                                                    rel="noopener noreferrer"
-                                                    className="text-primary hover:underline hover:text-primary-light transition-colors break-all"
-                                                >
-                                                    {source.title || source.uri}
-                                                </a>
-                                            </li>
-                                        ))}
-                                    </ul>
-                                </div>
-                            )}
-                        </div>
-                    )}
                 </div>
             </main>
         </div>

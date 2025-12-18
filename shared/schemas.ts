@@ -52,6 +52,7 @@ export const IMAGE_SPEC_SCHEMA = {
                         "child-eye-level",
                         "side-profile",
                         "isometric-3d-cutaway",
+                        "bird's-eye-view",
                     ],
                 },
                 whitespace: {

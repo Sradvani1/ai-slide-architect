@@ -75,8 +75,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     }, [contentText, isEditingContent]);
 
-    // Aspect Ratio State
-    const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1'>('16:9');
+    // Aspect Ratio Local state (initialized from slide, which is now the source of truth)
+    const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1'>(slide.aspectRatio || '16:9');
+
+    // Update local state if slide prop changes (e.g. from server update)
+    useEffect(() => {
+        if (slide.aspectRatio) {
+            setAspectRatio(slide.aspectRatio);
+        }
+    }, [slide.aspectRatio]);
 
     const sanitizeFilename = (filename: string): string => {
         return filename
@@ -97,7 +104,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             }
 
             // Use the rendered prompt string directly
-            const { blob } = await generateImageFromSpec(imageSpec, gradeLevel, subject, { aspectRatio });
+            const { blob } = await generateImageFromSpec(imageSpec, gradeLevel, subject, {
+                aspectRatio,
+                temperature: creativityLevel
+            });
             // Note: generateImageFromSpec now returns blob directly (handled internally)
 
             // Handle result...
@@ -376,7 +386,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     {/* Aspect Ratio Selector */}
                     <div className="flex items-center space-x-1 mr-auto bg-slate-100/50 p-1 rounded-lg">
                         <button
-                            onClick={() => setAspectRatio('16:9')}
+                            onClick={() => {
+                                setAspectRatio('16:9');
+                                onUpdateSlide({ aspectRatio: '16:9' });
+                            }}
                             className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '16:9'
                                 ? 'bg-white text-primary shadow-sm border border-slate-200'
                                 : 'text-slate-500 hover:text-slate-700'
@@ -385,7 +398,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             16:9
                         </button>
                         <button
-                            onClick={() => setAspectRatio('1:1')}
+                            onClick={() => {
+                                setAspectRatio('1:1');
+                                onUpdateSlide({ aspectRatio: '1:1' });
+                            }}
                             className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '1:1'
                                 ? 'bg-white text-primary shadow-sm border border-slate-200'
                                 : 'text-slate-500 hover:text-slate-700'

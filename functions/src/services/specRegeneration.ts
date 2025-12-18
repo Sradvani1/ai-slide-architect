@@ -1,6 +1,5 @@
 import { getAiClient } from '../utils/geminiClient';
 import { buildSpecRegenerationPrompt } from '@shared/promptBuilders';
-import { normalizeImageSpec } from '@shared/utils/imageUtils';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { ImageSpec } from '@shared/types';
@@ -47,11 +46,12 @@ export async function regenerateImageSpec(
         const inputTokens = result.usageMetadata?.promptTokenCount || 0;
         const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-        // Normalize
-        // Passed gradeLevel could be improved, but for now fixed "3rd Grade" or derived from context if passed
-        const { spec } = normalizeImageSpec(newSpec, "3rd Grade");
-
-        return { spec, inputTokens, outputTokens };
+        // Return spec as-is from API (no normalization)
+        return {
+            spec: newSpec,
+            inputTokens,
+            outputTokens
+        };
     };
 
     return retryWithBackoff(generateFn);

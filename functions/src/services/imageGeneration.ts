@@ -31,7 +31,7 @@ export async function generateImage(
                     temperature: temperature,
                     imageConfig: {
                         aspectRatio: aspectRatio,
-                        // imageSize: '1024x1024' // Optional if needed
+                        imageSize: '1K'
                     }
                 }
             });

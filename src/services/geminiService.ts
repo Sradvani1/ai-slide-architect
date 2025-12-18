@@ -70,7 +70,8 @@ export const generateSlidesFromDocument = async (
   useWebSearch: boolean = false,
   temperature: number = 0.7,
   bulletsPerSlide: number = 4,
-  additionalInstructions: string = ''
+  additionalInstructions: string = '',
+  uploadedFileNames?: string[]
 ): Promise<{
   slides: Slide[],
   inputTokens: number,
@@ -90,7 +91,8 @@ export const generateSlidesFromDocument = async (
     useWebSearch,
     additionalInstructions,
     temperature,
-    bulletsPerSlide
+    bulletsPerSlide,
+    uploadedFileNames
   });
 
   // Transform result to match client expectations if needed (e.g. sources format)

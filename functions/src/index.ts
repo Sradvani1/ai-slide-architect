@@ -1,28 +1,11 @@
-// #region agent log
-const path = require('path');
-const fs = require('fs');
-const packageJsonPath = path.join(__dirname, '../package.json');
-let packageJson: any = {};
-try {
-    packageJson = JSON.parse(fs.readFileSync(packageJsonPath, 'utf8'));
-} catch (e) { }
-fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:1', message: 'Before module-alias import', data: { cwd: process.cwd(), __dirname: __dirname, packageJsonPath, moduleAliases: packageJson._moduleAliases }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-// #endregion
 import 'module-alias/register';
-// #region agent log
-const moduleAlias = require('module-alias');
-const aliases = (moduleAlias as any).getAliases ? (moduleAlias as any).getAliases() : 'not available';
-fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:3', message: 'After module-alias import', data: { aliases, moduleAliasLoaded: typeof moduleAlias !== 'undefined' }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-// #endregion
+import * as functions from 'firebase-functions';
 import * as express from 'express';
 import * as cors from 'cors';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin (must be before middleware)
 admin.initializeApp();
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:10', message: 'Before @shared import', data: {}, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-// #endregion
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
@@ -30,18 +13,7 @@ import { generateSlides } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 import { regenerateImageSpec } from './services/specRegeneration';
 import { extractTextFromImage } from './services/imageTextExtraction';
-// #region agent log
-try {
-    const testResolve = require.resolve('@shared/errors');
-    fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:16', message: 'require.resolve test before import', data: { resolved: testResolve }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-} catch (e: any) {
-    fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:16', message: 'require.resolve failed before import', data: { error: e?.message, stack: e?.stack }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-}
-// #endregion
 import { GeminiError, ImageGenError } from '@shared/errors';
-// #region agent log
-fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'index.ts:17', message: 'After @shared/errors import', data: { GeminiErrorLoaded: typeof GeminiError !== 'undefined', ImageGenErrorLoaded: typeof ImageGenError !== 'undefined' }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-// #endregion
 
 const app = express();
 
@@ -62,7 +34,8 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             useWebSearch,
             additionalInstructions,
             temperature,
-            bulletsPerSlide
+            bulletsPerSlide,
+            uploadedFileNames
         } = req.body;
 
         // Basic validation
@@ -80,7 +53,8 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             useWebSearch || false,
             additionalInstructions,
             temperature,
-            bulletsPerSlide
+            bulletsPerSlide,
+            uploadedFileNames
         );
 
         res.json(result);
@@ -166,8 +140,5 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
     }
 });
 
-import { apiKey } from './utils/geminiClient';
-import { onRequest } from "firebase-functions/v2/https";
-
 // Export the API
-export const api = onRequest({ secrets: [apiKey] }, app);
+export const api = functions.https.onRequest(app);

@@ -1,32 +1,24 @@
 import type { ImageSpec } from '../types';
 import {
-    normalizeImageSpec,
     formatImageSpec
 } from '../../shared/utils/imageUtils';
 
-export { normalizeImageSpec, formatImageSpec }; // Re-export for client usage
+export { formatImageSpec }; // Re-export for client usage
 
 /**
- * Prepares an ImageSpec for saving by sanitizing, validating, and formatting it.
- * Centralizes the logic used in multiple places.
+ * Prepares an ImageSpec for saving by formatting it into a prompt.
+ * Returns the spec as-is along with the formatted prompt string.
  */
 export function prepareSpecForSave(
     spec: ImageSpec,
     gradeLevel: string,
     subject: string
 ): { imageSpec: ImageSpec; renderedImagePrompt: string } {
-    const { spec: normalizedSpec, warnings } = normalizeImageSpec(spec, gradeLevel);
-
-    // Log warnings if any
-    if (warnings.length > 0) {
-        console.warn("Spec validation warnings:", warnings);
-    }
-
-    // Format the normalized spec into a prompt
-    const rendered = formatImageSpec(normalizedSpec, { gradeLevel, subject });
+    // Format the spec into a prompt (uses internal defaults for missing fields)
+    const rendered = formatImageSpec(spec, { gradeLevel, subject });
 
     return {
-        imageSpec: normalizedSpec,
+        imageSpec: spec,  // Return spec exactly as received
         renderedImagePrompt: rendered
     };
 }

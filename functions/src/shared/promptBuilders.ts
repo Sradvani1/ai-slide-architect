@@ -2,7 +2,7 @@
 function buildSystemRoleSection(): string {
   return `
     You are an expert educational content creator and curriculum designer.
-    Your goal is to generate a professional, engaging slide deck that is perfectly tailored to the specified grade level.
+    Your goal is to generate a professional, engaging slide deck that is tailored to the specified grade level.
   `;
 }
 
@@ -54,15 +54,14 @@ function buildContentStandardsSection(): string {
     1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound.
     2. Clarity: Use clear, concise language.
     3. Engagement: Speaker notes should be engaging and conversational (script format).
-    4. Citations: You MUST include a "Sources:" section at the very end of the speaker notes. List all used URLs (if Web Search) or filenames (if uploaded text). DO NOT include citations or sources in the visible slide "content" array.
   `;
 }
 
 function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
   return `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide. "title": Presentation Title. "content" array must be: ["<tagline>", "${subject}", "${gradeLevel}"]. (MUST include imageSpec).
-    - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes, Sources).
+    - Slide 1: Title Slide (Title, Content, ImageSpec, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
+    - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes).
   `;
 }
 
@@ -123,7 +122,7 @@ function buildOutputFormatSection(): string {
         "composition": { "layout": "string", "viewpoint": "string", "whitespace": "string" },
         "textPolicy": "string"
       }, 
-      "speakerNotes": "string (Script + 'Sources:' section at the end with URLs/filenames)",
+      "speakerNotes": "string (Script only)",
       "sources": ["url1", "url2"]
     }
   ]

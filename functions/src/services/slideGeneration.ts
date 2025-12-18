@@ -15,7 +15,8 @@ export async function generateSlides(
     useWebSearch: boolean,
     additionalInstructions?: string,
     temperature?: number,
-    bulletsPerSlide?: number
+    bulletsPerSlide?: number,
+    uploadedFileNames?: string[]
 ): Promise<{
     slides: Slide[],
     inputTokens: number,
@@ -119,6 +120,8 @@ export async function generateSlides(
             sortOrder: i,
             // Ensure compatibility
             content: Array.isArray(s.content) ? s.content : [String(s.content)],
+            speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
+            sources: getUniqueSources(sources, uploadedFileNames, sourceMaterial, s.sources)
         }));
 
         return {
@@ -133,4 +136,92 @@ export async function generateSlides(
     };
 
     return retryWithBackoff(generateFn);
+}
+
+/**
+ * Clean speaker notes by removing "Sources:" or "References:" sections
+ */
+function cleanSpeakerNotes(notes: string): string {
+    if (!notes) return "";
+    // Remove "Sources:" or "References:" section at the end of the text
+    // Matches "Sources:" optionally followed by anything until end of string
+    return notes.replace(/(?:Sources|References|Citations):\s*[\s\S]*$/i, '').trim();
+}
+
+/**
+ * Validate URL (http/https only)
+ */
+function isValidUrl(urlString: string): boolean {
+    try {
+        const url = new URL(urlString);
+        return url.protocol === 'http:' || url.protocol === 'https:';
+    } catch (e) {
+        return false;
+    }
+}
+
+/**
+ * Extract file names from source material string
+ */
+function extractFileNamesFromSourceMaterial(sourceMaterial: string): string[] {
+    if (!sourceMaterial) return [];
+
+    // Pattern matches "File: filename" at start of line
+    const filePattern = /(?:^|\n)File:\s*(.+?)(?:\n|$)/gm;
+    const matches = sourceMaterial.matchAll(filePattern);
+    const fileNames: string[] = [];
+
+    for (const match of matches) {
+        if (match[1]) {
+            fileNames.push(match[1].trim());
+        }
+    }
+
+    return fileNames;
+}
+
+/**
+ * Combine and deduplicate sources
+ */
+function getUniqueSources(
+    groundingSources: Array<{ uri: string; title?: string }>,
+    uploadedFileNames?: string[],
+    sourceMaterial?: string,
+    aiProvidedSources?: string[]
+): string[] | undefined {
+    const allSources = new Set<string>();
+
+    // 1. Add valid grounding sources (Web)
+    groundingSources.forEach(s => {
+        if (s.uri && isValidUrl(s.uri)) {
+            allSources.add(s.uri);
+        }
+    });
+
+    // 2. Add file sources
+    // Use uploadedFileNames if available, otherwise fallback to extraction
+    const fileNames = uploadedFileNames || extractFileNamesFromSourceMaterial(sourceMaterial || "");
+    fileNames.forEach(f => {
+        if (f && f.trim()) {
+            allSources.add(`File: ${f.trim()}`);
+        }
+    });
+
+    // 3. Add AI provided sources (if any, preserving them but deduping)
+    if (aiProvidedSources && Array.isArray(aiProvidedSources)) {
+        aiProvidedSources.forEach(s => {
+            if (s && typeof s === 'string' && s.trim()) {
+                // If it's a URL, validate it
+                if (s.startsWith('http')) {
+                    if (isValidUrl(s)) allSources.add(s);
+                } else {
+                    // Assume it's a file ref or other text
+                    allSources.add(s);
+                }
+            }
+        });
+    }
+
+    const uniqueSources = Array.from(allSources);
+    return uniqueSources.length > 0 ? uniqueSources : undefined;
 }
