@@ -141,22 +141,26 @@ Do NOT: Add artistic embellishment, atmospheric effects, or stylistic flourishes
 }
 
 function formatBackgroundSection(spec: ImageSpec): string {
-    // Default to pure white if not specified
+    // Default to pure white/flat if not specified
     const bg = spec.background || { style: 'pure-white', texture: 'flat' };
 
-    const backgroundRules = `BACKGROUND:
-Pure white background (#FFFFFF). Absolutely flat and uniform.
+    const styleName = bg.style === 'pure-white' ? 'Pure White' : 'Light Gray';
+    const hexCode = bg.style === 'pure-white' ? '#FFFFFF' : '#F5F5F5';
+    const textureNote = bg.texture === 'subtle-texture'
+        ? '- Minimal, very subtle texture for depth. NO heavy patterns.'
+        : '- Absolutely flat and uniform. NO texture or pattern.';
+
+    return `BACKGROUND:
+${styleName} background (${hexCode}).
+${textureNote}
 - NO gradient (vertical, horizontal, or diagonal)
-- NO texture or pattern
 - NO shadow cast on background
 - NO fog, mist, or atmospheric haze
 - NO particles, dust, or floating elements
 - NO color shift or tint
-- Completely invisible - does not compete with subject matter
+- Completely clean and professional - does not compete with subject matter
 
-This is CRITICAL. The background should disappear. All focus is on educational content.`;
-
-    return backgroundRules;
+This is CRITICAL. The background should be simple and educational.`;
 }
 
 function formatAccuracyConstraintSection(spec: ImageSpec, ctx: FormatContext): string {
