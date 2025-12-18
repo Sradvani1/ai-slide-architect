@@ -35,6 +35,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [bulletsPerSlide, setBulletsPerSlide] = useState<number>(DEFAULT_BULLETS_PER_SLIDE);
     const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
     const [slides, setSlides] = useState<Slide[] | null>(null);
+    const [sources, setSources] = useState<string[]>([]);
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [error, setError] = useState<string | null>(null);
@@ -54,6 +55,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setSubject(project.subject);
                     setAdditionalInstructions(project.additionalInstructions || '');
                     setSlides(project.slides);
+                    setSources(project.sources || []);
                     setCurrentProjectId(project.id!);
 
                     // Load files if they exist
@@ -128,8 +130,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
             const uploadedFileNames = uploadedFiles.map(f => f.name);
 
-            const { slides: generatedSlides, inputTokens, outputTokens, warnings, webSearchQueries } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, uploadedFileNames);
+            const { slides: generatedSlides, sources: generatedSources, inputTokens, outputTokens, warnings, webSearchQueries } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, uploadedFileNames);
             setSlides(generatedSlides);
+            setSources(generatedSources);
 
             // Grounding UI data is no longer displayed here, as it's stored in slides directly now.
 
@@ -150,6 +153,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     subject,
                     additionalInstructions,
                     slides: generatedSlides,
+                    sources: generatedSources,
                     inputTokens,
                     outputTokens
                 });
@@ -280,11 +284,10 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 <div className="container mx-auto p-4 md:p-8 max-w-7xl">
                     <SlideDeck
                         slides={slides}
+                        sources={sources}
                         isLoading={isLoading}
                         error={error}
                         onUpdateSlide={handleUpdateSlide}
-                        gradeLevel={gradeLevel}
-                        subject={subject}
                         creativityLevel={creativityLevel}
                         userId={user.uid}
                         projectId={currentProjectId}

@@ -1,6 +1,5 @@
 import { getAiClient } from '../utils/geminiClient';
 import { buildSlideGenerationPrompt } from '@shared/promptBuilders';
-import { formatImageSpec } from '@shared/utils/imageUtils';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
@@ -22,7 +21,7 @@ export async function generateSlides(
     slides: Slide[],
     inputTokens: number,
     outputTokens: number,
-    sources: Array<{ uri: string; title?: string }>,
+    sources: string[],
     searchEntryPoint?: any,
     webSearchQueries?: string[],
     warnings: string[]
@@ -114,18 +113,11 @@ export async function generateSlides(
             }
         });
 
+        // Create unique sources for the entire deck
+        const uniqueSources = getUniqueSources(sources, uploadedFileNames, sourceMaterial);
+
         // Normalize slides (add IDs, etc)
         const normalizedSlides: Slide[] = slides.map((s, i) => {
-            // Generate the rendered image prompt if spec exists
-            let renderedPrompt = undefined;
-            if (s.imageSpec) {
-                try {
-                    renderedPrompt = formatImageSpec(s.imageSpec, { gradeLevel, subject });
-                } catch (e) {
-                    console.warn(`Failed to format image spec for slide ${i}:`, e);
-                }
-            }
-
             return {
                 ...s,
                 id: `slide-${Date.now()}-${i}`,
@@ -133,8 +125,7 @@ export async function generateSlides(
                 // Ensure compatibility
                 content: Array.isArray(s.content) ? s.content : [String(s.content)],
                 speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
-                sources: getUniqueSources(sources, uploadedFileNames, sourceMaterial, s.sources),
-                renderedImagePrompt: renderedPrompt
+                imagePrompt: s.imagePrompt || undefined
             };
         });
 
@@ -142,7 +133,7 @@ export async function generateSlides(
             slides: normalizedSlides,
             inputTokens,
             outputTokens,
-            sources,
+            sources: uniqueSources || [],
             searchEntryPoint,
             webSearchQueries,
             warnings
@@ -200,8 +191,7 @@ function extractFileNamesFromSourceMaterial(sourceMaterial: string): string[] {
 function getUniqueSources(
     groundingSources: Array<{ uri: string; title?: string }>,
     uploadedFileNames?: string[],
-    sourceMaterial?: string,
-    aiProvidedSources?: string[]
+    sourceMaterial?: string
 ): string[] | undefined {
     const allSources = new Set<string>();
 
@@ -220,21 +210,6 @@ function getUniqueSources(
             allSources.add(`File: ${f.trim()}`);
         }
     });
-
-    // 3. Add AI provided sources (if any, preserving them but deduping)
-    if (aiProvidedSources && Array.isArray(aiProvidedSources)) {
-        aiProvidedSources.forEach(s => {
-            if (s && typeof s === 'string' && s.trim()) {
-                // If it's a URL, validate it
-                if (s.startsWith('http')) {
-                    if (isValidUrl(s)) allSources.add(s);
-                } else {
-                    // Assume it's a file ref or other text
-                    allSources.add(s);
-                }
-            }
-        });
-    }
 
     const uniqueSources = Array.from(allSources);
     return uniqueSources.length > 0 ? uniqueSources : undefined;

@@ -113,6 +113,7 @@ export interface ProjectData {
     outputTokens?: number;
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
+    sources?: string[];
 }
 
 /**

@@ -60,8 +60,8 @@ function buildContentStandardsSection(): string {
 function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
   return `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide (Title, Content, ImageSpec, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
-    - Slides 2-${totalSlides}: Content Slides (Title, Content, ImageSpec, Speaker Notes).
+    - Slide 1: Title Slide (Title, Content, imagePrompt, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
+    - Slides 2-${totalSlides}: Content Slides (Title, Content, imagePrompt, Speaker Notes).
   `;
 }
 
@@ -73,97 +73,19 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
   `;
 }
 
-function buildImageSpecInstructionsSection(): string {
+function buildImagePromptInstructionsSection(): string {
   return `
-  IMAGE VISUAL SPECIFICATION (imageSpec)
-  You must output an \`imageSpec\` object for each slide. This object will be converted into a rich narrative AI image generation prompt.
-
-  TEACHING GOAL:
-  - The image must teach a specific concept, not just decorate the slide.
-  - Define a \`conceptualPurpose\`: What should the student understand from this image?
-
-  INSTRUCTIONS: Use descriptive adjectives and verbs (narrative style) rather than single keywords.
-  EXAMPLE: Instead of "robot", use "a translucent glass robot barista with LED eyes".
-  EXAMPLE: Instead of "evaporating", use "water molecules evaporating from the surface, rising as visible steam".
-
-  CRITICAL: When specifying \`visualizationDynamics\`, always use the gerund (verb+ing) form:
-  - "evaporating" (not "evaporate")
-  - "colliding" (not "collide")
-  - "flowing" (not "flow")
-  - "dividing" (not "divide")
-  - "reacting" (not "react")
-  This ensures the narrative flows naturally.
-
-  5 CORE COMPONENTS (Required):
-  1. SUBJECT: \`primaryFocal\` and \`subjects\`. The main visual elements.
-  2. ACTION/DYNAMICS: \`visualizationDynamics\`. Describe processes (e.g., "evaporating", "colliding", "flowing"). Static images do not teach processes; describe the action!
-  3. ENVIRONMENT: \`environment\` (setting) and \`contextualDetails\`. Where is this happening?
-  4. LIGHTING: \`lighting\` object. Set the technical approach for clarity.
-  5. COMPOSITION: \`composition\` object. Layout and viewpoint.
-
-  imageSpec rules details:
-  - \`conceptualPurpose\`: REQUIRED. explicit pedagogical goal.
-  - \`visualizationDynamics\`: Array of strings describing movement/change. MUST be gerunds (ending in -ing).
-  - \`environment\`: The specific setting.
-  - \`contextualDetails\`: Additional environmental details that enhance the scene.
-  - \`mustInclude\`: 2–6 critical details to include.
-  - \`avoid\`: List distracting elements to exclude.
+  IMAGE PROMPT GENERATION
+  For each slide, generate a detailed visual narrative for an educational image that illustrates the key information on this slide.
   
-  - ILLUSTRATION STYLE (CRITICAL):
-    \`illustrationStyle\`: Select ONE:
-    - "flat-vector": Solid flat colors, geometric precision, NO shading or gradients. (Material Design, icons).
-    - "clean-line-diagram": Technical lines with minimal shading, high contrast. (Textbooks, blueprints).
-    - "infographic": Minimal decoration, clear hierarchy, flat design. (Data viz, posters).
-    - "technical-diagram": Scientific accuracy over aesthetics. (Anatomy, molecules).
-
-  - BACKGROUND (MANDATORY):
-    \`background\`:
-    - style: "pure-white" (Recommended for all educational diagrams).
-    - texture: "flat" (Uniform).
-    CRITICAL: The background should be INVISIBLE. No gradients, shadows, or fog.
-
-  - Composition:
-    - \`layout\`: "single-focal-subject-centered", "balanced-pair", "comparison-split-screen", "diagram-with-flow", "simple-sequence-2-panel".
-    - \`viewpoint\`: Choose educational options only:
-      - "front-on": Direct view, clear subject.
-      - "side-profile": Shows structure, layers.
-      - "overhead": Top-down layout/relationships.
-      - "bird-eye-view": Map-like perspective.
-      - "isometric-3d": 3D structure without drama (buildings, molecules).
-      - "cross-section-side": Internal parts/layers (geology, anatomy).
-      - "flow-diagram": Process visualization.
-    - \`depthOfField\`: ALWAYS "sharp-throughout". Everything in focus.
-    - \`framingRationale\`: Briefly explain why this viewpoint helps the educational goal.
-
-  - LIGHTING FOR EDUCATIONAL DIAGRAMS:
-    \`lighting.approach\`: Choose ONE:
-    - "technical-neutral": Neutral, flat, clinical lighting (diagrams).
-    - "even-flat": Completely uniform lighting (technical illustrations).
-    - "diagram-clarity": Slight directional light only to show form, no drama.
-    NO "mood", "atmosphere", or "dramatic" lighting.
-
-  - Text policy:
-    - Default: "NO_LABELS". Choose this unless text labels improve learning.
-    - "LIMITED_LABELS_1_TO_3": For simple diagrams. Requires \`allowedLabels\`.
-    - "DIAGRAM_LABELS_WITH_LEGEND": For complex charts. Requires \`allowedLabels\`.
-    - When labels are used, specify \`labelPlacement\` (e.g., "next to arrows") and \`labelFont\` (e.g., "bold sans-serif", "Arial").
-
-  - Grounding:
-    - \`requiresGrounding\`: Set to true ONLY for images that represent specific factual data requiring verification:
-      * Maps that must show current/accurate geography
-      * Charts with specific data (election results, weather forecasts, stock prices)
-      * Timeline visualizations with factual dates
-      * Scientific diagrams with current research accuracy
-    - Examples:
-      * "Visualize the 2025 solar cycle" → requiresGrounding: true
-      * "A fantasy dragon in a medieval castle" → requiresGrounding: false
-      * "Current population density map of Africa" → requiresGrounding: true
-      * "Abstract representation of photosynthesis" → requiresGrounding: false
-
-  - Colors: 3–5 high-contrast colors.
-  - negativePrompt: list failure modes (e.g., "blur", "text", "complex background").
-
-  Output a valid JSON object.
+  Construct the narrative flow in this order:
+  1. Start by describing the main Subject (the central visual element)
+  2. Next, describe the Action (the active process, movement, or behavior)
+  3. Finally, describe the Setting (the specific environment or context)
+  
+  The narrative must be vivid and factual, ensuring the image serves as a clear visual aid for the topic being presented.
+  
+  Output the image prompt as a simple string in the \`imagePrompt\` field.
   `;
 }
 
@@ -177,41 +99,8 @@ function buildOutputFormatSection(): string {
       "title": "string",
       "content": ["string", "string", ...], 
       "layout": "Title Slide" | "Content",
-      "imageSpec": {
-        "primaryFocal": "string",
-        "conceptualPurpose": "string",
-        "subjects": ["string"],
-        "visualizationDynamics": ["string"],
-        "environment": "string",
-        "contextualDetails": ["string"],
-        "mustInclude": ["string"],
-        "avoid": ["string"],
-        "composition": {
-          "layout": "string",
-          "viewpoint": "string",
-          "whitespace": "string",
-          "depthOfField": "sharp-throughout",
-          "framingRationale": "string"
-        },
-        "illustrationStyle": "flat-vector" | "clean-line-diagram" | "infographic" | "technical-diagram",
-        "background": {
-          "style": "pure-white",
-          "texture": "flat"
-        },
-        "lighting": {
-          "approach": "technical-neutral" | "even-flat" | "diagram-clarity"
-        },
-        "textPolicy": "string",
-        "allowedLabels": ["string"],
-        "labelPlacement": "string",
-        "labelFont": "string",
-        "requiresGrounding": boolean,
-        "isEducationalDiagram": boolean,
-        "colors": ["string"],
-        "negativePrompt": ["string"]
-      }, 
-      "speakerNotes": "string (Script only)",
-      "sources": ["url1", "url2"]
+      "imagePrompt": "string",
+      "speakerNotes": "string (Script only)"
     }
   ]
   `;
@@ -224,7 +113,7 @@ export {
   buildContentStandardsSection,
   buildStructureRequirementsSection,
   buildFormattingConstraintsSection,
-  buildImageSpecInstructionsSection,
+  buildImagePromptInstructionsSection,
   buildOutputFormatSection
 };
 
@@ -250,7 +139,7 @@ export function buildSlideGenerationPrompt(
     buildContentStandardsSection(),
     buildStructureRequirementsSection(totalSlides, subject, gradeLevel),
     buildFormattingConstraintsSection(bulletsPerSlide),
-    buildImageSpecInstructionsSection(),
+    buildImagePromptInstructionsSection(),
   ];
 
   if (includeOutputFormat) {
@@ -260,34 +149,3 @@ export function buildSlideGenerationPrompt(
   return sections.filter(section => section.trim().length > 0).join('\n');
 }
 
-/**
- * Builds the prompt for regenerating an ImageSpec based on user feedback
- */
-export function buildSpecRegenerationPrompt(
-  currentSpec: any,
-  changeRequest: string,
-  slideContext: { title: string; content: string[] }
-): string {
-  return `
-    You are an expert Visual Director.
-    Task: Update the following Image Specification based on a user's request.
-
-    CONTEXT:
-    Slide Title: "${slideContext.title}"
-    Slide Content: ${slideContext.content.slice(0, 3).join('; ')}...
-
-    CURRENT SPEC (JSON):
-    ${JSON.stringify(currentSpec, null, 2)}
-
-    USER REQUEST:
-    "${changeRequest}"
-
-    INSTRUCTIONS:
-    1. Modify the JSON to satisfy the user request.
-    2. Maintain strict alignment with the slide concept.
-    3. Use descriptive adjectives and verbs (narrative style) rather than single keywords.
-    4. Ensure all 5 Core Components are considered: Subject, Action/Dynamics, Environment, Lighting, Composition.
-    5. Ensure the JSON schema is valid (same fields as input).
-    6. Return ONLY the JSON object.
-    `;
-}

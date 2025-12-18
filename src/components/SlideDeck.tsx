@@ -3,18 +3,17 @@ import JSZip from 'jszip';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
-import { generateImageFromSpec } from '../services/geminiService';
+import { generateImageFromPrompt } from '../services/geminiService';
 import type { Slide } from '../types';
 
 import PptxGenJS from 'pptxgenjs';
 
 interface SlideDeckProps {
     slides: Slide[] | null;
+    sources?: string[];
     isLoading: boolean;
     error: string | null;
     onUpdateSlide: (index: number, patch: Partial<Slide>) => void;
-    gradeLevel: string;
-    subject: string;
     creativityLevel: number;
     userId: string;
     projectId: string | null;
@@ -47,66 +46,99 @@ const Loader: React.FC = () => (
     </div>
 );
 
-const generateDocx = async (slides: Slide[]) => {
+const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
     const doc = new Document({
         sections: [{
             properties: {},
-            children: slides.flatMap((slide, index) => {
-                const children = [
-                    new Paragraph({
-                        text: `Slide ${index + 1}: ${slide.title}`,
-                        heading: HeadingLevel.HEADING_1,
-                        spacing: {
-                            before: 200,
-                            after: 100,
-                        },
-                    }),
-                ];
+            children: [
+                ...slides.flatMap((slide, index) => {
+                    const children = [
+                        new Paragraph({
+                            text: `Slide ${index + 1}: ${slide.title}`,
+                            heading: HeadingLevel.HEADING_1,
+                            spacing: {
+                                before: 200,
+                                after: 100,
+                            },
+                        }),
+                    ];
 
-                const notes = slide.speakerNotes || "No speaker notes available.";
-                let cleanNotes = notes;
-                let sourcesList: string[] = [];
+                    const notes = slide.speakerNotes || "No speaker notes available.";
+                    let cleanNotes = notes;
+                    let slideSources: string[] = [];
 
-                if (slide.sources && slide.sources.length > 0) {
-                    // New method: Use stored sources
-                    sourcesList = slide.sources;
-                    // Note: Notes are already cleaned by the backend
-                } else {
-                    // Fallback: Parse from speaker notes (Legacy)
-                    const sourcesIndex = notes.indexOf("Sources:");
-                    if (sourcesIndex !== -1) {
-                        cleanNotes = notes.substring(0, sourcesIndex).trim();
-                        const sourcesSection = notes.substring(sourcesIndex).trim();
-                        const sourceContent = sourcesSection.replace(/^Sources:?\s*/i, "");
-                        sourcesList = sourceContent.split('\n').map(s => s.trim()).filter(s => s);
+                    // Fallback: Parse from speaker notes (Legacy) if overall sources aren't provided
+                    if (overallSources.length === 0) {
+                        const sourcesIndex = notes.indexOf("Sources:");
+                        if (sourcesIndex !== -1) {
+                            cleanNotes = notes.substring(0, sourcesIndex).trim();
+                            const sourcesSection = notes.substring(sourcesIndex).trim();
+                            const sourceContent = sourcesSection.replace(/^Sources:?\s*/i, "");
+                            slideSources = sourceContent.split('\n').map(s => s.trim()).filter(s => s);
+                        }
                     }
-                }
 
-                children.push(new Paragraph({
-                    text: cleanNotes,
-                    spacing: {
-                        after: 200,
-                    },
-                }));
-
-                if (sourcesList.length > 0) {
-                    // Add spacing before sources
-                    children.push(new Paragraph({ text: "" }));
-
-                    // Add Sources Header
                     children.push(new Paragraph({
-                        text: "Sources",
-                        heading: HeadingLevel.HEADING_2,
-                        spacing: { after: 100 }
+                        text: cleanNotes,
+                        spacing: {
+                            after: 200,
+                        },
                     }));
 
-                    // Add spacing after header
-                    children.push(new Paragraph({ text: "" }));
+                    if (slideSources.length > 0) {
+                        // Add spacing before sources
+                        children.push(new Paragraph({ text: "" }));
 
-                    // Format sources
-                    sourcesList.forEach(line => {
+                        // Add Sources Header for this slide (Legacy)
+                        children.push(new Paragraph({
+                            text: "Sources",
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: { after: 100 }
+                        }));
+
+                        // Format sources
+                        slideSources.forEach(line => {
+                            const urlRegex = /(https?:\/\/[^\s]+)/g;
+                            const parts = line.split(urlRegex);
+                            const paragraphChildren = [];
+
+                            parts.forEach(part => {
+                                if (part.match(urlRegex)) {
+                                    paragraphChildren.push(new ExternalHyperlink({
+                                        children: [
+                                            new TextRun({
+                                                text: part,
+                                                style: "Hyperlink",
+                                            }),
+                                        ],
+                                        link: part,
+                                    }));
+                                } else if (part) {
+                                    paragraphChildren.push(new TextRun(part));
+                                }
+                            });
+
+                            children.push(new Paragraph({
+                                children: paragraphChildren,
+                                spacing: { after: 100 }
+                            }));
+                        });
+                    }
+
+                    children.push(new Paragraph({ text: "" })); // Spacing between slides
+                    return children;
+                }),
+
+                // Append overall sources at the end if provided
+                ...(overallSources.length > 0 ? [
+                    new Paragraph({
+                        text: "Overall Sources",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 }
+                    }),
+                    ...overallSources.flatMap(source => {
                         const urlRegex = /(https?:\/\/[^\s]+)/g;
-                        const parts = line.split(urlRegex);
+                        const parts = source.split(urlRegex);
                         const paragraphChildren = [];
 
                         parts.forEach(part => {
@@ -125,23 +157,20 @@ const generateDocx = async (slides: Slide[]) => {
                             }
                         });
 
-                        children.push(new Paragraph({
+                        return [new Paragraph({
                             children: paragraphChildren,
                             spacing: { after: 100 }
-                        }));
-                    });
-                }
-
-                children.push(new Paragraph({ text: "" })); // Spacing between slides
-                return children;
-            }),
+                        })];
+                    })
+                ] : [])
+            ]
         }],
     });
 
     return await Packer.toBlob(doc);
 };
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, onUpdateSlide, gradeLevel, subject, creativityLevel, userId, projectId }) => {
+export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading, error, onUpdateSlide, creativityLevel, userId, projectId }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
@@ -243,8 +272,8 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
             for (let i = 0; i < slides.length; i++) {
                 const slide = slides[i];
                 try {
-                    if (slide.imageSpec) {
-                        const { blob } = await generateImageFromSpec(slide.imageSpec, gradeLevel, subject, {
+                    if (slide.imagePrompt) {
+                        const { blob } = await generateImageFromPrompt(slide.imagePrompt, {
                             temperature: creativityLevel,
                             aspectRatio: slide.aspectRatio || '16:9'
                         });
@@ -287,7 +316,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                 : 'speaker_notes';
 
             // Generate DOCX
-            const docxBlob = await generateDocx(slides);
+            const docxBlob = await generateDocx(slides, sources);
             const docxUrl = URL.createObjectURL(docxBlob);
             const docxLink = document.createElement('a');
             docxLink.href = docxUrl;
@@ -418,8 +447,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, isLoading, error, 
                         slide={slide}
                         slideNumber={index + 1}
                         onUpdateSlide={(patch) => onUpdateSlide(index, patch)}
-                        gradeLevel={gradeLevel}
-                        subject={subject}
                         creativityLevel={creativityLevel}
                         userId={userId}
                         projectId={projectId}

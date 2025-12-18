@@ -1,17 +1,13 @@
 import React, { useState, useEffect, useRef } from 'react';
-import type { Slide, ImageSpec, ImageGenError } from '../types';
+import type { Slide, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon } from './icons';
-import { generateImageFromSpec } from '../services/geminiService';
-import { formatImageSpec, extractVisualSceneDescription, prepareSpecForSave } from '../utils/imageUtils';
+import { generateImageFromPrompt } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
-import { ImageSpecEditor } from './ImageSpecEditor';
 
 interface SlideCardProps {
     slide: Slide;
     slideNumber: number;
     onUpdateSlide: (patch: Partial<Slide>) => void;
-    gradeLevel: string;
-    subject: string;
     creativityLevel: number;
     userId: string;
     projectId: string | null;
@@ -45,21 +41,21 @@ export const cleanText = (text: string): string => {
         .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
 };
 
-export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, gradeLevel, subject, creativityLevel, userId, projectId }) => {
+export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, creativityLevel, userId, projectId }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
-    const [isEditingSpec, setIsEditingSpec] = useState(false);
-    const [showFullPrompt, setShowFullPrompt] = useState(false);
+    const [isEditingPrompt, setIsEditingPrompt] = useState(false);
+    const [editedPrompt, setEditedPrompt] = useState(slide.imagePrompt || '');
 
-    // Direct access to slide data (Source of Truth)
-    const imageSpec = slide.imageSpec;
+    // Source of Truth
+    const imagePrompt = slide.imagePrompt || '';
     const generatedImages = slide.generatedImages || [];
-    // Compute rendered prompt inline or default to empty
-    const renderedPrompt = slide.renderedImagePrompt || (imageSpec ? formatImageSpec(imageSpec, { gradeLevel, subject }) : '');
 
-    // Extract Visual Scene Description using shared utility
-    // Add fallback if empty (e.g. for legacy prompts or extraction failure)
-    const visualSceneDescription = extractVisualSceneDescription(renderedPrompt) ||
-        (renderedPrompt ? 'Visual scene description not available' : '');
+    // Sync editedPrompt when slide changes
+    useEffect(() => {
+        if (!isEditingPrompt) {
+            setEditedPrompt(slide.imagePrompt || '');
+        }
+    }, [slide.imagePrompt, isEditingPrompt]);
 
     // Hard Re-entrancy Locks
     const isGeneratingImageRef = useRef(false);
@@ -78,10 +74,9 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     }, [contentText, isEditingContent]);
 
-    // Aspect Ratio Local state (initialized from slide, which is now the source of truth)
+    // Aspect Ratio Local state
     const [aspectRatio, setAspectRatio] = useState<'16:9' | '1:1'>(slide.aspectRatio || '16:9');
 
-    // Update local state if slide prop changes (e.g. from server update)
     useEffect(() => {
         if (slide.aspectRatio) {
             setAspectRatio(slide.aspectRatio);
@@ -99,21 +94,19 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
     const handleGenerateImage = async () => {
         if (isGeneratingImageRef.current) return;
+        if (!imagePrompt) {
+            alert("No image prompt available for this slide.");
+            return;
+        }
+
         isGeneratingImageRef.current = true;
         setIsGeneratingImage(true);
         try {
-            if (!imageSpec) {
-                throw new Error("No valid visual idea to generate from.");
-            }
-
-            // Use the rendered prompt string directly
-            const { blob } = await generateImageFromSpec(imageSpec, gradeLevel, subject, {
+            const { blob } = await generateImageFromPrompt(imagePrompt, {
                 aspectRatio,
                 temperature: creativityLevel
             });
-            // Note: generateImageFromSpec now returns blob directly (handled internally)
 
-            // Handle result...
             if (userId && projectId) {
                 const sanitizedTitle = sanitizeFilename(slide.title);
                 const filename = `img-${slideNumber}-${sanitizedTitle}-${Date.now()}.png`;
@@ -121,12 +114,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
                 onUpdateSlide({
                     generatedImages: [...generatedImages, generatedImage],
-                    backgroundImage: generatedImage.url,
-                    // No need to update renderedImagePrompt here as spec hasn't changed
+                    backgroundImage: generatedImage.url
                 });
 
             } else {
-                // Fallback download
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
                 a.href = url;
@@ -139,18 +130,12 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
         } catch (error) {
             console.error('Error generating image:', error);
-
             let message = 'Failed to generate image. Please try again.';
-            if (error instanceof Error && (error as any).isRetryable) { // Check if Error type needs casting or if custom error is preserved
-                // We re-exported ImageGenError in geminiService, maybe check validation
-                // For now generic check is fine or check error.code if propagated
+            if (String(error).includes('NO_IMAGE_DATA')) {
+                message = "No image returned from AI. Try editing the prompt.";
+            } else if (error instanceof Error && (error as any).isRetryable) {
                 message = "Temporary AI glitch. Please try clicking 'Generate Image' again.";
             }
-            // Specific error handling based on message content if codes aren't available on Error object directly in standard catch
-            if (String(error).includes('NO_IMAGE_DATA')) {
-                message = "No image returned from AI. Try regenerating the idea.";
-            }
-
             alert(message);
         } finally {
             setIsGeneratingImage(false);
@@ -158,15 +143,14 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     };
 
-    const handleSaveSpec = (updatedSpec: ImageSpec) => {
-        const patch = prepareSpecForSave(updatedSpec, gradeLevel, subject);
-        onUpdateSlide(patch);
-        setIsEditingSpec(false);
+    const handleSavePrompt = () => {
+        onUpdateSlide({ imagePrompt: editedPrompt });
+        setIsEditingPrompt(false);
     };
 
     const handleSaveContent = () => {
         const newContent = contentText.split('\n').filter(line => line.trim() !== '');
-        onUpdateSlide({ ...slide, content: newContent });
+        onUpdateSlide({ content: newContent });
         setIsEditingContent(false);
     };
 
@@ -200,9 +184,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             ref={contentRef}
                             value={contentText}
                             onChange={e => setContentText(e.target.value)}
-                            onBlur={() => {
-                                // Optional auto-save on blur logic can go here or remain in the save button
-                            }}
                             className="w-full h-full min-h-[300px] resize-none outline-none text-secondary-text leading-relaxed bg-transparent"
                         />
                         <div className="flex justify-end space-x-2 mt-3">
@@ -254,52 +235,53 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     <div className="flex-grow min-w-0">
                         {/* Control Header */}
                         <div className="flex items-center justify-between mb-2">
-                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Scene Description</span>
+                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Image Prompt</span>
 
                             {/* Actions */}
-                            <div className="flex items-center space-x-1">
-                                {!isEditingSpec && (
-                                    <>
-                                        <button
-                                            onClick={() => setShowFullPrompt(!showFullPrompt)}
-                                            className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded"
-                                            title="Toggle Full Prompt"
-                                        >
-                                            {showFullPrompt ? "Hide Full Prompt" : "Full Prompt"}
-                                        </button>
-                                        <button
-                                            onClick={() => setIsEditingSpec(true)}
-                                            disabled={!imageSpec}
-                                            className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded disabled:opacity-30"
-                                            title="Edit Visual Specification"
-                                        >
-                                            Edit Spec
-                                        </button>
-                                    </>
-                                )}
-                            </div>
+                            {!isEditingPrompt && (
+                                <button
+                                    onClick={() => setIsEditingPrompt(true)}
+                                    className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded"
+                                    title="Edit Image Prompt"
+                                >
+                                    Edit Prompt
+                                </button>
+                            )}
                         </div>
 
                         {/* Visual Idea Display or Editor */}
-                        {!imageSpec ? (
+                        {!imagePrompt && !isEditingPrompt ? (
                             <div className="p-4 bg-slate-50 border border-slate-200 rounded-lg text-center">
-                                <p className="text-sm text-slate-500 mb-3">No visual idea generated for this slide yet.</p>
+                                <p className="text-sm text-slate-500 mb-3">No image prompt generated for this slide yet.</p>
                             </div>
-                        ) : isEditingSpec ? (
-                            <ImageSpecEditor
-                                spec={imageSpec}
-                                gradeLevel={gradeLevel}
-                                subject={subject}
-                                onSave={handleSaveSpec}
-                                onCancel={() => setIsEditingSpec(false)}
-                            />
+                        ) : isEditingPrompt ? (
+                            <div className="animate-fade-in bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                                <textarea
+                                    value={editedPrompt}
+                                    onChange={(e) => setEditedPrompt(e.target.value)}
+                                    className="w-full min-h-[100px] text-sm text-primary-text mb-3 p-2 border border-slate-200 rounded outline-none focus:border-primary/50"
+                                    placeholder="Describe the image you want to generate..."
+                                />
+                                <div className="flex justify-end gap-2">
+                                    <button
+                                        onClick={() => setIsEditingPrompt(false)}
+                                        className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text"
+                                    >
+                                        Cancel
+                                    </button>
+                                    <button
+                                        onClick={handleSavePrompt}
+                                        className="px-3 py-1.5 text-xs font-bold bg-primary text-white rounded shadow-sm hover:bg-primary/90"
+                                    >
+                                        Save Prompt
+                                    </button>
+                                </div>
+                            </div>
                         ) : (
                             <div className="relative group/prompt">
                                 <div className="bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-colors">
                                     <div className="prose prose-sm max-w-none text-secondary-text text-sm">
-                                        <p className="whitespace-pre-wrap leading-relaxed">
-                                            {showFullPrompt ? renderedPrompt : visualSceneDescription}
-                                        </p>
+                                        <p className="whitespace-pre-wrap leading-relaxed">{imagePrompt}</p>
                                     </div>
                                 </div>
                             </div>
@@ -357,7 +339,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
                     <button
                         onClick={handleGenerateImage}
-                        disabled={isGeneratingImage}
+                        disabled={isGeneratingImage || !imagePrompt}
                         className="flex items-center space-x-2 px-3 py-1.5 bg-[#F5F5F5] hover:bg-slate-200 text-[#134252] rounded-lg text-xs font-semibold transition-all border border-border-light shadow-sm disabled:opacity-50 h-[36px]"
                     >
                         {isGeneratingImage ? (
@@ -372,7 +354,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         )}
                         <span>Generate Image</span>
                     </button>
-                    <CopyButton textToCopy={showFullPrompt ? renderedPrompt : visualSceneDescription} />
+                    <CopyButton textToCopy={imagePrompt} />
                 </div>
             </footer>
         </div>

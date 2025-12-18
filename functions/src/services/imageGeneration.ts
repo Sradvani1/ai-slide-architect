@@ -2,17 +2,15 @@ import { getAiClient } from '../utils/geminiClient';
 import { MODEL_IMAGE_GENERATION } from '@shared/constants';
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
-import { ImageSpec } from '@shared/types';
-import { formatImageSpec } from '@shared/utils/imageUtils';
+
+const STYLE_GUIDELINES = "Front view, sharp focus throughout. Neutral, uniform technical lighting with no shadows. Clean, flat vector illustration style on a pure-white invisible background. Minimalist palette of 3–5 solid, high-contrast colors without gradients.";
 
 export async function generateImage(
-    spec: ImageSpec,
-    gradeLevel: string,
-    subject: string,
+    imagePrompt: string,
     options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
 ): Promise<{ base64Data: string; mimeType: string; renderedPrompt: string }> {
 
-    const renderedPrompt = formatImageSpec(spec, { gradeLevel, subject });
+    const finalPrompt = `${imagePrompt}\n\n${STYLE_GUIDELINES}`;
     const aspectRatio = options.aspectRatio || '16:9';
     const temperature = options.temperature || 0.7;
 
@@ -29,21 +27,13 @@ export async function generateImage(
                 }
             };
 
-            // Enable Google Search grounding if required
-            if (spec.requiresGrounding) {
-                config.tools = [{ googleSearch: {} }];
-            }
-
-            // Original approach using generateContent for image generation model
             const response = await getAiClient().models.generateContent({
                 model: model,
-                contents: [{ role: 'user', parts: [{ text: renderedPrompt }] }],
+                contents: [{ role: 'user', parts: [{ text: finalPrompt }] }],
                 config: config
             });
 
             // Extract image from response parts
-            // candidates[0].content.parts[0] should be the image if successful?
-            // Or response.candidates[0].content.parts may contain inlineData
             const parts = response.candidates?.[0]?.content?.parts;
             const imagePart = parts?.find((p: any) => p.inlineData || p.inline_data);
 
@@ -59,7 +49,7 @@ export async function generateImage(
             return {
                 base64Data: inlineData.data || "",
                 mimeType: inlineData.mimeType || inlineData.mime_type || "image/png",
-                renderedPrompt
+                renderedPrompt: finalPrompt
             };
 
         } catch (error: any) {

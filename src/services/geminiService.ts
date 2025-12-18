@@ -1,10 +1,8 @@
 import { auth } from '../firebaseConfig';
-import { Slide, ImageSpec } from '../types';
+import { Slide } from '../types';
 import { GeminiError, ImageGenError } from '../../shared/errors';
-import { prepareSpecForSave, formatImageSpec } from '../utils/imageUtils';
 
 export { GeminiError, ImageGenError };
-export { prepareSpecForSave };
 
 import { functions } from '../firebaseConfig';
 
@@ -76,7 +74,7 @@ export const generateSlidesFromDocument = async (
   slides: Slide[],
   inputTokens: number,
   outputTokens: number,
-  sources: Array<{ uri: string; title?: string }>,
+  sources: string[],
   searchEntryPoint?: string,
   webSearchQueries?: string[],
   warnings: string[]
@@ -96,8 +94,6 @@ export const generateSlidesFromDocument = async (
   });
 
   // Transform result to match client expectations if needed (e.g. sources format)
-  // Server returns { slides, inputTokens, outputTokens, searchEntryPoint, webSearchQueries }
-
   return {
     slides: result.slides,
     inputTokens: result.inputTokens,
@@ -112,22 +108,12 @@ export const generateSlidesFromDocument = async (
 /**
  * Generates an image based on the provided prompt using the Imagen 3 model.
  */
-export const generateImageFromSpec = async (
-  spec: ImageSpec,
-  gradeLevel: string,
-  subject: string,
+export const generateImageFromPrompt = async (
+  imagePrompt: string,
   options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
 ): Promise<{ blob: Blob; renderedPrompt: string }> => {
-  // Format spec to prompt on client to return it, BUT send spec to server as requested?
-  // User requested: "Update server endpoint to accept spec instead of prompt"
-  // And "In geminiService.ts - restore original signature... // Format spec to prompt on client OR send spec to server"
-  // I will format on client to return it in the object, but send spec to server.
-  const renderedPrompt = formatImageSpec(spec, { gradeLevel, subject });
-
   const result = await authenticatedRequest<{ base64Data: string; mimeType: string, renderedPrompt?: string }>('/generate-image', {
-    spec,
-    gradeLevel,
-    subject,
+    imagePrompt,
     options
   });
 
@@ -140,22 +126,17 @@ export const generateImageFromSpec = async (
 
   return {
     blob: new Blob([bytes], { type: result.mimeType }),
-    renderedPrompt: result.renderedPrompt || renderedPrompt
+    renderedPrompt: result.renderedPrompt || imagePrompt
   };
 };
 
 /**
  * Repairs a malformed generated slide object using Gemini.
- * (Not strictly implemented in V1 server yet, but client might call it?)
- * TODO: Implement on server if needed. For now, throw or mock.
  */
 export const repairSlideJSON = async (
   malformedJSON: string,
   errorContext: string
 ): Promise<any> => {
-  // Placeholder: Server doesn't have a specific repair endpoint exposed yet.
-  // The server does repair internally during generate-slides.
-  // If client has malformed JSON, it's usually from local state issues or older code.
   console.warn("repairSlideJSON called but functionality is server-internal now.");
   throw new Error("JSON repair is handled server-side.");
 };

@@ -76,14 +76,14 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
 // 2. Generate Image
 app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { spec, gradeLevel, subject, options } = req.body;
+        const { imagePrompt, options } = req.body;
 
-        if (!spec || !gradeLevel || !subject) {
-            res.status(400).json({ error: "Missing required fields: spec, gradeLevel, subject" });
+        if (!imagePrompt || typeof imagePrompt !== 'string') {
+            res.status(400).json({ error: "Missing required field: imagePrompt (string)" });
             return;
         }
 
-        const result = await generateImage(spec, gradeLevel, subject, options || {});
+        const result = await generateImage(imagePrompt, options || {});
         res.json(result);
 
     } catch (error: any) {
