@@ -1,16 +1,17 @@
 import { getAiClient } from '../utils/geminiClient';
-import { MODEL_IMAGE_GENERATION } from '@shared/constants';
+import { MODEL_IMAGE_GENERATION, STYLE_GUIDELINES } from '@shared/constants';
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
-
-const STYLE_GUIDELINES = "Front view, sharp focus throughout. Neutral, uniform technical lighting with no shadows. Clean, flat vector illustration style on a pure-white invisible background. Minimalist palette of 3–5 solid, high-contrast colors without gradients.";
 
 export async function generateImage(
     imagePrompt: string,
     options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
 ): Promise<{ base64Data: string; mimeType: string; renderedPrompt: string }> {
 
-    const finalPrompt = `${imagePrompt}\n\n${STYLE_GUIDELINES}`;
+    const finalPrompt = `IMAGE CONTENT:
+${imagePrompt}
+
+${STYLE_GUIDELINES}`;
     const aspectRatio = options.aspectRatio || '16:9';
     const temperature = options.temperature || 0.7;
 

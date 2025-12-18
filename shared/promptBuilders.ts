@@ -73,18 +73,41 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
   `;
 }
 
-function buildImagePromptInstructionsSection(): string {
+function buildImagePromptInstructionsSection(gradeLevel: string): string {
   return `
   IMAGE PROMPT GENERATION
-  For each slide, generate a detailed visual narrative for an educational image that illustrates the key information on this slide.
   
-  Construct the narrative flow in this order:
+  PURPOSE & CONTEXT:
+  These images will be used by a teacher in classroom presentations. Each image must be a 
+  standalone educational resource that visually explains the concept to students. The image 
+  should help a teacher convey information clearly and effectively.
+  
+  For each slide, generate a detailed description of an educational illustration that clearly 
+  depicts the key concepts from this slide.
+  
+  Construct the description in this order:
   1. Start by describing the main Subject (the central visual element)
   2. Next, describe the Action (the active process, movement, or behavior)
   3. Finally, describe the Setting (the specific environment or context)
   
-  The narrative must be vivid and factual, ensuring the image serves as a clear visual aid for the topic being presented.
+  CONTENT REQUIREMENTS:
+  - The description must be vivid and factual, ensuring the educational illustration serves as a 
+    clear visual aid for the key concepts.
+  - Focus on visual elements that directly explain or demonstrate the key concepts being taught.
+  - Describe concrete, visible objects and processes that students can observe and understand.
+  - Ensure the visual complexity is appropriate for ${gradeLevel} students (but do not mention 
+    style or artistic rendering - that is handled separately).
   
+  TEXT AND LABELS:
+  - Include explanatory text, labels, and annotations where they enhance understanding.
+  - Specify which elements should be labeled and what the labels should say (e.g., "Label the 
+    nucleus, mitochondria, and chloroplasts in the cell").
+  - Include descriptive text that helps explain the concept (e.g., "Add arrows with labels 
+    showing 'Water Cycle: Ocean → Evaporation → Clouds → Rain'").
+  - Text should be clear, concise, and directly support the educational purpose.
+  - Only include labels/text when they add educational value - avoid decorative or unnecessary text.
+  
+  OUTPUT FORMAT:
   Output the image prompt as a simple string in the \`imagePrompt\` field.
   `;
 }
@@ -139,7 +162,7 @@ export function buildSlideGenerationPrompt(
     buildContentStandardsSection(),
     buildStructureRequirementsSection(totalSlides, subject, gradeLevel),
     buildFormattingConstraintsSection(bulletsPerSlide),
-    buildImagePromptInstructionsSection(),
+    buildImagePromptInstructionsSection(gradeLevel),
   ];
 
   if (includeOutputFormat) {
