@@ -1,10 +1,10 @@
 import { auth } from '../firebaseConfig';
 import { Slide, ImageSpec } from '../types';
 import { GeminiError, ImageGenError } from '../../shared/errors';
-import { prepareSpecForSave, getVisualIdeaSummary, formatImageSpec } from '../utils/imageUtils';
+import { prepareSpecForSave, formatImageSpec } from '../utils/imageUtils';
 
 export { GeminiError, ImageGenError };
-export { prepareSpecForSave, getVisualIdeaSummary };
+export { prepareSpecForSave };
 
 import { functions } from '../firebaseConfig';
 
@@ -142,22 +142,6 @@ export const generateImageFromSpec = async (
     blob: new Blob([bytes], { type: result.mimeType }),
     renderedPrompt: result.renderedPrompt || renderedPrompt
   };
-};
-
-/**
- * Regenerates an ImageSpec based on a user's change request.
- */
-export const regenerateImageSpec = async (
-  currentSpec: ImageSpec,
-  changeRequest: string,
-  slideContext: { title: string; content: string[] }
-): Promise<ImageSpec> => {
-  const result = await authenticatedRequest<{ spec: ImageSpec }>('/regenerate-spec', {
-    currentSpec,
-    changeRequest,
-    slideContext
-  });
-  return result.spec;
 };
 
 /**
