@@ -7,6 +7,8 @@ export interface GeneratedImage {
     storagePath: string;
     createdAt: number;
     aspectRatio?: '16:9' | '1:1';
+    inputTokens?: number;
+    outputTokens?: number;
 }
 
 /**

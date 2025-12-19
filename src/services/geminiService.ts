@@ -130,8 +130,8 @@ export const generateSlidesFromDocument = async (
 export const generateImageFromPrompt = async (
   imagePrompt: string,
   options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
-): Promise<{ blob: Blob; renderedPrompt: string }> => {
-  const result = await authenticatedRequest<{ base64Data: string; mimeType: string, renderedPrompt?: string }>('/generate-image', {
+): Promise<{ blob: Blob; renderedPrompt: string; inputTokens: number; outputTokens: number }> => {
+  const result = await authenticatedRequest<{ base64Data: string; mimeType: string, renderedPrompt?: string; inputTokens: number; outputTokens: number }>('/generate-image', {
     imagePrompt,
     options
   });
@@ -145,7 +145,9 @@ export const generateImageFromPrompt = async (
 
   return {
     blob: new Blob([bytes], { type: result.mimeType }),
-    renderedPrompt: result.renderedPrompt || imagePrompt
+    renderedPrompt: result.renderedPrompt || imagePrompt,
+    inputTokens: result.inputTokens || 0,
+    outputTokens: result.outputTokens || 0
   };
 };
 

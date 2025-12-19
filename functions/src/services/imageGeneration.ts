@@ -6,7 +6,7 @@ import { ImageGenError } from '@shared/errors';
 export async function generateImage(
     imagePrompt: string,
     options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
-): Promise<{ base64Data: string; mimeType: string; renderedPrompt: string }> {
+): Promise<{ base64Data: string; mimeType: string; renderedPrompt: string; inputTokens: number; outputTokens: number }> {
 
     const finalPrompt = `IMAGE CONTENT:
 ${imagePrompt}
@@ -47,10 +47,16 @@ ${STYLE_GUIDELINES}`;
                 throw new ImageGenError("No image data returned", 'NO_IMAGE_DATA', true);
             }
 
+            // Extract token counts from usage_metadata
+            const inputTokens = response.usageMetadata?.promptTokenCount || 0;
+            const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
+
             return {
                 base64Data: inlineData.data || "",
                 mimeType: inlineData.mimeType || inlineData.mime_type || "image/png",
-                renderedPrompt: finalPrompt
+                renderedPrompt: finalPrompt,
+                inputTokens,
+                outputTokens
             };
 
         } catch (error: any) {

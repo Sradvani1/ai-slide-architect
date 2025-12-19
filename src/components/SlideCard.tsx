@@ -102,7 +102,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         isGeneratingImageRef.current = true;
         setIsGeneratingImage(true);
         try {
-            const { blob } = await generateImageFromPrompt(imagePrompt, {
+            const { blob, inputTokens, outputTokens } = await generateImageFromPrompt(imagePrompt, {
                 aspectRatio,
                 temperature: creativityLevel
             });
@@ -110,7 +110,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             if (userId && projectId) {
                 const sanitizedTitle = sanitizeFilename(slide.title);
                 const filename = `img-${slideNumber}-${sanitizedTitle}-${Date.now()}.png`;
-                const generatedImage = await uploadImageToStorage(userId, projectId, blob, filename, aspectRatio);
+                const generatedImage = await uploadImageToStorage(userId, projectId, blob, filename, aspectRatio, inputTokens, outputTokens);
 
                 onUpdateSlide({
                     generatedImages: [...generatedImages, generatedImage],

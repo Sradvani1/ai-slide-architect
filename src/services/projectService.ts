@@ -47,7 +47,7 @@ export const uploadFileToStorage = async (userId: string, projectId: string, fil
 /**
  * Uploads a generated image blob to Firebase Storage.
  */
-export const uploadImageToStorage = async (userId: string, projectId: string, imageBlob: Blob, filename: string, aspectRatio: '16:9' | '1:1' = '16:9'): Promise<GeneratedImage> => {
+export const uploadImageToStorage = async (userId: string, projectId: string, imageBlob: Blob, filename: string, aspectRatio: '16:9' | '1:1' = '16:9', inputTokens?: number, outputTokens?: number): Promise<GeneratedImage> => {
     try {
         // Create a unique path for the image
         // Using a dedicated 'images' folder to keep it organized separate from user uploads
@@ -62,7 +62,9 @@ export const uploadImageToStorage = async (userId: string, projectId: string, im
             url: downloadUrl,
             storagePath,
             createdAt: Date.now(),
-            aspectRatio
+            aspectRatio,
+            inputTokens,
+            outputTokens
         };
     } catch (error) {
         console.error("Error uploading image:", error);
