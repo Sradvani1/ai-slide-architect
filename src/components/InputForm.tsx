@@ -127,14 +127,19 @@ export const InputForm: React.FC<InputFormProps> = ({
           </button>
 
           {isDescriptionOpen && (
-            <textarea
-              id="additionalInstructions"
-              value={additionalInstructions}
-              onChange={(e) => setAdditionalInstructions(e.target.value)}
-              placeholder="Add specific instructions for the AI (e.g., 'Focus on economic impact', 'Use simple vocabulary', 'Include more examples')..."
-              className="input-field min-h-[80px] text-sm py-2 resize-y"
-              disabled={isLoading}
-            />
+            <div className="space-y-2 animate-fade-in">
+              <div className="text-[11px] font-medium text-slate-500 bg-slate-100 px-3 py-1.5 rounded border border-slate-200">
+                Add detailed description, focus areas, and specific instructions
+              </div>
+              <textarea
+                id="additionalInstructions"
+                value={additionalInstructions}
+                onChange={(e) => setAdditionalInstructions(e.target.value)}
+                placeholder="Add specific instructions for the AI (e.g., 'Focus on economic impact', 'Use simple vocabulary', 'Include more examples')..."
+                className="input-field min-h-[80px] text-sm py-2 resize-y"
+                disabled={isLoading}
+              />
+            </div>
           )}
         </div>
 

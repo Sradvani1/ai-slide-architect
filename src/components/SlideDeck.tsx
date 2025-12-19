@@ -35,14 +35,22 @@ const WelcomeMessage: React.FC = () => (
 );
 
 const Loader: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-full text-center mt-20">
-        <div className="relative w-24 h-24 mb-8">
-            <div className="absolute inset-0 border-4 border-slate-200 rounded-full"></div>
-            <div className="absolute inset-0 border-4 border-primary rounded-full border-t-transparent animate-spin"></div>
-            <div className="absolute inset-4 border-4 border-accent rounded-full border-b-transparent animate-spin-reverse opacity-70"></div>
+    <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
+        <div className="w-full max-w-xs mb-10">
+            {/* Minimalist Progress Bar / Pulse */}
+            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                <div className="absolute top-0 bottom-0 left-0 bg-primary w-1/3 rounded-full animate-sliding-progress"></div>
+            </div>
+            <div className="flex justify-between mt-2">
+                <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse"></div>
+                <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse delay-75"></div>
+                <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse delay-150"></div>
+            </div>
         </div>
-        <p className="text-2xl font-bold text-primary-text mb-2">Architecting Presentation...</p>
-        <p className="text-secondary-text animate-pulse">Analyzing content & designing slides</p>
+        <h2 className="text-3xl font-bold text-primary-text mb-3 tracking-tight">Building slides</h2>
+        <p className="text-secondary-text text-lg font-medium max-w-md mx-auto leading-relaxed">
+            researching, organizing and writing your content
+        </p>
     </div>
 );
 
@@ -358,8 +366,9 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
 
     return (
         <div className="flex flex-col h-full animate-fade-in">
-            <div className="flex justify-end items-center mb-6 pt-4">
-                <div className="flex flex-wrap items-center gap-2">
+            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pt-4 gap-4">
+                <h2 className="text-xl font-bold text-primary-text hidden sm:block">Your Slide Deck</h2>
+                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     <button
                         onClick={handleDownloadAllImages}
                         disabled={isDownloadingImages || isExporting}

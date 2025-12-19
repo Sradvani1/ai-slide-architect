@@ -20,7 +20,7 @@ export const HowItWorks: React.FC = () => {
     ];
 
     return (
-        <section className="w-full max-w-6xl mx-auto px-4 py-16 md:py-24 bg-neutral-bg/30">
+        <section className="w-full max-w-6xl mx-auto px-4 py-10 md:py-16 bg-neutral-bg/30">
             <h2 className="text-2xl md:text-3xl font-bold text-primary-text text-center mb-16">
                 How It Works
             </h2>

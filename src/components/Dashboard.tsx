@@ -67,13 +67,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 <div className="flex items-center">
                     <div
                         onClick={handleSignOut}
-                        className="group flex items-center space-x-2 cursor-pointer px-[8px] py-[6px] rounded-[20px] bg-[#F5F5F5] border border-[#D1D5D8] transition-all hover:bg-white hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]"
+                        className="group flex items-center space-x-2 cursor-pointer px-2 py-1.5 sm:px-[8px] sm:py-[6px] rounded-[20px] bg-[#F5F5F5] border border-[#D1D5D8] transition-all hover:bg-white hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]"
                         title="Click to Sign Out"
                     >
                         <div className="w-[30px] h-[30px] rounded-full bg-primary flex items-center justify-center text-xs font-bold text-white shadow-sm">
                             {user.displayName ? user.displayName.charAt(0).toUpperCase() : "U"}
                         </div>
-                        <span className="text-sm font-medium text-secondary-text group-hover:text-primary-text transition-colors">
+                        <span className="hidden sm:block text-sm font-medium text-secondary-text group-hover:text-primary-text transition-colors">
                             {user.displayName || user.email?.split('@')[0]}
                         </span>
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4 text-[#627C81] group-hover:text-error transition-colors ml-1">

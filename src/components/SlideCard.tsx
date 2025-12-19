@@ -162,16 +162,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     return (
         <div className="glass-card rounded-2xl overflow-hidden group border border-[#rgba(0,0,0,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
             {/* Header */}
-            <header className="p-5 flex justify-between items-start border-b border-slate-100 bg-surface/50">
-                <div className="flex-1 min-w-0 mr-4">
-                    <div className="flex items-center space-x-3 mb-1">
+            <header className="p-4 sm:p-5 flex justify-between items-start border-b border-slate-100 bg-surface/50 gap-2">
+                <div className="flex-1 min-w-0">
+                    <div className="flex flex-wrap items-center gap-2 mb-1">
                         <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full">Slide {slideNumber}</span>
                         <span className="text-xs text-secondary-text uppercase tracking-wider font-semibold">{slide.layout}</span>
                     </div>
-                    <h3 className="text-xl font-bold text-primary-text truncate">{slide.title}</h3>
+                    <h3 className="text-lg sm:text-xl font-bold text-primary-text break-words line-clamp-2">{slide.title}</h3>
                 </div>
 
-                <div className="flex items-center space-x-1 opacity-50 group-hover:opacity-100 transition-opacity">
+                <div className="flex items-center space-x-1 opacity-100 sm:opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
                     <CopyButton textToCopy={contentToCopy} />
                 </div>
             </header>
