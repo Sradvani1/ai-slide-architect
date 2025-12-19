@@ -1,4 +1,6 @@
 import { db, storage } from '../firebaseConfig';
+import { MAX_FILE_SIZE, formatBytes } from '../utils/fileValidation';
+
 import {
     collection,
     doc,
@@ -23,7 +25,13 @@ import type { Slide, ProjectFile, GeneratedImage } from '../types';
  * Uploads a file to Firebase Storage and returns the file metadata.
  */
 export const uploadFileToStorage = async (userId: string, projectId: string, file: File): Promise<ProjectFile> => {
+    // Safety check: Enforce MAX_FILE_SIZE
+    if (file.size > MAX_FILE_SIZE) {
+        throw new Error(`File size ${formatBytes(file.size)} exceeds the maximum allowed limit of ${formatBytes(MAX_FILE_SIZE)}`);
+    }
+
     try {
+
         const storagePath = `users/${userId}/projects/${projectId}/files/${Date.now()}_${file.name}`;
         const storageRef = ref(storage, storagePath);
 
