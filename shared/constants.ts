@@ -10,16 +10,15 @@ export const MODEL_SPEC_REGENERATION = "gemini-3-flash-preview";
 
 // Image Generation Style Guidelines
 export const STYLE_GUIDELINES = `
-VISUAL STYLE (Classroom Educational Standard):
-- Goal: Create a pedagogical visual aid for presentation slides. Prioritize clarity, simplicity, and readability.
-- Composition: Front view, sharp focus throughout. No blur or depth effects.
+VISUAL STYLE:
+- Goal: Create a pedagogical visual aid. Prioritize clarity, simplicity, and readability.
+- Composition: Canonical instructional view, sharp focus throughout. No blur or depth effects.
 - Lighting: Neutral, uniform technical lighting. No shadows.
-- Style: Clean, flat vector illustration. Professional, simple lines.
-- Background: Pure-white invisible background. No texture.
-- Colors: Minimalist palette of 3–5 solid, high-contrast colors. No gradients.
+- Style: Clean, flat vector illustration. Simple lines.
+- Background: Pure-white solid background. No texture.
+- Colors: Minimalist palette of solid, high-contrast colors. No gradients.
 
 TEXT AND LABELING:
-- Typography: Large, bold, sans-serif fonts (Arial-style).
-- Readability: High contrast against background. Maximize legibility.
-- Placement: Clearly connected to elements with straight leader lines.
+- Appearance: Simple, sans-serif font; high contrast against background.
+- Positioning: Adjacent to or visually connected to specific elements.
 `;

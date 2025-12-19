@@ -105,7 +105,7 @@ function buildImagePromptInstructionsSection(gradeLevel: string): string {
   - Only include labels/text when they add educational value.
   
   NEGATIVE CONSTRAINTS:
-  - Strictly exclude descriptions of Composition, Lighting, Style, Background, and Colors.
+  - Strictly exclude descriptions of Composition, Lighting, Style, and Background.
 
   OUTPUT FORMAT:
   Output the image prompt as a simple string in the \`imagePrompt\` field.
