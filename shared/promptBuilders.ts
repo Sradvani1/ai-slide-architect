@@ -95,18 +95,18 @@ function buildImagePromptInstructionsSection(gradeLevel: string): string {
     clear visual aid for the key concepts.
   - Focus on visual elements that directly explain or demonstrate the key concepts being taught.
   - Describe concrete, visible objects and processes that students can observe and understand.
-  - Ensure the visual complexity is appropriate for ${gradeLevel} students (but do not mention 
-    style or artistic rendering - that is handled separately).
+  - Ensure the visual complexity is appropriate for ${gradeLevel} students.
   
   TEXT AND LABELS:
   - Include explanatory text, labels, and annotations where they enhance understanding.
-  - Specify which elements should be labeled and what the labels should say (e.g., "Label the 
-    nucleus, mitochondria, and chloroplasts in the cell").
-  - Include descriptive text that helps explain the concept (e.g., "Add arrows with labels 
-    showing 'Water Cycle: Ocean → Evaporation → Clouds → Rain'").
+  - Specify which elements should be labeled and what the labels should say.
+  - Include descriptive text that helps explain the concept.
   - Text should be clear, concise, and directly support the educational purpose.
-  - Only include labels/text when they add educational value - avoid decorative or unnecessary text.
+  - Only include labels/text when they add educational value.
   
+  NEGATIVE CONSTRAINTS:
+  - Strictly exclude descriptions of Composition, Lighting, Style, Background, and Colors.
+
   OUTPUT FORMAT:
   Output the image prompt as a simple string in the \`imagePrompt\` field.
   `;
