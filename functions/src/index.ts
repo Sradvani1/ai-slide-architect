@@ -9,7 +9,7 @@ admin.initializeApp();
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
-import { generateSlides } from './services/slideGeneration';
+import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 
 import { extractTextFromImage } from './services/imageTextExtraction';
@@ -26,6 +26,7 @@ app.use(express.json());
 app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
         const {
+            projectId,
             topic,
             gradeLevel,
             subject,
@@ -44,6 +45,57 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             return;
         }
 
+        // Background generation if projectId is provided
+        if (projectId) {
+            if (!req.user) {
+                res.status(401).json({ error: "Unauthorized" });
+                return;
+            }
+            const userId = req.user.uid;
+            const db = admin.firestore();
+            const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+
+            // Verify project exists
+            const projectDoc = await projectRef.get();
+            if (!projectDoc.exists) {
+                res.status(404).json({ error: "Project not found" });
+                return;
+            }
+
+            // Return 202 Accepted immediately
+            res.status(202).json({
+                message: "Generation started",
+                projectId
+            });
+
+            // Start background generation
+            generateSlidesAndUpdateFirestore(
+                projectRef,
+                topic,
+                gradeLevel,
+                subject,
+                sourceMaterial || "",
+                numSlides || 5,
+                useWebSearch || false,
+                additionalInstructions,
+                temperature,
+                bulletsPerSlide,
+                uploadedFileNames
+            ).catch(error => {
+                console.error("Background generation error:", error);
+                // Update project with error status as a fallback
+                projectRef.update({
+                    status: 'failed',
+                    generationError: error.message || "Background generation failed",
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                }).catch(updateError => {
+                    console.error("Failed to update error status in background catch:", updateError);
+                });
+            });
+            return;
+        }
+
+        // Legacy synchronous behavior
         const result = await generateSlides(
             topic,
             gradeLevel,

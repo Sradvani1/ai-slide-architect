@@ -12,13 +12,13 @@ export const MODEL_SPEC_REGENERATION = "gemini-3-flash-preview";
 export const STYLE_GUIDELINES = `
 VISUAL STYLE:
 - Goal: Create a pedagogical visual aid. Prioritize clarity, simplicity, and readability.
-- Composition: Canonical instructional view, sharp focus throughout. No blur or depth effects.
+- Composition: Canonical 2D instructional view. No perspective.
 - Lighting: Neutral, uniform technical lighting. No shadows.
 - Style: Clean, flat vector illustration. Simple lines.
 - Background: Pure-white solid background. No texture.
 - Colors: Minimalist palette of solid, high-contrast colors. No gradients.
 
 TEXT AND LABELING:
-- Appearance: Simple, sans-serif font; high contrast against background.
+- Appearance: Simple, sans-serif font; high contrast, prominently scaled.
 - Positioning: Adjacent to or visually connected to specific elements.
 `;

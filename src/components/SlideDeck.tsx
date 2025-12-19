@@ -1,5 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import JSZip from 'jszip';
+import { useNavigate } from 'react-router-dom';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
@@ -17,6 +18,8 @@ interface SlideDeckProps {
     creativityLevel: number;
     userId: string;
     projectId: string | null;
+    generationProgress?: number;
+    onRetry?: () => void;
 }
 
 const WelcomeMessage: React.FC = () => (
@@ -34,25 +37,49 @@ const WelcomeMessage: React.FC = () => (
     </div>
 );
 
-const Loader: React.FC = () => (
-    <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
-        <div className="w-full max-w-xs mb-10">
-            {/* Minimalist Progress Bar / Pulse */}
-            <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
-                <div className="absolute top-0 bottom-0 left-0 bg-primary w-1/3 rounded-full animate-sliding-progress"></div>
+const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
+    const navigate = useNavigate();
+    return (
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
+            <div className="w-full max-w-xs mb-10">
+                {/* Progress Bar with actual progress */}
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
+                    <div
+                        className={`absolute top-0 bottom-0 left-0 bg-primary rounded-full transition-all duration-500 ease-out ${progress === undefined ? 'w-1/3 animate-sliding-progress' : ''}`}
+                        style={progress !== undefined ? { width: `${progress}%` } : {}}
+                    ></div>
+                </div>
+                <div className="flex justify-between mt-2">
+                    <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse"></div>
+                    <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse delay-75"></div>
+                    <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse delay-150"></div>
+                </div>
+                {progress !== undefined && (
+                    <p className="text-xs font-bold text-primary mt-2 uppercase tracking-widest">{progress}% Complete</p>
+                )}
             </div>
-            <div className="flex justify-between mt-2">
-                <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse"></div>
-                <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse delay-75"></div>
-                <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse delay-150"></div>
-            </div>
+            <h2 className="text-3xl font-bold text-primary-text mb-3 tracking-tight">
+                {progress !== undefined && progress < 25 ? 'Starting build' :
+                    progress !== undefined && progress < 75 ? 'Researching content' :
+                        progress !== undefined && progress < 100 ? 'Writing slides' :
+                            progress === 100 ? 'Finalizing presentation' :
+                                'Building slides'}
+            </h2>
+            <p className="text-secondary-text text-lg font-medium max-w-md mx-auto leading-relaxed">
+                {progress !== undefined && progress < 75 ? 'Searching the web and analyzing your documents' :
+                    progress !== undefined && progress < 100 ? 'Architecting and formatting your slide deck' :
+                        'researching, organizing and writing your content'}
+            </p>
+
+            <button
+                onClick={() => navigate('/')}
+                className="mt-8 px-6 py-2.5 text-sm font-bold text-secondary-text hover:text-primary border border-border-light hover:border-primary/30 rounded-full transition-all bg-white/50 backdrop-blur-sm shadow-sm"
+            >
+                Continue in Background
+            </button>
         </div>
-        <h2 className="text-3xl font-bold text-primary-text mb-3 tracking-tight">Building slides</h2>
-        <p className="text-secondary-text text-lg font-medium max-w-md mx-auto leading-relaxed">
-            researching, organizing and writing your content
-        </p>
-    </div>
-);
+    );
+};
 
 const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
     const doc = new Document({
@@ -178,12 +205,10 @@ const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
     return await Packer.toBlob(doc);
 };
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading, error, onUpdateSlide, creativityLevel, userId, projectId }) => {
+export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading, error, onUpdateSlide, creativityLevel, userId, projectId, generationProgress, onRetry }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
-
-
 
     const handleExportPPTX = async () => {
         if (!slides) return;
@@ -275,8 +300,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                 throw new Error("Failed to create zip folder");
             }
 
-            // Generate images sequentially to avoid hitting rate limits too hard
-            // Parallel could be faster but riskier with API limits
             for (let i = 0; i < slides.length; i++) {
                 const slide = slides[i];
                 try {
@@ -291,7 +314,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                     }
                 } catch (err) {
                     console.error(`Failed to generate image for slide ${i + 1}`, err);
-                    // Continue with other slides even if one fails
                     folder.file(`slide-${i + 1}-error.txt`, `Failed to generate image.`);
                 }
             }
@@ -323,7 +345,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                 ? slides[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50)
                 : 'speaker_notes';
 
-            // Generate DOCX
             const docxBlob = await generateDocx(slides, sources);
             const docxUrl = URL.createObjectURL(docxBlob);
             const docxLink = document.createElement('a');
@@ -343,19 +364,35 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
     };
 
     if (isLoading) {
-        return <Loader />;
+        return <Loader progress={generationProgress} />;
     }
 
     if (error) {
         return (
-            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-red-500/10 text-red-400 rounded-2xl border border-red-500/20 mt-20">
+            <div className="flex flex-col items-center justify-center h-full text-center p-8 bg-red-500/10 text-red-100 rounded-2xl border border-red-500/20 mt-20 backdrop-blur-md">
                 <div className="w-16 h-16 bg-red-500/20 rounded-full flex items-center justify-center mb-4">
                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8">
                         <path strokeLinecap="round" strokeLinejoin="round" d="M12 9v3.75m-9.303 3.376c-.866 1.5.217 3.374 1.948 3.374h14.71c1.73 0 2.813-1.874 1.948-3.374L13.949 3.378c-.866-1.5-3.032-1.5-3.898 0L2.697 16.126ZM12 15.75h.007v.008H12v-.008Z" />
                     </svg>
                 </div>
                 <h3 className="text-xl font-bold mb-2">Generation Failed</h3>
-                <p className="max-w-md">{error}</p>
+                <p className="max-w-md mb-6">{error}</p>
+                {onRetry && (
+                    <div className="flex gap-4">
+                        <button
+                            onClick={onRetry}
+                            className="btn-primary px-6 py-2"
+                        >
+                            Retry Generation
+                        </button>
+                        <button
+                            onClick={() => window.location.href = '/'}
+                            className="px-6 py-2 bg-slate-200 text-slate-700 rounded-lg hover:bg-slate-300 transition-all font-semibold"
+                        >
+                            Back to Dashboard
+                        </button>
+                    </div>
+                )}
             </div>
         );
     }

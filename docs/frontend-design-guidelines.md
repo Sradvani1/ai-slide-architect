@@ -1,0 +1,997 @@
+# EdTech Web App - Frontend Design Guidelines Specification
+
+**Version:** 1.0  
+**Last Updated:** December 2025  
+**Purpose:** Comprehensive design system for modern, minimalist, and accessible EdTech web applications
+
+---
+
+## Table of Contents
+
+1. [Design Philosophy](#design-philosophy)
+2. [Color System](#color-system)
+3. [Typography](#typography)
+4. [Layout & Spacing](#layout--spacing)
+5. [Components](#components)
+6. [Accessibility Standards](#accessibility-standards)
+7. [Interaction Design](#interaction-design)
+8. [Cognitive Load Reduction](#cognitive-load-reduction)
+9. [Mobile Responsiveness](#mobile-responsiveness)
+10. [Implementation Standards](#implementation-standards)
+
+---
+
+## Design Philosophy
+
+### Core Principles
+
+**1. Minimalism First**
+- Every visual element must serve a clear purpose
+- Eliminate visual clutter and unnecessary ornamentation
+- Use whitespace strategically to guide attention
+- Apply the principle of "less but better"
+
+**2. Focus on Learning**
+- Design supports the educational objective, never distracts from it
+- Reduce cognitive load to improve information retention
+- Simplify navigation so learners focus on content
+- Remove friction from the learning experience
+
+**3. User-Centered**
+- Prioritize user needs over design aesthetics
+- Design for diverse learning styles and abilities
+- Create intuitive interactions that require minimal instruction
+- Test decisions against actual user behavior
+
+**4. Accessibility by Default**
+- WCAG 2.1 AA minimum compliance (AAA where feasible)
+- Design for keyboard navigation, screen readers, and assistive technology
+- Ensure sufficient contrast and readable typography
+- Support users with cognitive, visual, hearing, and motor disabilities
+
+**5. Performance First**
+- Minimal assets load faster on all network conditions
+- Reduced page size improves user experience
+- Clean code and optimized styling enhance performance
+- Mobile devices and slow connections are primary concerns
+
+---
+
+## Color System
+
+### Background Colors
+
+**Primary Background** (Use for main content areas)
+- **Light Mode:** `#FAFAF8` (off-white with warm undertone)
+- **Dark Mode:** `#1F2121` (dark charcoal)
+- **Rationale:** Reduces eye strain on extended reading; creates calm, distraction-free learning environment
+
+**Secondary Background** (Use for cards, sections, alternating areas)
+- **Light Mode:** `#FFFFFF` (pure white)
+- **Dark Mode:** `#262828` (slightly lighter charcoal)
+- **Rationale:** Creates visual separation while maintaining simplicity
+
+**Tertiary Background** (Use sparingly for emphasis or grouping)
+- **Light Mode:** `#F5F5F5` (light gray)
+- **Dark Mode:** `#3A3C3C` (medium gray)
+- **Rationale:** Subtle distinction without introducing visual noise
+
+### Accent Colors
+
+Use a **single primary accent color** for interactive elements:
+
+**Primary Accent (Interactive Elements)**
+- **Light Mode:** `#2180EA` (teal blue)
+- **Dark Mode:** `#32B8C6` (lighter teal)
+- **Rationale:** Promotes focus and calmness; stands out clearly against neutral backgrounds
+
+**Secondary Accent (Success/Positive)**
+- **Light Mode:** `#2B8C7E` (teal-green)
+- **Dark Mode:** `#22C55E` (bright green)
+- **Usage:** Success messages, completed tasks, positive feedback
+
+**Tertiary Accent (Warning/Attention)**
+- **Light Mode:** `#F59E0B` (amber)
+- **Dark Mode:** `#FCA311` (bright amber)
+- **Usage:** Warnings, incomplete sections, alerts
+
+**Error State**
+- **Light Mode:** `#DC2626` (red)
+- **Dark Mode:** `#FF5453` (bright red)
+- **Usage:** Errors, invalid inputs, critical alerts
+
+### Color Usage Rules
+
+- **Maximum 3 accent colors** in total interface
+- **Text on light backgrounds:** `#134252` (dark navy)
+- **Text on dark backgrounds:** `#F5F5F5` (light gray)
+- **Secondary text:** `#627C81` (medium gray) - for labels, captions, helper text
+- **Disabled elements:** 50% opacity of normal state
+- **Avoid color-alone information:** Always supplement color with text, icons, or patterns
+- **High Contrast Requirement:** Minimum 4.5:1 ratio for normal text, 3:1 for large text
+
+### Color Palette Summary
+
+```
+Light Mode Palette:
+├─ Backgrounds: #FAFAF8, #FFFFFF, #F5F5F5
+├─ Text: #134252 (primary), #627C81 (secondary)
+├─ Primary Accent: #2180EA
+├─ Success: #2B8C7E
+├─ Warning: #F59E0B
+└─ Error: #DC2626
+
+Dark Mode Palette:
+├─ Backgrounds: #1F2121, #262828, #3A3C3C
+├─ Text: #F5F5F5 (primary), #A7A9A9 (secondary)
+├─ Primary Accent: #32B8C6
+├─ Success: #22C55E
+├─ Warning: #FCA311
+└─ Error: #FF5453
+```
+
+---
+
+## Typography
+
+### Font Family
+
+**Primary Typeface (All Body & UI Text)**
+```
+font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 
+             'Helvetica Neue', Arial, sans-serif;
+```
+**Rationale:** System fonts load instantly, feel native to each platform, and are highly readable at all sizes
+
+**Monospace Typeface (Code blocks, technical content)**
+```
+font-family: 'SF Mono', 'Monaco', 'Menlo', 'Courier New', monospace;
+```
+
+### Font Sizes & Hierarchy
+
+Maintain **strict hierarchy** with exactly 3-4 font sizes:
+
+| Purpose | Size | Weight | Line Height | Usage |
+|---------|------|--------|-------------|-------|
+| **H1 - Page Title** | 28-32px | 600 (semibold) | 1.2 | Page headers, main lesson titles |
+| **H2 - Section Header** | 20-24px | 600 (semibold) | 1.2 | Module titles, major sections |
+| **H3 - Subsection** | 16-18px | 600 (semibold) | 1.4 | Subsection headers, card titles |
+| **Body Text** | 14-16px | 400 (normal) | 1.5-1.6 | Main content, paragraphs, descriptions |
+| **Small Text** | 12-13px | 400 (normal) | 1.4 | Labels, captions, helper text, metadata |
+
+### Typography Rules
+
+- **Use only 2 font weights:** 400 (normal) and 600 (semibold)
+- **Letter spacing:** Maintain default; don't adjust except for all-caps labels (-0.5px)
+- **Text alignment:** Left-align all body text; center only for titles or special emphasis
+- **Line length:** Optimal 45-75 characters per line (18-24 words)
+- **Contrast:** All text must meet WCAG AA standards (4.5:1 for normal, 3:1 for large)
+- **Avoid:** Script fonts, decorative fonts, text shadows, text rotation
+- **All caps:** Reserve for short labels only (buttons, badges, tags)
+- **Emphasis:** Use bold (600 weight) sparingly; prefer structural hierarchy
+
+---
+
+## Layout & Spacing
+
+### Spacing Scale
+
+Use this **consistent spacing scale** for all margins, padding, and gaps:
+
+```
+Base Unit = 8px
+
+Scale:
+4px   = xs  (rare; inputs only)
+8px   = sm  (tight spacing)
+12px  = md  (comfortable spacing)
+16px  = lg  (standard spacing)
+24px  = xl  (generous spacing)
+32px  = 2xl (section breaks)
+48px  = 3xl (major breaks between sections)
+```
+
+### Whitespace
+
+- **Minimum padding inside containers:** 16px
+- **Minimum padding in modals/cards:** 24px
+- **Between sections:** 32-48px
+- **Around interactive elements:** 8-12px
+- **Never eliminate whitespace to "fit more"** – reduce content instead
+
+### Grid System
+
+- **12-column grid** for desktop (1024px+)
+- **6-column grid** for tablet (768px-1023px)
+- **4-column grid** for mobile (below 768px)
+- **Gutter width:** 16px (8px on each side of column)
+- **Maximum content width:** 1200px (centered)
+- **Maintain grid throughout** – never break alignment for visual effect
+
+### Container Layout
+
+```
+Header (fixed height)
+├─ Navigation, branding, user menu
+├─ Max-width: 100% (full width)
+└─ Padding: 12px 16px
+
+Main Content Container
+├─ Max-width: 1200px
+├─ Margin: auto (centered)
+├─ Padding: 24px 16px (mobile), 32px 24px (tablet+)
+├─ Single-column flow on mobile
+├─ Multi-column only when space allows
+└─ Never force 2-column on small screens
+
+Footer
+├─ Background: Slightly different from main
+├─ Padding: 24px 16px
+├─ Max-width: 100% (full width)
+└─ Typography: Smaller than body text
+```
+
+### Responsive Breakpoints
+
+```
+Mobile:    < 640px   (phones)
+Tablet:    640px - 1023px
+Desktop:   1024px - 1440px
+Wide:      > 1440px (ultrawide)
+```
+
+---
+
+## Components
+
+### Buttons
+
+**Primary Button (Action, CTA)**
+```
+State: Default
+├─ Background: Primary Accent (#2180EA)
+├─ Color (text): White
+├─ Padding: 10px 16px (minimum)
+├─ Border-radius: 6px
+├─ Font-size: 14px
+├─ Font-weight: 600
+├─ Cursor: pointer
+└─ Min-width: 100px
+
+State: Hover
+├─ Background: Darken by 8% (#1C6DC4)
+└─ Shadow: 0 2px 8px rgba(33, 128, 234, 0.2)
+
+State: Active
+├─ Background: Darken by 15% (#1558AA)
+└─ Transform: scale(0.98)
+
+State: Disabled
+├─ Opacity: 50%
+├─ Cursor: not-allowed
+└─ No hover effect
+```
+
+**Secondary Button (Alternative, Less critical)**
+```
+State: Default
+├─ Background: Light gray (#F5F5F5) | Dark mode (#3A3C3C)
+├─ Color (text): Primary text color
+├─ Border: 1px solid (#D1D5D8)
+├─ Padding: 10px 16px
+├─ Border-radius: 6px
+└─ Font-weight: 600
+
+State: Hover
+├─ Background: Darken slightly
+└─ Border: Primary accent color
+```
+
+**Button Sizing**
+- **Small:** 8px 12px, font-size 12px (for dense layouts)
+- **Normal:** 10px 16px, font-size 14px (default)
+- **Large:** 12px 20px, font-size 16px (for mobile primary action)
+
+**Button States**
+- Always show **:focus-visible** outline (2px solid accent color)
+- Provide **clear hover feedback** (background change or shadow)
+- Disable buttons (not hide) when action unavailable
+- **Never use disabled state for loading** – use spinner inside button instead
+
+### Form Elements
+
+**Text Input / Textarea**
+```
+Default State:
+├─ Background: #FFFFFF (light) | #262828 (dark)
+├─ Border: 1px solid #D1D5D8
+├─ Border-radius: 6px
+├─ Padding: 10px 12px
+├─ Font-size: 14px
+├─ Font-family: System font (inherit)
+└─ Color: Primary text color
+
+Focused State:
+├─ Border: 2px solid Primary Accent
+├─ Box-shadow: 0 0 0 3px rgba(33, 128, 234, 0.1)
+└─ Outline: none
+
+Error State:
+├─ Border: 2px solid #DC2626
+├─ Box-shadow: 0 0 0 3px rgba(220, 38, 38, 0.1)
+└─ Color (error message): #DC2626
+```
+
+**Checkboxes & Radio Buttons**
+- **Size:** 18px × 18px
+- **Border-radius:** 3px (checkbox), 50% (radio)
+- **Border:** 2px solid #D1D5D8
+- **Checked state:** Background primary accent, white checkmark
+- **Focus state:** Box-shadow with accent color
+- **Minimum touch target:** 44px × 44px
+
+**Select Dropdowns**
+- **Custom styling required** – no browser defaults
+- **Icon:** Chevron on right side
+- **Keyboard support:** Arrow keys, Enter to select
+- **Visual feedback:** Highlight on hover, border on focus
+
+**Form Labels**
+- **Always present** – no placeholder-only inputs
+- **Format:** `<label for="input-id">` + `<input id="input-id">`
+- **Font-size:** 12-13px, weight 600
+- **Color:** Secondary text color
+- **Margin below:** 6px
+- **Required field indicator:** Asterisk (*), include in aria-label
+
+### Cards
+
+**Card Container**
+```
+├─ Background: Secondary background color
+├─ Border: 1px solid rgba(0, 0, 0, 0.08) [light] | rgba(255,255,255,0.08) [dark]
+├─ Border-radius: 8px
+├─ Padding: 16px-24px
+├─ Box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08)
+└─ Hover shadow: 0 4px 12px rgba(0, 0, 0, 0.12)
+```
+
+**Card Structure**
+```
+.card
+├─ .card-header (optional)
+│  ├─ Font-size: 16px, weight: 600
+│  ├─ Margin-bottom: 12px
+│  └─ Border-bottom: 1px solid border color
+│
+├─ .card-body
+│  ├─ Main content area
+│  └─ Margin: 12px 0
+│
+└─ .card-footer (optional)
+   ├─ Border-top: 1px solid border color
+   ├─ Padding-top: 12px
+   ├─ Font-size: 12px
+   └─ Color: Secondary text
+```
+
+### Badges & Tags
+
+**Badge (Status indicator)**
+```
+├─ Padding: 4px 8px
+├─ Font-size: 11-12px
+├─ Font-weight: 600
+├─ Border-radius: 12px (pill shape)
+├─ Text-transform: uppercase
+└─ Color combinations:
+   ├─ Success: Green bg + dark text
+   ├─ Warning: Amber bg + dark text
+   ├─ Error: Red bg + white text
+   └─ Info: Gray bg + dark text
+```
+
+### Modals
+
+**Modal Container**
+```
+Backdrop:
+├─ Background: rgba(0, 0, 0, 0.5)
+├─ Position: fixed, full viewport
+└─ Z-index: 1000
+
+Modal Box:
+├─ Background: Surface color
+├─ Border-radius: 12px
+├─ Max-width: 500px (typical)
+├─ Padding: 24px
+├─ Box-shadow: 0 10px 40px rgba(0, 0, 0, 0.2)
+├─ Position: Centered, vertically & horizontally
+└─ Z-index: 1001
+```
+
+**Modal Best Practices**
+- Close button always visible (top-right corner)
+- ESC key dismisses modal
+- Focus traps inside modal (tab cycles through elements)
+- Backdrop click closes modal (with warning if form data present)
+- Only one modal at a time
+
+---
+
+## Accessibility Standards
+
+### WCAG 2.1 Level AA Compliance (Minimum)
+
+**1. Perceivable**
+
+**1.1 Text Alternatives**
+- Every image has descriptive `alt` text
+- `alt=""` only for decorative images
+- SVG icons have `<title>` or `aria-label`
+- Background images don't convey information
+
+**1.3 Adaptable**
+- Content structure independent of CSS
+- Semantic HTML (`<header>`, `<nav>`, `<main>`, `<article>`, `<button>`)
+- Proper heading hierarchy (H1 → H2 → H3, no skipping levels)
+- Form fields properly labeled
+
+**1.4 Distinguishable**
+- **Color Contrast:** 4.5:1 for normal text, 3:1 for large text (18pt+ or 14pt+ bold)
+- **Text Resize:** Content remains usable up to 200% zoom
+- **No color only:** Don't use color alone to convey information; supplement with text or icon
+- **Focus Indicator:** Visible focus ring on all interactive elements (minimum 2px)
+- **Visual Focus:** `outline: 2px solid accent-color; outline-offset: 2px;`
+
+### 2. Operable
+
+**2.1 Keyboard Accessible**
+- All functionality accessible via keyboard (no mouse required)
+- Tab order logical and intuitive (left-to-right, top-to-bottom)
+- Skip navigation link for keyboard users (hidden but focusable)
+- No keyboard traps (users can always tab away)
+- Keyboard shortcuts documented if present
+
+**2.4 Navigable**
+- Consistent navigation structure across app
+- Clear page titles (browser tab and `<title>` tag)
+- Clear link text (avoid "click here")
+- Focus visible at all times
+- Multiple navigation methods (menu, search, breadcrumb)
+
+**2.5 Input Modalities**
+- Large touch targets: minimum 44px × 44px (mobile)
+- Don't rely solely on device orientation
+- Support both pointer and keyboard input
+- Avoid complex gestures (no 3-finger taps)
+
+### 3. Understandable
+
+**3.1 Readable**
+- Language of page specified: `<html lang="en">`
+- Text is clear and simple
+- Abbreviations expanded on first use
+- Unfamiliar terms defined or linked to glossary
+
+**3.2 Predictable**
+- Navigation consistent across pages
+- Components behave predictably (no surprise opens/changes)
+- No context switches triggered by user input alone
+
+**3.3 Input Assistance**
+- Error messages clear and constructive
+- Labels with inputs: `<label for="id">` + `<input id="id">`
+- Error suggestions provided when possible
+- Confirm high-risk actions (delete, submit, etc.)
+
+### 4. Robust
+
+**4.1 Compatible**
+- Valid semantic HTML
+- Proper ARIA attributes where needed
+- Works with assistive technology (screen readers, voice control)
+- No reliance on outdated technologies
+
+### ARIA Implementation
+
+Use ARIA only when semantic HTML insufficient:
+
+```html
+<!-- Good: Semantic HTML -->
+<button>Save</button>
+
+<!-- When needed: ARIA enhancement -->
+<div role="button" tabindex="0" aria-pressed="false">Toggle</div>
+
+<!-- Form labels -->
+<label for="email">Email</label>
+<input id="email" type="email" required aria-required="true">
+
+<!-- Dynamic updates (screen reader announcements) -->
+<div aria-live="polite" aria-atomic="true">
+  Task completed successfully
+</div>
+
+<!-- Complex widgets -->
+<div role="tablist">
+  <button role="tab" aria-selected="true">Tab 1</button>
+  <button role="tab" aria-selected="false">Tab 2</button>
+</div>
+```
+
+### Testing Checklist
+
+- [ ] Keyboard navigation functional (no mouse)
+- [ ] Color contrast 4.5:1+ (check with tools: WebAIM, Lighthouse)
+- [ ] Focus indicators visible on all interactive elements
+- [ ] All images have alt text
+- [ ] Headings in logical order (no skipped levels)
+- [ ] Form labels present and associated
+- [ ] Focus order logical (left-to-right, top-to-bottom)
+- [ ] Touch targets 44px+ on mobile
+- [ ] Page works at 200% zoom
+- [ ] Screen reader tested (NVDA, JAWS, VoiceOver)
+- [ ] No color-only information conveyed
+
+---
+
+## Interaction Design
+
+### Microinteractions
+
+Subtle interactions enhance usability without cluttering the interface:
+
+**Hover Effects**
+```
+Button/Link Hover:
+├─ Duration: 150ms
+├─ Easing: ease-out
+├─ Change: Background color or shadow
+└─ Never disable on touch devices
+
+Card Hover (optional):
+├─ Subtle lift: transform: translateY(-2px)
+├─ Shadow increase: 0 4px 12px rgba(0, 0, 0, 0.12)
+└─ Applies only to clickable cards
+```
+
+**Focus States**
+```
+All Interactive Elements:
+├─ Outline: 2px solid Primary Accent
+├─ Outline-offset: 2px
+├─ Duration: instant (no animation)
+└─ Always visible (never remove)
+```
+
+**Loading States**
+```
+Indicator:
+├─ Spinner animation (smooth rotation)
+├─ Duration: 3-4s per rotation
+├─ Easing: linear
+├─ Inside button or adjacent to element
+│
+Button Loading:
+├─ Disable during load
+├─ Show spinner inside
+├─ Optional: Change text to "Loading..."
+└─ Maintain button width (don't collapse)
+```
+
+**Success & Error Feedback**
+```
+Success Message:
+├─ Duration: 3-4 seconds
+├─ Animation: Fade in (200ms), fade out (200ms)
+├─ Position: Top of form or inline
+├─ Icon: Checkmark
+└─ Color: Success (#2B8C7E)
+
+Error Message:
+├─ Duration: Persist until resolved
+├─ Animation: Shake or highlight
+├─ Position: Inline with field or above form
+├─ Icon: X or warning
+├─ Color: Error (#DC2626)
+└─ Always include text explanation
+```
+
+**Animations**
+- **Duration:** 150-250ms for most interactions
+- **Easing:** Ease-out or ease-in-out (never linear)
+- **Avoid:** Bouncing, elastic effects, delays > 300ms
+- **Reduce motion:** Respect `prefers-reduced-motion` media query
+
+```css
+@media (prefers-reduced-motion: reduce) {
+  * {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+}
+```
+
+### Feedback & Messaging
+
+**Error Prevention**
+- Validate on blur, not on keystroke
+- Show real-time validation feedback
+- Don't submit invalid forms
+- Confirm destructive actions
+
+**Error Messages**
+- Plain language, no error codes
+- Specific (not "Invalid entry")
+- Suggest correction when possible
+- Associate with form field
+
+**Success Messages**
+- Brief confirmation (not verbose celebration)
+- Positioned prominently (top of form or inline)
+- Disappear after 3-4 seconds
+
+**Loading Indicators**
+- Show within 200ms of action
+- Always indicate what's loading
+- Never indeterminate spinners > 5 seconds
+- Provide cancel option if possible
+
+---
+
+## Cognitive Load Reduction
+
+### Information Architecture
+
+**Hierarchy**
+- Show only essential information on first view
+- Nested navigation reveals details progressively
+- Use progressive disclosure (expand/collapse, tabs)
+- One primary action per screen
+
+**Chunking**
+- Group related content visually with whitespace and borders
+- Use cards for distinct pieces of information
+- Limit content per screen section (3-5 items ideal)
+- Break long forms into logical steps
+
+**Consistency**
+- Identical components behave identically everywhere
+- Button placement consistent (usually bottom or top-right)
+- Icons consistent across app
+- Terminology standardized (use same words everywhere)
+
+### Content Guidelines
+
+**Text**
+- **Conciseness:** Eliminate every word not essential
+- **Scanability:** Headings, bullets, short paragraphs
+- **Clarity:** Simple words over jargon; explain technical terms
+- **Voice:** Friendly, conversational (not robotic)
+
+**Visual Simplification**
+- One visual focus per section
+- Avoid pattern/texture backgrounds
+- Remove decorative elements
+- Icons must be self-explanatory
+
+**Navigation**
+- Breadcrumb trails show location
+- Maximum 5-7 main navigation items
+- Clear, consistent labeling
+- Search available if > 10 pages
+
+---
+
+## Mobile Responsiveness
+
+### Mobile-First Approach
+
+Design for mobile first; enhance for desktop:
+
+**Mobile (< 640px)**
+- Single-column layout
+- Full-width components (with side margins)
+- Touch targets: 44px × 44px minimum
+- Font sizes: 14-16px (body)
+- No hover effects (use active states instead)
+
+**Tablet (640px - 1023px)**
+- Flexible 2-column layout where beneficial
+- Optimized for touch and stylus
+- Padding increased for comfort
+
+**Desktop (1024px+)**
+- Multi-column layouts
+- Optimized for mouse and keyboard
+- Hover effects available
+- Comfortable line lengths
+
+### Touch Optimization
+
+- **Minimum touch target:** 44px × 44px
+- **Spacing between targets:** 8-12px
+- **Avoid:** Hover menus, right-click, drag-and-drop (unless essential)
+- **Responsive text:** Scales readably at all sizes
+- **Mobile first navigation:** Bottom menu or hamburger
+
+### Performance on Mobile
+
+- **Initial load:** < 3 seconds on 4G
+- **Interaction response:** < 100ms
+- **Minimize data:** No auto-playing video, lazy-load images
+- **Offline support:** Critical features work offline (if applicable)
+
+---
+
+## Implementation Standards
+
+### HTML Structure
+
+**Semantic HTML**
+```html
+<!-- Good: Semantic -->
+<header role="banner">
+  <nav aria-label="Main navigation">
+    <ul>
+      <li><a href="/home">Home</a></li>
+    </ul>
+  </nav>
+</header>
+
+<main>
+  <article>
+    <h1>Page Title</h1>
+    <section>
+      <h2>Section</h2>
+      <p>Content</p>
+    </section>
+  </article>
+</main>
+
+<footer role="contentinfo">
+  <!-- Footer content -->
+</footer>
+
+<!-- Avoid: Div-based -->
+<div class="header">
+  <div class="nav">
+    <div class="nav-item"><a href="#">Link</a></div>
+  </div>
+</div>
+```
+
+**Form Structure**
+```html
+<form>
+  <div class="form-group">
+    <label for="email">Email Address</label>
+    <input
+      id="email"
+      type="email"
+      name="email"
+      required
+      aria-required="true"
+      aria-describedby="email-help"
+    >
+    <small id="email-help">We'll never share your email</small>
+  </div>
+
+  <button type="submit">Submit</button>
+</form>
+```
+
+### CSS Organization
+
+**Architectural Approach**
+```css
+/* 1. CSS Variables (Custom Properties) */
+:root {
+  --color-primary: #2180EA;
+  --color-error: #DC2626;
+  --spacing-unit: 8px;
+  --border-radius: 6px;
+  --font-size-body: 16px;
+  --transition: 150ms ease-out;
+}
+
+/* 2. Reset & Base Styles */
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+}
+
+html {
+  font-size: 16px;
+  -webkit-font-smoothing: antialiased;
+}
+
+body {
+  font-family: system-ui, sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  line-height: 1.6;
+}
+
+/* 3. Typography Styles */
+h1, h2, h3 { /* ... */ }
+p { /* ... */ }
+a { /* ... */ }
+
+/* 4. Layout Components */
+.container { /* ... */ }
+.grid { /* ... */ }
+.card { /* ... */ }
+
+/* 5. Interactive Components */
+.button { /* ... */ }
+.button:hover { /* ... */ }
+.input { /* ... */ }
+
+/* 6. Utilities */
+.hidden { display: none; }
+.sr-only { /* Screen reader only */ }
+
+/* 7. Responsive Overrides */
+@media (max-width: 768px) {
+  /* Mobile adjustments */
+}
+```
+
+**CSS Best Practices**
+- Use CSS variables for colors, spacing, transitions
+- Avoid inline styles
+- Use semantic class names (`.button-primary` not `.btn-blue`)
+- Single responsibility per class
+- Keep specificity low (avoid deep nesting)
+- Organize by component
+- Mobile styles first, then breakpoints
+
+### JavaScript Standards
+
+**Best Practices**
+```javascript
+// Use semantic HTML + progressive enhancement
+// Avoid JavaScript for styling when possible
+
+// Event Handling
+document.addEventListener('click', (e) => {
+  if (e.target.matches('[data-action="delete"]')) {
+    handleDelete(e.target);
+  }
+});
+
+// State Management (if needed)
+const state = {
+  isLoading: false,
+  errors: [],
+  data: null
+};
+
+// Avoid: Inline event handlers
+// <button onclick="doSomething()">Bad</button>
+
+// Good: Event listeners
+const button = document.querySelector('button');
+button.addEventListener('click', doSomething);
+
+// Accessibility
+// Always manage focus appropriately
+element.focus();
+element.setAttribute('aria-expanded', 'true');
+```
+
+**Performance**
+- Minimize JavaScript (load only what's needed)
+- Defer non-critical scripts
+- No auto-playing videos or animations
+- Lazy-load images below fold
+- Debounce rapid events (scroll, resize)
+
+### Testing Requirements
+
+**Functional Testing**
+- [ ] All buttons/links clickable
+- [ ] Forms validate correctly
+- [ ] Error messages display
+- [ ] Success states work
+- [ ] Navigation functional
+
+**Accessibility Testing**
+- [ ] WAVE or Lighthouse audit
+- [ ] Keyboard navigation full
+- [ ] Screen reader compatible
+- [ ] Color contrast compliant
+- [ ] Mobile touch targets 44px+
+
+**Performance Testing**
+- [ ] Lighthouse score ≥ 90
+- [ ] First Contentful Paint < 2s
+- [ ] Largest Contentful Paint < 2.5s
+- [ ] Cumulative Layout Shift < 0.1
+- [ ] Mobile performance < 3s
+
+**Cross-Browser Testing**
+- [ ] Chrome/Edge (latest)
+- [ ] Firefox (latest)
+- [ ] Safari (latest)
+- [ ] Mobile browsers (iOS Safari, Chrome Mobile)
+
+---
+
+## Common Patterns
+
+### Loading States
+Always show spinner + loading message inside action element; never disable button (let it show loading state).
+
+### Empty States
+Don't show blank screens. Always provide:
+- Friendly message explaining why empty
+- Visual illustration (optional but helpful)
+- Call-to-action to populate content
+
+### Error States
+Provide:
+- Clear error message (not error code)
+- Specific issue description
+- Suggestion for fixing
+- Ability to dismiss
+
+### Authentication
+- Minimal login form (email, password only)
+- Clear error messages (invalid combo, not "user error")
+- Remember me option with security info
+- Forgot password flow integrated
+
+---
+
+## Maintenance & Evolution
+
+### Design Tokens
+Maintain a living document of all design decisions:
+```json
+{
+  "colors": {
+    "primary": "#2180EA",
+    "error": "#DC2626"
+  },
+  "spacing": {
+    "unit": "8px",
+    "base": "16px"
+  },
+  "typography": {
+    "size": "14px",
+    "weight": 400
+  }
+}
+```
+
+### Version Control
+- Document changes in design system
+- Tag breaking changes
+- Provide migration guides
+- Support 2 major versions at a time
+
+### User Feedback
+- Collect usability feedback regularly
+- Monitor analytics (error rates, drop-off points)
+- Conduct user testing sessions quarterly
+- Iterate based on real behavior
+
+---
+
+## Summary
+
+This design system prioritizes **clarity, simplicity, and accessibility**. Every design decision should:
+
+1. **Reduce cognitive load** – Minimize what users must process
+2. **Support learning** – Don't distract from educational content
+3. **Ensure access** – Work for all users, all abilities
+4. **Perform well** – Load fast, respond instantly
+5. **Remain consistent** – Predictable behavior everywhere
+
+**Remember:** In EdTech, the content is the hero. Design should disappear—supporting the learning experience invisibly.

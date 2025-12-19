@@ -37,6 +37,11 @@ async function authenticatedRequest<T>(endpoint: string, body: any): Promise<T> 
     body: JSON.stringify(body)
   });
 
+  // Handle 202 Accepted (Background generation started)
+  if (response.status === 202) {
+    return {} as T;
+  }
+
   if (!response.ok) {
     const errorData = await response.json().catch(() => ({}));
     const message = errorData.error || response.statusText;
@@ -69,7 +74,8 @@ export const generateSlidesFromDocument = async (
   temperature: number = 0.7,
   bulletsPerSlide: number = 4,
   additionalInstructions: string = '',
-  uploadedFileNames?: string[]
+  uploadedFileNames?: string[],
+  projectId?: string
 ): Promise<{
   slides: Slide[],
   inputTokens: number,
@@ -90,8 +96,21 @@ export const generateSlidesFromDocument = async (
     additionalInstructions,
     temperature,
     bulletsPerSlide,
-    uploadedFileNames
+    uploadedFileNames,
+    projectId
   });
+
+  // If projectId provided, function returns 202 and updates Firestore directly
+  // Return empty result (slides will come from Firestore listener)
+  if (projectId) {
+    return {
+      slides: [],
+      inputTokens: 0,
+      outputTokens: 0,
+      sources: [],
+      warnings: []
+    };
+  }
 
   // Transform result to match client expectations if needed (e.g. sources format)
   return {

@@ -1,9 +1,11 @@
 import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, signOut } from 'firebase/auth';
-import { auth } from '../firebaseConfig';
+import { auth, db } from '../firebaseConfig';
 import { getUserProjects, ProjectData, deleteProject } from '../services/projectService';
+import { collection, query, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
 import { PptxIcon } from './icons';
+import { Slide } from '../types';
 
 interface DashboardProps {
     user: User;
@@ -15,12 +17,68 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const [isLoading, setIsLoading] = useState(true);
 
     useEffect(() => {
-        const fetchProjects = async () => {
-            const data = await getUserProjects(user.uid);
-            setProjects(data);
-            setIsLoading(false);
+        if (!user?.uid) return;
+
+        const projectsRef = collection(db, 'users', user.uid, 'projects');
+        const q = query(projectsRef, orderBy('updatedAt', 'desc'));
+
+        let isMounted = true;
+        let fallbackUnsubscribe: (() => void) | null = null;
+
+        const unsubscribe = onSnapshot(q, async (snapshot) => {
+            const projectsData = await Promise.all(
+                snapshot.docs.map(async (doc) => {
+                    const projectMetadata = doc.data() as Omit<ProjectData, 'id'>;
+                    const projectData: ProjectData = {
+                        id: doc.id,
+                        ...projectMetadata
+                    };
+
+                    const slidesRef = collection(doc.ref, 'slides');
+                    const slidesSnapshot = await getDocs(slidesRef);
+                    const slides = slidesSnapshot.docs.map(slideDoc => slideDoc.data() as Slide);
+
+                    return {
+                        ...projectData,
+                        slides
+                    };
+                })
+            );
+
+            if (isMounted) {
+                setProjects(projectsData);
+                setIsLoading(false);
+            }
+        }, (error: any) => {
+            console.error("Error listening to projects:", error);
+
+            // If index error (failed-precondition), fall back to unsorted query
+            if (error.code === 'failed-precondition' && isMounted) {
+                console.warn("Firestore index missing, falling back to unsorted query");
+                const fallbackQuery = query(projectsRef);
+                fallbackUnsubscribe = onSnapshot(fallbackQuery, async (fallbackSnapshot) => {
+                    const fallbackData = await Promise.all(fallbackSnapshot.docs.map(async (doc) => {
+                        const projectMetadata = doc.data() as Omit<ProjectData, 'id'>;
+                        const slidesRef = collection(db, 'users', user.uid, 'projects', doc.id, 'slides');
+                        const slidesSnapshot = await getDocs(slidesRef);
+                        const slides = slidesSnapshot.docs.map(slideDoc => slideDoc.data() as Slide);
+                        return { id: doc.id, ...projectMetadata, slides } as ProjectData;
+                    }));
+                    if (isMounted) {
+                        setProjects(fallbackData);
+                        setIsLoading(false);
+                    }
+                });
+            } else if (isMounted) {
+                setIsLoading(false);
+            }
+        });
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+            if (fallbackUnsubscribe) fallbackUnsubscribe();
         };
-        fetchProjects();
     }, [user.uid]);
 
     const handleSignOut = async () => {
@@ -143,6 +201,30 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                 onClick={() => navigate(`/project/${project.id}`)}
                                 className="group/card rounded-xl pt-5 pb-4 px-6 cursor-pointer border border-[rgba(0,0,0,0.06)] shadow-[0_1px_3px_rgba(0,0,0,0.08)] bg-surface hover:shadow-[0_4px_12px_rgba(0,0,0,0.12)] hover:-translate-y-0.5 transition-all duration-150 ease-out relative flex flex-col min-h-[140px]"
                             >
+                                {/* Status Badge */}
+                                {project.status === 'generating' && (
+                                    <div className="absolute top-3 left-3 bg-primary/10 text-primary px-2 py-1 rounded-md text-[10px] font-bold flex items-center gap-1.5 uppercase tracking-wider border border-primary/20">
+                                        <div className="relative flex h-2 w-2">
+                                            <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-primary opacity-75"></span>
+                                            <span className="relative inline-flex rounded-full h-2 w-2 bg-primary"></span>
+                                        </div>
+                                        Generating{project.generationProgress !== undefined ? ` ${project.generationProgress}%` : ''}
+                                    </div>
+                                )}
+                                {project.status === 'failed' && (
+                                    <div className="absolute top-3 left-3 bg-red-50 text-red-600 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-red-200 flex items-center gap-2">
+                                        Failed
+                                        <button
+                                            onClick={(e) => {
+                                                e.stopPropagation();
+                                                navigate(`/project/${project.id}`);
+                                            }}
+                                            className="ml-1 px-1.5 py-0.5 bg-red-600 text-white rounded hover:bg-red-700 transition-colors"
+                                        >
+                                            Retry
+                                        </button>
+                                    </div>
+                                )}
                                 {/* Delete Action (Top Right) */}
                                 <button
                                     onClick={(e) => handleDeleteProject(e, project.id!)}

@@ -17,7 +17,10 @@ service cloud.firestore {
          // DENY forbidden legacy fields and root slides array
          return !data.keys().hasAny(['slides', 'imagePrompt', 'prompts', 'legacy'])
              // REQUIRE essential metadata fields
-             && data.keys().hasAll(['title', 'updatedAt', 'userId']);
+             && data.keys().hasAll(['title', 'updatedAt', 'userId'])
+             // ALLOW new status fields (optional)
+             && (!data.keys().hasAny(['status']) || data.status in ['generating', 'completed', 'failed'])
+             && (!data.keys().hasAny(['generationProgress']) || (data.generationProgress is int && data.generationProgress >= 0 && data.generationProgress <= 100));
       }
       
       // 3. Create & Update (Owner + Validation)

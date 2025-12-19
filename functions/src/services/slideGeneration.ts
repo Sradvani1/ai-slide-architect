@@ -1,3 +1,4 @@
+import * as admin from 'firebase-admin';
 import { getAiClient } from '../utils/geminiClient';
 import { buildSlideGenerationPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
@@ -213,4 +214,96 @@ function getUniqueSources(
 
     const uniqueSources = Array.from(allSources);
     return uniqueSources.length > 0 ? uniqueSources : undefined;
+}
+
+export async function generateSlidesAndUpdateFirestore(
+    projectRef: admin.firestore.DocumentReference,
+    topic: string,
+    gradeLevel: string,
+    subject: string,
+    sourceMaterial: string,
+    numSlides: number,
+    useWebSearch: boolean,
+    additionalInstructions?: string,
+    temperature?: number,
+    bulletsPerSlide?: number,
+    uploadedFileNames?: string[]
+): Promise<void> {
+    const db = admin.firestore();
+
+    try {
+        // Update: Generation started
+        await projectRef.update({
+            status: 'generating',
+            generationProgress: 0,
+            generationStartedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Update: Research phase (25%)
+        await projectRef.update({
+            generationProgress: 25,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Generate slides
+        const result = await generateSlides(
+            topic,
+            gradeLevel,
+            subject,
+            sourceMaterial,
+            numSlides,
+            useWebSearch,
+            additionalInstructions,
+            temperature,
+            bulletsPerSlide,
+            uploadedFileNames
+        );
+
+        // Update: Generation complete, writing to Firestore (75%)
+        await projectRef.update({
+            generationProgress: 75,
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+        // Write slides to subcollection
+        const slidesCollectionRef = projectRef.collection('slides');
+        const batch = db.batch();
+
+        result.slides.forEach((slide, index) => {
+            const slideId = slide.id || `slide-${Date.now()}-${index}`;
+            const slideRef = slidesCollectionRef.doc(slideId);
+            batch.set(slideRef, {
+                ...slide,
+                id: slideId,
+                sortOrder: typeof slide.sortOrder === 'number' ? slide.sortOrder : index,
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        });
+
+        await batch.commit();
+
+        // Update: Complete (100%)
+        await projectRef.update({
+            status: 'completed',
+            generationProgress: 100,
+            sources: result.sources || [],
+            inputTokens: result.inputTokens,
+            outputTokens: result.outputTokens,
+            generationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
+            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        });
+
+    } catch (error: any) {
+        console.error("Generation error:", error);
+        try {
+            await projectRef.update({
+                status: 'failed',
+                generationError: error.message || "Generation failed",
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+        } catch (updateError) {
+            console.error("CRITICAL: Failed to update project status after generation error:", updateError);
+        }
+    }
 }

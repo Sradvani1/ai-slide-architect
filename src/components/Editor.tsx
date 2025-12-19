@@ -1,10 +1,12 @@
 import React, { useState, useCallback, useEffect } from 'react';
+import { doc, onSnapshot, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { db } from '../firebaseConfig'; // Added db
 import { useNavigate, useParams } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
-import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage } from '../services/projectService';
+import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
 
@@ -40,6 +42,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [isLoading, setIsLoading] = useState<boolean>(false);
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
+    const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
+    const [isRetrying, setIsRetrying] = useState<boolean>(false);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -97,6 +101,68 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         loadProject();
     }, [projectId, user.uid]);
 
+    // Firestore listener for real-time updates when a project is generating
+    useEffect(() => {
+        if (!projectId || !user) return;
+
+        let isMounted = true;
+        const projectRef = doc(db, 'users', user.uid, 'projects', projectId);
+        const unsubscribe = onSnapshot(projectRef, (snapshot) => {
+            if (!snapshot.exists()) {
+                if (isMounted) {
+                    setError("Project was deleted");
+                    setIsLoading(false);
+                    navigate('/');
+                }
+                return;
+            }
+
+            if (!isMounted) return;
+
+            const projectData = snapshot.data() as ProjectData;
+
+            // Handle timeout detection (10 mins)
+            if (projectData.status === 'generating' && projectData.generationStartedAt) {
+                const startTime = projectData.generationStartedAt.toMillis();
+                const elapsed = Date.now() - startTime;
+                if (elapsed > 10 * 60 * 1000) {
+                    console.warn("Generation taking longer than expected for project:", projectId);
+                }
+            }
+
+            // Update loading state and slides based on status
+            if (projectData.status === 'generating') {
+                setIsLoading(true);
+                setGenerationProgress(projectData.generationProgress);
+            } else if (projectData.status === 'completed') {
+                setIsLoading(false);
+                setGenerationProgress(100);
+
+                // Reload project to get slides if they are not already set
+                setIsLoading(true);
+                getProject(user.uid, projectId).then(project => {
+                    if (project && isMounted) {
+                        setSlides(project.slides);
+                        setSources(project.sources || []);
+                    }
+                    if (isMounted) setIsLoading(false);
+                }).catch(() => {
+                    if (isMounted) setIsLoading(false);
+                });
+            } else if (projectData.status === 'failed') {
+                setIsLoading(false);
+                setError(projectData.generationError || "Generation failed. Please try again.");
+            }
+        }, (error) => {
+            console.error("Firestore listener error:", error);
+        });
+
+        return () => {
+            isMounted = false;
+            unsubscribe();
+        };
+    }, [projectId, user, navigate]);
+
     // Enforce Mutual Exclusivity: Web Search (Researcher Mode) vs. Uploaded Files (Curator Mode)
     useEffect(() => {
         if (uploadedFiles.length > 0) {
@@ -122,101 +188,166 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         setIsLoading(true);
         setError(null);
         setSlides(null);
+        setGenerationProgress(0);
 
+        let newProjectId: string | null = null;
         try {
-            // Upload files to storage first if they haven't been uploaded yet
-            // We need a temp ID for the path if it's a new project, or use a placeholder
-            // Strategy: Create project ID first? No, we need slides to create project.
-            // Alternative: Use a temporary ID or just use timestamp in path. 
-            // Better: If we have currentProjectId, use it. If not, generate a new ID later.
-            // For now, let's just upload. Project sorting happens in projectService. 
-            // Wait, uploadFileToStorage needs projectId.
-            // If new project, we don't have ID yet. 
-            // Solution: We'll generate a UUID for the new project structure in generic way or just use 'temp' and move? No.
-            // Simplest: Generate the slots content first (AI), then Create Project, then Upload Files, then Update Project with files.
-
             const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
             const uploadedFileNames = uploadedFiles.map(f => f.name);
 
-            const { slides: generatedSlides, sources: generatedSources, inputTokens, outputTokens, warnings, webSearchQueries } = await generateSlidesFromDocument(topic, gradeLevel, subject, sourceMaterial, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, uploadedFileNames);
-            setSlides(generatedSlides);
-            setSources(generatedSources);
-
-            // Grounding UI data is no longer displayed here, as it's stored in slides directly now.
-
-            if (warnings && warnings.length > 0) {
-                console.warn("Generation Warnings:", warnings);
-            }
-
-            if (webSearchQueries) {
-                console.log("Web Search Queries Used:", webSearchQueries);
-            }
-
             if (user) {
-                // 1. Create project with slides first
-                const newProjectId = await createProject(user.uid, {
+                // 1. Create project IMMEDIATELY with generating status
+                newProjectId = await createProject(user.uid, {
                     title: topic,
                     topic,
                     gradeLevel,
                     subject,
                     additionalInstructions,
-                    slides: generatedSlides,
-                    sources: generatedSources,
-                    inputTokens,
-                    outputTokens
+                    slides: [], // Empty initially
+                    sources: [],
+                    status: 'generating',
+                    generationProgress: 0,
+                    // generationStartedAt removed, backend sets it
                 });
 
                 setCurrentProjectId(newProjectId);
 
-                // 2. Upload files and update project
+                // 2. Upload files first (if any)
                 const uploadedProjectFiles: ProjectFile[] = [];
-
                 for (const fileData of uploadedFiles) {
-                    // If already has storage path (from loaded project), keep it
                     if (fileData.storagePath && fileData.downloadUrl) {
                         uploadedProjectFiles.push({
                             id: crypto.randomUUID(),
                             name: fileData.name,
                             storagePath: fileData.storagePath,
                             downloadUrl: fileData.downloadUrl,
-                            mimeType: 'application/octet-stream', // We might lose original type if not stored, but acceptable
+                            mimeType: 'application/octet-stream',
                             size: fileData.size,
                             extractedContent: fileData.content
                         });
-                    }
-                    // If new file (has File object), upload it
-                    else if (fileData.file) {
+                    } else if (fileData.file) {
                         const projectFile = await uploadFileToStorage(user.uid, newProjectId, fileData.file);
-                        projectFile.extractedContent = fileData.content; // Store extracted text for reuse
+                        projectFile.extractedContent = fileData.content;
                         uploadedProjectFiles.push(projectFile);
                     }
                 }
 
-                // 3. Update project with file metadata
                 if (uploadedProjectFiles.length > 0) {
                     await updateProject(user.uid, newProjectId, { files: uploadedProjectFiles });
-
-                    // Update local state to reflect uploaded status
-                    setUploadedFiles(uploadedProjectFiles.map(f => ({
-                        name: f.name,
-                        content: f.extractedContent || '',
-                        size: f.size,
-                        downloadUrl: f.downloadUrl,
-                        storagePath: f.storagePath
-                    })));
                 }
 
-                // Update URL to new project ID, replacing history so back button returns to dashboard
+                // 3. Navigate to project page immediately (this triggers the Firestore listener)
                 navigate(`/project/${newProjectId}`, { replace: true });
 
+                // 4. Start generation (fire and forget - updates Firestore directly)
+                try {
+                    await generateSlidesFromDocument(
+                        topic,
+                        gradeLevel,
+                        subject,
+                        sourceMaterial,
+                        numSlides,
+                        useWebSearch,
+                        creativityLevel,
+                        bulletsPerSlide,
+                        additionalInstructions,
+                        uploadedFileNames,
+                        newProjectId
+                    );
+                } catch (genError) {
+                    console.error("Generation start error:", genError);
+                    // If project was created but generation failed to start
+                    if (newProjectId) {
+                        await updateProject(user.uid, newProjectId, {
+                            status: 'failed',
+                            generationError: "Failed to start generation. Please try again."
+                        });
+                    }
+                    setError("Failed to start generation. Please try again.");
+                    setIsLoading(false);
+                }
             }
         } catch (e) {
             console.error(e);
-            setError("Failed to generate slides. Please check your input and try again.");
-        } finally {
+            setError("Failed to start generation. Please try again.");
             setIsLoading(false);
         }
     }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, user, navigate]);
+
+    const handleRetry = async () => {
+        if (!projectId || !user || isRetrying) return;
+
+        try {
+            setIsRetrying(true);
+            setError(null);
+            setIsLoading(true);
+            setGenerationProgress(0);
+
+            // 1. Get current project data to get parameters
+            const projectRef = doc(db, 'users', user.uid, 'projects', projectId);
+            const projectDoc = await getDoc(projectRef);
+
+            if (!projectDoc.exists()) {
+                setError("Project not found");
+                setIsLoading(false);
+                return;
+            }
+
+            const projectData = projectDoc.data() as ProjectData;
+
+            // Validation: Ensure project is in failed state
+            if (projectData.status !== 'failed') {
+                setError("Project is not in a failed state");
+                setIsLoading(false);
+                return;
+            }
+
+            // 2. Reset status to generating
+            await updateDoc(projectRef, {
+                status: 'generating',
+                generationProgress: 0,
+                generationError: deleteField(),
+                updatedAt: serverTimestamp()
+            });
+
+            // 3. Reconstruct source material from project files
+            const projectFiles = projectData.files || [];
+            const sourceMaterial = projectFiles.length > 0
+                ? projectFiles.map((f: ProjectFile) => `File: ${f.name}\n---\n${f.extractedContent || ''}\n---`).join('\n\n')
+                : "";
+
+            const uploadedFileNames = projectFiles.map((f: ProjectFile) => f.name);
+
+            // 4. Trigger generation
+            await generateSlidesFromDocument(
+                projectData.topic,
+                projectData.gradeLevel,
+                projectData.subject,
+                sourceMaterial,
+                numSlides,
+                useWebSearch,
+                creativityLevel,
+                bulletsPerSlide,
+                projectData.additionalInstructions || "",
+                uploadedFileNames,
+                projectId
+            ).catch(async (err) => {
+                console.error("Retry generation call failed:", err);
+                await updateDoc(projectRef, {
+                    status: 'failed',
+                    generationError: err.message || "Failed to start generation",
+                    updatedAt: serverTimestamp()
+                });
+            });
+
+        } catch (err: any) {
+            console.error("Error retrying generation:", err);
+            setError(err.message || "Failed to retry generation");
+            setIsLoading(false);
+        } finally {
+            setIsRetrying(false);
+        }
+    };
 
     const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
         setSlides(prevSlides => {
@@ -344,6 +475,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         creativityLevel={creativityLevel}
                         userId={user.uid}
                         projectId={currentProjectId}
+                        generationProgress={generationProgress}
+                        onRetry={handleRetry}
                     />
                 </div>
             </main>
