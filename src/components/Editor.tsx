@@ -38,9 +38,17 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [sources, setSources] = useState<string[]>([]);
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+
+    // Close sidebar automatically when slides are generated on mobile
+    useEffect(() => {
+        if (slides && window.innerWidth < 768) {
+            setIsSidebarOpen(false);
+        }
+    }, [slides]);
 
     // Initialize state if loading an existing project
     useEffect(() => {
@@ -232,27 +240,72 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     };
 
     return (
-        <div className="flex flex-1 overflow-hidden relative z-10 h-full">
-            {/* Back to Dashboard Button (Mobile/Desktop) */}
-            <div className="absolute top-4 right-4 z-50 md:hidden">
-                <button onClick={() => navigate('/')} className="text-xs bg-slate-800 text-white px-3 py-1 rounded-full border border-white/10">Dictation</button>
+        <div className="flex flex-1 overflow-hidden relative z-10 h-full bg-background">
+            {/* Mobile Header / Toggle */}
+            <div className="fixed top-4 left-4 z-[60] md:hidden flex items-center gap-2">
+                <button
+                    onClick={() => setIsSidebarOpen(true)}
+                    className="flex items-center justify-center p-2.5 bg-primary text-white rounded-xl shadow-lg shadow-primary/20 border border-white/20 active:scale-95 transition-all"
+                    title="Open Settings"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 6h9.75M10.5 6a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0M3.75 6H7.5m3 12h9.75m-9.75 0a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m-3.75 0H7.5m9-6h3.75m-3.75 0a1.5 1.5 0 1 1-3 0m3 0a1.5 1.5 0 1 0-3 0m-9.75 0h9.75" />
+                    </svg>
+                    {(!slides || slides.length === 0) && <span className="ml-2 text-sm font-bold">Configure</span>}
+                </button>
             </div>
 
-            {/* Sidebar */}
-            <aside className="hidden md:flex flex-col w-[400px] border-r border-border-light bg-background h-full relative z-20">
-                <div className="p-6 border-b border-white/5 flex justify-between items-center">
+            {/* Back to Dashboard Button (Desktop) */}
+            <div className="absolute top-4 right-4 z-50 hidden md:block">
+                <button
+                    onClick={() => navigate('/')}
+                    className="flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-border-light rounded-full text-secondary-text hover:text-primary hover:border-primary transition-all shadow-sm"
+                >
+                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
+                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
+                    </svg>
+                    <span className="text-sm font-semibold">Dashboard</span>
+                </button>
+            </div>
+
+            {/* Mobile Backdrop */}
+            {isSidebarOpen && (
+                <div
+                    className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] md:hidden animate-fade-in"
+                    onClick={() => setIsSidebarOpen(false)}
+                />
+            )}
+
+            {/* Sidebar Container */}
+            <aside
+                className={`
+                    fixed inset-y-0 left-0 z-[80] w-[85%] max-w-[400px] bg-white shadow-2xl transform transition-transform duration-300 ease-out flex flex-col h-full
+                    md:relative md:translate-x-0 md:w-[400px] md:shadow-none md:border-r md:border-border-light md:z-20
+                    ${isSidebarOpen ? 'translate-x-0' : '-translate-x-full'}
+                `}
+            >
+                <div className="p-6 border-b border-border-light flex justify-between items-center bg-white sticky top-0 z-10">
                     <button
                         onClick={() => navigate('/')}
-                        className="flex items-center space-x-2 text-slate-400 hover:text-primary transition-colors group"
+                        className="flex items-center space-x-2 text-secondary-text hover:text-primary transition-colors group"
                     >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-5 h-5 group-hover:-translate-x-1 transition-transform">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 group-hover:-translate-x-1 transition-transform">
                             <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
                         </svg>
-                        <span className="font-semibold text-sm">Dashboard</span>
+                        <span className="font-bold text-sm">Dashboard</span>
+                    </button>
+
+                    <button
+                        onClick={() => setIsSidebarOpen(false)}
+                        className="md:hidden p-2 text-secondary-text hover:bg-slate-100 rounded-lg transition-colors"
+                    >
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
                     </button>
                 </div>
 
-                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent">
+                <div className="flex-1 overflow-y-auto p-6 scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent">
                     <InputForm
                         topic={topic}
                         setTopic={setTopic}
@@ -280,8 +333,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto w-full relative scrollbar-thin scrollbar-thumb-slate-700 scrollbar-track-transparent h-full">
-                <div className="container mx-auto p-4 md:p-8 max-w-7xl">
+            <main className="flex-1 overflow-y-auto w-full relative scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent h-full">
+                <div className="container mx-auto px-4 py-8 md:p-8 max-w-7xl pt-20 md:pt-8">
                     <SlideDeck
                         slides={slides}
                         sources={sources}
@@ -292,8 +345,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         userId={user.uid}
                         projectId={currentProjectId}
                     />
-
-
                 </div>
             </main>
         </div>

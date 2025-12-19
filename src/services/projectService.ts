@@ -229,10 +229,25 @@ export const getUserProjects = async (userId: string): Promise<ProjectData[]> =>
         // or just rely on default order if indices are auto-created for single-field sorts.
         const snapshot = await getDocs(projectsRef);
 
-        const projects = snapshot.docs.map(doc => ({
-            id: doc.id,
-            ...doc.data()
-        })) as ProjectData[];
+        // Fetch slides count for each project
+        const projects = await Promise.all(
+            snapshot.docs.map(async (doc) => {
+                const projectData = {
+                    id: doc.id,
+                    ...doc.data()
+                } as ProjectData;
+
+                // Fetch slides count from subcollection
+                const slidesRef = collection(doc.ref, 'slides');
+                const slidesSnapshot = await getDocs(slidesRef);
+                const slides = slidesSnapshot.docs.map(slideDoc => slideDoc.data() as Slide);
+
+                return {
+                    ...projectData,
+                    slides
+                };
+            })
+        );
 
         // Sort by updatedAt desc
         return projects.sort((a, b) => {
