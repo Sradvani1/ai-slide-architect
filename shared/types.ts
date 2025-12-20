@@ -42,3 +42,18 @@ export interface Slide {
     aspectRatio?: '16:9' | '1:1';
     updatedAt?: any;                   // Firestore Timestamp
 }
+
+/**
+ * Represents pricing for a specific AI model.
+ */
+export interface ModelPricing {
+    id: string;                    // Model identifier (e.g., "gemini-1.5-flash")
+    modelName: string;             // Display name
+    modelType: 'text' | 'image';   // Operation type
+    inputPricePer1MTokens: number; // Price per 1M input tokens (in USD)
+    outputPricePer1MTokens: number;// Price per 1M output tokens (in USD)
+    effectiveDate: number;         // Timestamp when pricing became effective
+    isActive: boolean;             // Whether this pricing is currently active
+    createdAt: number;
+    updatedAt: number;
+}

@@ -132,8 +132,20 @@ export interface ProjectData {
     additionalInstructions?: string;
     slides: Slide[];
     files?: ProjectFile[];
+
+    // Token Aggregation (per project)
+    textInputTokens?: number;      // Generated slides + prompt regeneration
+    textOutputTokens?: number;
+    imageInputTokens?: number;     // Image generation only
+    imageOutputTokens?: number;
+
+    // Cost Tracking
+    totalCost?: number;            // Total USD cost
+
+    // Legacy fields (deprecated, but kept for compatibility)
     inputTokens?: number;
     outputTokens?: number;
+
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
     sources?: string[];

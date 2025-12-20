@@ -34,7 +34,20 @@ interface RegeneratePromptRequestBody {
   slideId: string;
 }
 
-type GeminiRequestBody = GenerateSlidesRequestBody | GenerateImageRequestBody | ExtractTextRequestBody | RegeneratePromptRequestBody;
+interface IncrementTokensRequestBody {
+  projectId: string;
+  modelId: string;
+  inputTokens: number;
+  outputTokens: number;
+  operationType: 'text' | 'image';
+}
+
+type GeminiRequestBody =
+  | GenerateSlidesRequestBody
+  | GenerateImageRequestBody
+  | ExtractTextRequestBody
+  | RegeneratePromptRequestBody
+  | IncrementTokensRequestBody;
 
 export { GeminiError, ImageGenError };
 
@@ -225,5 +238,24 @@ export const regenerateImagePrompt = async (
   return authenticatedRequest<{ imagePrompt: string; inputTokens: number; outputTokens: number }>('/regenerate-image-prompt', {
     projectId,
     slideId
+  });
+};
+
+/**
+ * Increments project tokens and calculates cost on the backend.
+ */
+export const incrementProjectTokens = async (
+  projectId: string,
+  modelId: string,
+  inputTokens: number,
+  outputTokens: number,
+  operationType: 'text' | 'image'
+): Promise<{ success: boolean; cost: number }> => {
+  return authenticatedRequest<{ success: boolean; cost: number }>('/increment-project-tokens', {
+    projectId,
+    modelId,
+    inputTokens,
+    outputTokens,
+    operationType
   });
 };

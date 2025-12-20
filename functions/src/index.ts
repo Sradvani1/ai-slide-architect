@@ -11,8 +11,11 @@ import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
 import { generateImage, regenerateImagePrompt } from './services/imageGeneration';
+import { calculateAndIncrementProjectCost } from './services/pricingService';
+import { MODEL_SLIDE_GENERATION } from '@shared/constants';
 
 import { extractTextFromImage } from './services/imageTextExtraction';
+import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 
 const app = express();
@@ -198,6 +201,15 @@ app.post('/regenerate-image-prompt', verifyAuth, rateLimitMiddleware, async (req
             slideData.content || []
         );
 
+        // Record tokens and calculate cost
+        await calculateAndIncrementProjectCost(
+            projectRef,
+            MODEL_SLIDE_GENERATION,
+            result.inputTokens,
+            result.outputTokens,
+            'text'
+        );
+
         res.json(result);
 
     } catch (error: any) {
@@ -229,6 +241,70 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
     } catch (error: any) {
         console.error("Extract Text Error:", error);
         res.status(500).json({ error: "Text extraction failed" });
+    }
+});
+
+/**
+ * 5. Increment Project Tokens (from frontend)
+ */
+app.post('/increment-project-tokens', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { projectId, modelId, inputTokens, outputTokens, operationType } = req.body;
+
+        if (!projectId || !modelId || inputTokens === undefined || outputTokens === undefined || !operationType) {
+            res.status(400).json({ error: "Missing required fields" });
+            return;
+        }
+
+        // Validate token counts are positive numbers
+        if (typeof inputTokens !== 'number' || inputTokens < 0 || typeof outputTokens !== 'number' || outputTokens < 0) {
+            res.status(400).json({ error: "Invalid token values. Must be non-negative numbers." });
+            return;
+        }
+
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+
+        const cost = await calculateAndIncrementProjectCost(
+            projectRef,
+            modelId,
+            inputTokens,
+            outputTokens,
+            operationType
+        );
+
+        res.json({ success: true, cost });
+    } catch (error: any) {
+        console.error("Increment Tokens Error:", error);
+        res.status(500).json({ error: "Failed to update token counts" });
+    }
+});
+
+/**
+ * 6. (Admin Only) Initialize Pricing
+ * In a real app, this would be highly protected.
+ */
+app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        // Proper admin check
+        const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+        if (!ADMIN_USER_ID || req.user?.uid !== ADMIN_USER_ID) {
+            res.status(403).json({ error: "Forbidden: Admin access required" });
+            return;
+        }
+
+        await initializeModelPricing();
+
+        res.json({ success: true, message: "Model pricing initialized" });
+    } catch (error: any) {
+        console.error("Initialize Pricing Error:", error);
+        res.status(500).json({ error: "Failed to initialize pricing" });
     }
 });
 

@@ -1,9 +1,10 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon } from './icons';
-import { generateImageFromPrompt, regenerateImagePrompt } from '../services/geminiService';
+import { generateImageFromPrompt, regenerateImagePrompt, incrementProjectTokens } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
+import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION } from '../constants';
 
 interface SlideCardProps {
     slide: Slide;
@@ -141,6 +142,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     backgroundImage: generatedImage.url
                 });
 
+                // Report tokens to backend for cost tracking
+                await incrementProjectTokens(
+                    projectId,
+                    MODEL_IMAGE_GENERATION,
+                    inputTokens,
+                    outputTokens,
+                    'image'
+                );
+
             } else {
                 const url = URL.createObjectURL(blob);
                 const a = document.createElement('a');
@@ -199,6 +209,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 imagePrompts: [...imagePrompts, newPrompt],
                 currentPromptId: newPromptId
             });
+
+            // Report tokens to backend for cost tracking
+            await incrementProjectTokens(
+                projectId,
+                MODEL_SLIDE_GENERATION,
+                inputTokens,
+                outputTokens,
+                'text'
+            );
 
             setIsEditingPrompt(false);
         } catch (error) {

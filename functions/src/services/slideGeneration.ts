@@ -7,6 +7,7 @@ import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { Slide } from '@shared/types';
 import { GeminiError } from '@shared/errors';
+import { calculateAndIncrementProjectCost } from './pricingService';
 
 export async function generateSlides(
     topic: string,
@@ -293,13 +294,20 @@ export async function generateSlidesAndUpdateFirestore(
 
         await batch.commit();
 
-        // Update: Complete (100%)
+        // New: Calculate and increment project cost using pricing service
+        await calculateAndIncrementProjectCost(
+            projectRef,
+            MODEL_SLIDE_GENERATION,
+            result.inputTokens,
+            result.outputTokens,
+            'text'
+        );
+
+        // Update: Complete (100%) - Remove direct token updates
         await projectRef.update({
             status: 'completed',
             generationProgress: 100,
             sources: result.sources || [],
-            inputTokens: result.inputTokens,
-            outputTokens: result.outputTokens,
             generationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
             updatedAt: admin.firestore.FieldValue.serverTimestamp()
         });
