@@ -248,12 +248,12 @@ const formatDate = (timestamp: Timestamp | Date | null | undefined): string => {
 - Remove `as any` cast
 - Use proper type narrowing:
    ```typescript
-         // Before:
-         const { slides, ...safeData } = data as any;
-         
-         // After:
-         const { slides, ...safeData } = data;
-         // TypeScript will infer correctly if Partial<ProjectData> is properly typed
+            // Before:
+            const { slides, ...safeData } = data as any;
+            
+            // After:
+            const { slides, ...safeData } = data;
+            // TypeScript will infer correctly if Partial<ProjectData> is properly typed
    ```
 
 
@@ -425,4 +425,3 @@ export function isFirestoreTimestamp(value: unknown): value is { toDate: () => D
 
 - All `any` types replaced with proper types
 - Better IDE autocomplete and type checking
-- Compile-time error detection for potential runtime bugs

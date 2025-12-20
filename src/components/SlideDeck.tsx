@@ -302,20 +302,35 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
 
             for (let i = 0; i < slides.length; i++) {
                 const slide = slides[i];
-                try {
-                    if (slide.imagePrompt) {
-                        const { blob } = await generateImageFromPrompt(slide.imagePrompt, {
-                            temperature: creativityLevel,
-                            aspectRatio: slide.aspectRatio || '16:9'
-                        });
-                        const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50);
-                        const filename = `slide-${i + 1}-${sanitizedTitle}.png`;
-                        folder.file(filename, blob);
-                    }
-                } catch (err) {
-                    console.error(`Failed to generate image for slide ${i + 1}`, err);
-                    folder.file(`slide-${i + 1}-error.txt`, `Failed to generate image.`);
+                const prompts = slide.imagePrompts || [];
+                // Respect selection, fallback to first prompt
+                const currentPromptId = slide.currentPromptId || (prompts.length > 0 ? prompts[0].id : undefined);
+
+                // Filter images belonging to the current prompt
+                const promptImages = (slide.generatedImages || []).filter(img => img.promptId === currentPromptId);
+
+                if (promptImages.length === 0) {
+                    folder.file(`slide-${i + 1}-no-images.txt`, `No images found for the selected prompt.`);
+                    continue;
                 }
+
+                const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50) || 'untitled';
+
+                // Fetch existing images concurrently
+                const imagePromises = promptImages.map(async (img, v) => {
+                    try {
+                        const response = await fetch(img.url);
+                        if (!response.ok) throw new Error("Fetch failed");
+                        const blob = await response.blob();
+                        const filename = `slide-${i + 1}-${sanitizedTitle}-v${v + 1}.png`;
+                        folder.file(filename, blob);
+                    } catch (err) {
+                        console.error(`Failed to fetch image ${img.id} for slide ${i + 1}`, err);
+                        folder.file(`slide-${i + 1}-v${v + 1}-error.txt`, `Failed to download image from storage.`);
+                    }
+                });
+
+                await Promise.all(imagePromises);
             }
 
             const content = await zip.generateAsync({ type: "blob" });

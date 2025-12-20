@@ -852,5 +852,3 @@ if (status === 'generating') {
 2. `firestore.rules` - Allow status fields in validation
 3. `functions/src/index.ts` - Modify endpoint to return 202, run async
 4. `functions/src/services/slideGeneration.ts` - Add generateSlidesAndUpdateFirestore function
-5. `src/components/Editor.tsx` - Create project first, add Firestore listener, pass progress
-6. `src/services/geminiService.ts` - Accept projectId parameter
