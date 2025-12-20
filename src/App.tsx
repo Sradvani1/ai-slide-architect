@@ -8,6 +8,8 @@ import { auth, db } from './firebaseConfig';
 import { User } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
+import { ErrorBoundary } from './components/ErrorBoundary';
+
 function App() {
   const [user, setUser] = useState<User | null>(null);
   const [isAuthLoading, setIsAuthLoading] = useState(true);
@@ -42,25 +44,27 @@ function App() {
   }
 
   return (
-    <Router>
-      <Routes>
-        <Route path="/faq" element={<FAQ />} />
+    <ErrorBoundary resetKeys={[user?.uid]}>
+      <Router>
+        <Routes>
+          <Route path="/faq" element={<FAQ />} />
 
-        {!user ? (
-          <>
-            <Route path="/" element={<LandingPage />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        ) : (
-          <>
-            <Route path="/" element={<Dashboard user={user} />} />
-            <Route path="/new" element={<Editor user={user} />} />
-            <Route path="/project/:projectId" element={<Editor user={user} />} />
-            <Route path="*" element={<Navigate to="/" replace />} />
-          </>
-        )}
-      </Routes>
-    </Router>
+          {!user ? (
+            <>
+              <Route path="/" element={<LandingPage />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          ) : (
+            <>
+              <Route path="/" element={<Dashboard user={user} />} />
+              <Route path="/new" element={<Editor user={user} />} />
+              <Route path="/project/:projectId" element={<Editor user={user} />} />
+              <Route path="*" element={<Navigate to="/" replace />} />
+            </>
+          )}
+        </Routes>
+      </Router>
+    </ErrorBoundary>
   );
 }
 
