@@ -123,7 +123,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
-                const startTime = projectData.generationStartedAt.toMillis();
+                const startTime = typeof projectData.generationStartedAt.toMillis === 'function'
+                    ? projectData.generationStartedAt.toMillis()
+                    : new Date(projectData.generationStartedAt as any).getTime();
                 const elapsed = Date.now() - startTime;
                 if (elapsed > 10 * 60 * 1000) {
                     console.warn("Generation taking longer than expected for project:", projectId);
@@ -153,7 +155,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setIsLoading(false);
                 setError(projectData.generationError || "Generation failed. Please try again.");
             }
-        }, (error) => {
+        }, (error: unknown) => {
             console.error("Firestore listener error:", error);
         });
 
@@ -340,9 +342,10 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 });
             });
 
-        } catch (err: any) {
+        } catch (err: unknown) {
             console.error("Error retrying generation:", err);
-            setError(err.message || "Failed to retry generation");
+            const message = err instanceof Error ? err.message : "Failed to retry generation";
+            setError(message);
             setIsLoading(false);
         } finally {
             setIsRetrying(false);

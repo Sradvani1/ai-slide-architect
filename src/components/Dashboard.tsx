@@ -2,8 +2,9 @@ import React, { useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
-import { getUserProjects, ProjectData, deleteProject } from '../services/projectService';
-import { collection, query, orderBy, onSnapshot, getDocs } from 'firebase/firestore';
+import { ProjectData, deleteProject } from '../services/projectService';
+import { collection, query, orderBy, onSnapshot, getDocs, limit, Timestamp } from 'firebase/firestore';
+import { isError, isFirestoreTimestamp } from '../utils/typeGuards';
 import { PptxIcon } from './icons';
 import { Slide } from '../types';
 
@@ -20,7 +21,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         if (!user?.uid) return;
 
         const projectsRef = collection(db, 'users', user.uid, 'projects');
-        const q = query(projectsRef, orderBy('updatedAt', 'desc'));
+        const q = query(projectsRef, orderBy('updatedAt', 'desc'), limit(50));
 
         let isMounted = true;
         let fallbackUnsubscribe: (() => void) | null = null;
@@ -49,13 +50,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                 setProjects(projectsData);
                 setIsLoading(false);
             }
-        }, (error: any) => {
-            console.error("Error listening to projects:", error);
+        }, (error: unknown) => {
+            const actualError = isError(error) ? error : new Error(String(error));
+            const errorCode = (actualError as { code?: string }).code;
+            console.error("Error listening to projects:", actualError);
 
             // If index error (failed-precondition), fall back to unsorted query
-            if (error.code === 'failed-precondition' && isMounted) {
+            if (errorCode === 'failed-precondition' && isMounted) {
                 console.warn("Firestore index missing, falling back to unsorted query");
-                const fallbackQuery = query(projectsRef);
+                const fallbackQuery = query(projectsRef, limit(50));
                 fallbackUnsubscribe = onSnapshot(fallbackQuery, async (fallbackSnapshot) => {
                     const fallbackData = await Promise.all(fallbackSnapshot.docs.map(async (doc) => {
                         const projectMetadata = doc.data() as Omit<ProjectData, 'id'>;
@@ -64,6 +67,13 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                         const slides = slidesSnapshot.docs.map(slideDoc => slideDoc.data() as Slide);
                         return { id: doc.id, ...projectMetadata, slides } as ProjectData;
                     }));
+
+                    // Add sorting to fallback results
+                    fallbackData.sort((a, b) => {
+                        const timeA = a.updatedAt?.toMillis() || 0;
+                        const timeB = b.updatedAt?.toMillis() || 0;
+                        return timeB - timeA;
+                    });
                     if (isMounted) {
                         setProjects(fallbackData);
                         setIsLoading(false);
@@ -93,10 +103,10 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
         }
     };
 
-    const formatDate = (timestamp: any) => {
+    const formatDate = (timestamp: Timestamp | Date | null | undefined): string => {
         if (!timestamp) return '';
         // Handle Firestore Timestamp or Date object
-        const date = timestamp.toDate ? timestamp.toDate() : new Date(timestamp);
+        const date = isFirestoreTimestamp(timestamp) ? timestamp.toDate() : new Date(timestamp as any);
         return new Intl.DateTimeFormat('en-US', {
             month: 'short',
             day: 'numeric',

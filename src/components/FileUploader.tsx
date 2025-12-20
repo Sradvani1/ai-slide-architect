@@ -76,7 +76,11 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
         for (let i = 1; i <= pdf.numPages; i++) {
             const page = await pdf.getPage(i);
             const textContent = await page.getTextContent();
-            const pageText = textContent.items.map((item: any) => item.str).join(' ');
+            // In pdfjs-dist, items can be TextItem or TextMarkedContent. 
+            // We use a type guard/filter to ensure we only get items with 'str' property.
+            const pageText = textContent.items
+                .map((item: any) => (item as { str?: string }).str || '')
+                .join(' ');
             fullText += pageText + '\n';
         }
         return fullText;

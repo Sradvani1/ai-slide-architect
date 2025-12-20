@@ -34,7 +34,7 @@ async function main() {
         console.log("Full Raw Response Structure (Depth 4):");
 
         // safe log function
-        const printSafe = (obj: any, depth = 0) => {
+        const printSafe = (obj: any, depth = 0): any => {
             if (depth > 4) return "[Deep Object]";
             if (typeof obj !== 'object' || obj === null) return obj;
 

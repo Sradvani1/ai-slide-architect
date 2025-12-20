@@ -162,7 +162,7 @@ export function validateFileBasic(file: File): { valid: boolean; errors: string[
     const ext = file.name.slice((file.name.lastIndexOf(".") - 1 >>> 0) + 2).toLowerCase();
     const extension = ext ? `.${ext}` : '';
 
-    if (!ALLOWED_EXTENSIONS.includes(extension as any)) {
+    if (!ALLOWED_EXTENSIONS.includes(extension as typeof ALLOWED_EXTENSIONS[number])) {
         errors.push(createError(file.name, `Extension "${extension || 'none'}" is not supported`));
     }
 

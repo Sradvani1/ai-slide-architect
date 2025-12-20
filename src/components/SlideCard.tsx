@@ -3,6 +3,7 @@ import type { Slide, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon } from './icons';
 import { generateImageFromPrompt } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
+import { isRetryableError } from '../utils/typeGuards';
 
 interface SlideCardProps {
     slide: Slide;
@@ -133,7 +134,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             let message = 'Failed to generate image. Please try again.';
             if (String(error).includes('NO_IMAGE_DATA')) {
                 message = "No image returned from AI. Try editing the prompt.";
-            } else if (error instanceof Error && (error as any).isRetryable) {
+            } else if (isRetryableError(error)) {
                 message = "Temporary AI glitch. Please try clicking 'Generate Image' again.";
             }
             alert(message);

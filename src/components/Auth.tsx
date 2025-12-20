@@ -17,8 +17,9 @@ export function Auth({ isModal = false }: AuthProps) {
             const provider = new GoogleAuthProvider();
             await signInWithPopup(auth, provider);
             // Successful sign-in is handled by onAuthStateChanged in App.tsx
-        } catch (error: any) {
-            setMessage({ type: 'error', text: error.message });
+        } catch (error: unknown) {
+            const message = error instanceof Error ? error.message : "Authentication failed";
+            setMessage({ type: 'error', text: message });
             setLoading(false);
         }
     };

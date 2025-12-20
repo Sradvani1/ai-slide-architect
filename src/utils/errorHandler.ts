@@ -43,15 +43,17 @@ export const captureUserAction = (action: string) => {
     }
 };
 
+import { isError } from './typeGuards';
+
 /**
  * Report an error to the dashboard/console and future tracking services
  */
 export const reportError = (
-    error: any,
+    error: unknown,
     context: Partial<ErrorContext> = {},
     severity: 'error' | 'warning' | 'info' = 'error'
 ) => {
-    const actualError = error instanceof Error ? error : new Error(String(error));
+    const actualError = isError(error) ? error : new Error(String(error));
 
     const errorReport: ErrorReport = {
         error: actualError,

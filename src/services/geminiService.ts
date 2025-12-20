@@ -2,6 +2,35 @@ import { auth } from '../firebaseConfig';
 import { Slide } from '../types';
 import { GeminiError, ImageGenError } from '../../shared/errors';
 
+interface GenerateSlidesRequestBody {
+  topic: string;
+  gradeLevel: string;
+  subject: string;
+  sourceMaterial: string;
+  numSlides: number;
+  useWebSearch: boolean;
+  temperature: number;
+  bulletsPerSlide: number;
+  additionalInstructions?: string;
+  uploadedFileNames?: string[];
+  projectId?: string;
+}
+
+interface GenerateImageRequestBody {
+  imagePrompt: string;
+  options: {
+    aspectRatio?: '16:9' | '1:1';
+    temperature?: number;
+  };
+}
+
+interface ExtractTextRequestBody {
+  imageBase64: string;
+  mimeType: string;
+}
+
+type GeminiRequestBody = GenerateSlidesRequestBody | GenerateImageRequestBody | ExtractTextRequestBody;
+
 export { GeminiError, ImageGenError };
 
 import { functions } from '../firebaseConfig';
@@ -20,7 +49,7 @@ const getApiBaseUrl = () => {
 
 const API_BASE_URL = getApiBaseUrl();
 
-async function authenticatedRequest<T>(endpoint: string, body: any): Promise<T> {
+async function authenticatedRequest<T>(endpoint: string, body: GeminiRequestBody): Promise<T> {
   const user = auth.currentUser;
   if (!user) {
     throw new Error("User must be authenticated to use AI features.");
@@ -86,7 +115,15 @@ export const generateSlidesFromDocument = async (
   warnings: string[]
 }> => {
 
-  const result = await authenticatedRequest<any>('/generate-slides', {
+  const result = await authenticatedRequest<{
+    slides: Slide[],
+    inputTokens: number,
+    outputTokens: number,
+    sources: string[],
+    searchEntryPoint?: string,
+    webSearchQueries?: string[],
+    warnings: string[]
+  }>('/generate-slides', {
     topic,
     gradeLevel,
     subject,

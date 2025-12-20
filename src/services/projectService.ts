@@ -1,5 +1,6 @@
 import { db, storage } from '../firebaseConfig';
 import { MAX_FILE_SIZE, formatBytes } from '../utils/fileValidation';
+import { isError } from '../utils/typeGuards';
 
 import {
     collection,
@@ -10,7 +11,10 @@ import {
     getDoc,
     deleteDoc,
     serverTimestamp,
-    Timestamp
+    Timestamp,
+    query,
+    orderBy,
+    limit
 } from 'firebase/firestore';
 import {
     ref,
@@ -18,7 +22,6 @@ import {
     getDownloadURL,
     deleteObject
 } from 'firebase/storage';
-import { query, orderBy } from 'firebase/firestore'; // Added query imports
 import type { Slide, ProjectFile, GeneratedImage } from '../types';
 
 /**
@@ -197,7 +200,7 @@ export const updateProject = async (userId: string, projectId: string, data: Par
         const projectRef = doc(db, 'users', userId, 'projects', projectId);
 
         // Safety: If 'slides' is accidentally passed, strip it to prevent root bloat re-introduction
-        const { slides, ...safeData } = data as any;
+        const { slides: _slides, ...safeData } = data;
 
         if (Object.keys(safeData).length > 0) {
             await updateDoc(projectRef, {
@@ -228,7 +231,7 @@ export const updateSlide = async (userId: string, projectId: string, slideId: st
         await updateDoc(slideRef, {
             ...patch,
             updatedAt: serverTimestamp(), // Automatic timestamp for debugging/sorting
-        } as any); // Cast as any because Date/Timestamp types might mismatch strictly with Partial<Slide>
+        });
 
         console.log(`Slide ${slideId} updated (patch).`);
     } catch (error) {
@@ -238,15 +241,24 @@ export const updateSlide = async (userId: string, projectId: string, slideId: st
 };
 
 /**
- * Fetches all projects for a specific user, ordered by most recently updated.
+ * Fetches projects for a specific user, ordered by most recently updated using server-side orderBy.
+ * @param userId The ID of the user whose projects to fetch
+ * @param limitCount Optional limit on the number of projects to return
+ * @returns Array of projects ordered by updatedAt DESC
  */
-export const getUserProjects = async (userId: string): Promise<ProjectData[]> => {
+export const getUserProjects = async (userId: string, limitCount?: number): Promise<ProjectData[]> => {
     try {
         const projectsRef = collection(db, 'users', userId, 'projects');
-        // You might want to order by updatedAt desc, but that requires an index.
-        // For now, we'll fetch all and sort client-side to avoid index creation delay for the user
-        // or just rely on default order if indices are auto-created for single-field sorts.
-        const snapshot = await getDocs(projectsRef);
+
+        // Build the query with server-side ordering
+        let q = query(projectsRef, orderBy('updatedAt', 'desc'));
+
+        // Apply limit if provided
+        if (limitCount) {
+            q = query(q, limit(limitCount));
+        }
+
+        const snapshot = await getDocs(q);
 
         // Fetch slides count for each project
         const projects = await Promise.all(
@@ -257,6 +269,8 @@ export const getUserProjects = async (userId: string): Promise<ProjectData[]> =>
                 } as ProjectData;
 
                 // Fetch slides count from subcollection
+                // Note: Fetching all slides just to count them is inefficient, 
+                // but we keep it here as per current implementation requirement
                 const slidesRef = collection(doc.ref, 'slides');
                 const slidesSnapshot = await getDocs(slidesRef);
                 const slides = slidesSnapshot.docs.map(slideDoc => slideDoc.data() as Slide);
@@ -268,13 +282,43 @@ export const getUserProjects = async (userId: string): Promise<ProjectData[]> =>
             })
         );
 
-        // Sort by updatedAt desc
-        return projects.sort((a, b) => {
-            const timeA = a.updatedAt?.toMillis() || 0;
-            const timeB = b.updatedAt?.toMillis() || 0;
-            return timeB - timeA;
-        });
-    } catch (error) {
+        return projects;
+    } catch (error: unknown) {
+        // Handle common Firestore query issues like missing indexes gracefully
+        const actualError = isError(error) ? error : new Error(String(error));
+        const errorCode = (actualError as { code?: string }).code;
+        const errorMessage = actualError.message;
+
+        if (errorCode === 'failed-precondition' || (errorMessage && errorMessage.includes('index'))) {
+            console.error("Firestore index for 'updatedAt' missing or building. Falling back to client-side sort.", actualError);
+
+            // Fallback: Fetch without ordering and sort client-side
+            try {
+                const projectsRef = collection(db, 'users', userId, 'projects');
+                const snapshot = await getDocs(projectsRef);
+                const projects = await Promise.all(
+                    snapshot.docs.map(async (doc) => {
+                        const projectData = { id: doc.id, ...doc.data() } as ProjectData;
+                        const slidesRef = collection(doc.ref, 'slides');
+                        const slidesSnapshot = await getDocs(slidesRef);
+                        const slides = slidesSnapshot.docs.map(slideDoc => slideDoc.data() as Slide);
+                        return { ...projectData, slides };
+                    })
+                );
+
+                const sorted = projects.sort((a, b) => {
+                    const timeA = a.updatedAt?.toMillis() || 0;
+                    const timeB = b.updatedAt?.toMillis() || 0;
+                    return timeB - timeA;
+                });
+
+                // Apply limit manually to fallback results
+                return limitCount ? sorted.slice(0, limitCount) : sorted;
+            } catch (fallbackError) {
+                console.error("Fallback fetch also failed:", fallbackError);
+            }
+        }
+
         console.error("Error fetching user projects:", error);
         return [];
     }

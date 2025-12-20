@@ -135,7 +135,7 @@ const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
                         slideSources.forEach(line => {
                             const urlRegex = /(https?:\/\/[^\s]+)/g;
                             const parts = line.split(urlRegex);
-                            const paragraphChildren = [];
+                            const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
 
                             parts.forEach(part => {
                                 if (part.match(urlRegex)) {
@@ -174,7 +174,7 @@ const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
                     ...overallSources.flatMap(source => {
                         const urlRegex = /(https?:\/\/[^\s]+)/g;
                         const parts = source.split(urlRegex);
-                        const paragraphChildren = [];
+                        const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
 
                         parts.forEach(part => {
                             if (part.match(urlRegex)) {
