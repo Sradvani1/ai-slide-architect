@@ -10,7 +10,7 @@ admin.initializeApp();
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
-import { generateImage } from './services/imageGeneration';
+import { generateImage, regenerateImagePrompt } from './services/imageGeneration';
 
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { GeminiError, ImageGenError } from '@shared/errors';
@@ -146,6 +146,63 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
         } else {
             res.status(500).json({ error: "Image generation failed" });
         }
+    }
+});
+
+// 3. Regenerate Image Prompt
+app.post('/regenerate-image-prompt', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { projectId, slideId } = req.body;
+
+        if (!projectId || !slideId) {
+            res.status(400).json({ error: "Missing required fields: projectId, slideId" });
+            return;
+        }
+
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const userId = req.user.uid;
+        const db = admin.firestore();
+
+        // Fetch project metadata
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found" });
+            return;
+        }
+        const projectData = projectDoc.data();
+
+        // Fetch slide data
+        const slideRef = projectRef.collection('slides').doc(slideId);
+        const slideDoc = await slideRef.get();
+        if (!slideDoc.exists) {
+            res.status(404).json({ error: "Slide not found" });
+            return;
+        }
+        const slideData = slideDoc.data();
+
+        if (!slideData) {
+            res.status(404).json({ error: "Slide data is empty" });
+            return;
+        }
+
+        const result = await regenerateImagePrompt(
+            projectData?.topic || "",
+            projectData?.subject || "",
+            projectData?.gradeLevel || "",
+            slideData.title || "",
+            slideData.content || []
+        );
+
+        res.json(result);
+
+    } catch (error: any) {
+        console.error("Regenerate Image Prompt Error:", error);
+        res.status(500).json({ error: "Failed to regenerate image prompt" });
     }
 });
 

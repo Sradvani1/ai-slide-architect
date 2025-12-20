@@ -1,7 +1,8 @@
 import { getAiClient } from '../utils/geminiClient';
-import { MODEL_IMAGE_GENERATION, STYLE_GUIDELINES } from '@shared/constants';
+import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION, STYLE_GUIDELINES } from '@shared/constants';
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
+import { buildSingleSlideImagePromptPrompt } from '@shared/promptBuilders';
 
 export async function generateImage(
     imagePrompt: string,
@@ -69,4 +70,60 @@ ${STYLE_GUIDELINES}`;
     };
 
     return retryWithBackoff(generateFn, 2);
+}
+
+/**
+ * Regenerates an image prompt for a single slide
+ */
+export async function regenerateImagePrompt(
+    topic: string,
+    subject: string,
+    gradeLevel: string,
+    slideTitle: string,
+    slideContent: string[]
+): Promise<{ imagePrompt: string; inputTokens: number; outputTokens: number }> {
+    const prompt = buildSingleSlideImagePromptPrompt(topic, subject, gradeLevel, slideTitle, slideContent);
+
+    const generateFn = async () => {
+        try {
+            const result = await getAiClient().models.generateContent({
+                model: MODEL_SLIDE_GENERATION,
+                contents: [{ role: 'user', parts: [{ text: prompt }] }],
+                config: {
+                    temperature: 0.7,
+                }
+            });
+
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) {
+                throw new Error("Empty response from AI model");
+            }
+
+            // Clean up the response
+            let cleanedPrompt = text
+                .replace(/```[a-z]*\n?/gi, '') // Remove code fences
+                .replace(/```/g, '')
+                .trim();
+
+            // Handle cases where AI might add "imagePrompt:" or similar prefixes
+            cleanedPrompt = cleanedPrompt.replace(/^(imagePrompt|Image Prompt|Prompt):\s*/i, '').trim();
+
+            const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+            const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+            return {
+                imagePrompt: cleanedPrompt,
+                inputTokens,
+                outputTokens
+            };
+        } catch (error: any) {
+            if (error.message?.includes('Empty response')) {
+                throw new Error("AI returned empty response. Please try again.");
+            }
+            console.error("Error in regenerateImagePrompt:", error);
+            throw error;
+        }
+    };
+
+    return retryWithBackoff(generateFn);
 }

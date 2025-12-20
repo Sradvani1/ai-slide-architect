@@ -29,7 +29,12 @@ interface ExtractTextRequestBody {
   mimeType: string;
 }
 
-type GeminiRequestBody = GenerateSlidesRequestBody | GenerateImageRequestBody | ExtractTextRequestBody;
+interface RegeneratePromptRequestBody {
+  projectId: string;
+  slideId: string;
+}
+
+type GeminiRequestBody = GenerateSlidesRequestBody | GenerateImageRequestBody | ExtractTextRequestBody | RegeneratePromptRequestBody;
 
 export { GeminiError, ImageGenError };
 
@@ -208,4 +213,17 @@ export const extractTextFromImage = async (
     mimeType
   });
   return result.text;
+};
+
+/**
+ * Regenerates an image prompt for a single slide.
+ */
+export const regenerateImagePrompt = async (
+  projectId: string,
+  slideId: string
+): Promise<{ imagePrompt: string; inputTokens: number; outputTokens: number }> => {
+  return authenticatedRequest<{ imagePrompt: string; inputTokens: number; outputTokens: number }>('/regenerate-image-prompt', {
+    projectId,
+    slideId
+  });
 };

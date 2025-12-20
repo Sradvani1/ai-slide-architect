@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import * as crypto from 'crypto';
 import { getAiClient } from '../utils/geminiClient';
 import { buildSlideGenerationPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
@@ -119,14 +120,23 @@ export async function generateSlides(
 
         // Normalize slides (add IDs, etc)
         const normalizedSlides: Slide[] = slides.map((s, i) => {
+            const slideId = `slide-${Date.now()}-${i}`;
+            const promptId = crypto.randomUUID();
+
             return {
                 ...s,
-                id: `slide-${Date.now()}-${i}`,
+                id: slideId,
                 sortOrder: i,
                 // Ensure compatibility
                 content: Array.isArray(s.content) ? s.content : [String(s.content)],
                 speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
-                imagePrompt: s.imagePrompt || undefined
+                imagePrompts: (s.imagePrompt && s.imagePrompt.trim()) ? [{
+                    id: promptId,
+                    text: s.imagePrompt.trim(),
+                    createdAt: Date.now(),
+                    isOriginal: true
+                }] : [],
+                currentPromptId: (s.imagePrompt && s.imagePrompt.trim()) ? promptId : undefined
             };
         });
 

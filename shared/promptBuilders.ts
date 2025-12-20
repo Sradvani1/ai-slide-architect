@@ -1,12 +1,12 @@
 
-function buildSystemRoleSection(): string {
+export function buildSystemRoleSection(): string {
   return `
     You are an expert educational content creator and curriculum designer.
     Your goal is to generate a professional, engaging slide deck that is tailored to the specified grade level.
   `;
 }
 
-function buildInputContextSection(
+export function buildInputContextSection(
   topic: string,
   subject: string,
   gradeLevel: string,
@@ -24,7 +24,7 @@ function buildInputContextSection(
   `;
 }
 
-function buildSourceMaterialSection(sourceMaterial: string, useWebSearch: boolean): string {
+export function buildSourceMaterialSection(sourceMaterial: string, useWebSearch: boolean): string {
   if (sourceMaterial) {
     return `
     SOURCE MATERIAL (GROUND TRUTH)
@@ -48,7 +48,7 @@ function buildSourceMaterialSection(sourceMaterial: string, useWebSearch: boolea
   return '';
 }
 
-function buildContentStandardsSection(): string {
+export function buildContentStandardsSection(): string {
   return `
   CONTENT STANDARDS
     1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound.
@@ -57,7 +57,7 @@ function buildContentStandardsSection(): string {
   `;
 }
 
-function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
+export function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
   return `
   STRUCTURE REQUIREMENTS
     - Slide 1: Title Slide (Title, Content, imagePrompt, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
@@ -65,7 +65,7 @@ function buildStructureRequirementsSection(totalSlides: number, subject: string,
   `;
 }
 
-function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
+export function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
   return `
   FORMATTING CONSTRAINTS(CRITICAL)
     - Bullets: Exactly ${bulletsPerSlide} bullet points per content slide.
@@ -73,7 +73,7 @@ function buildFormattingConstraintsSection(bulletsPerSlide: number): string {
   `;
 }
 
-function buildImagePromptInstructionsSection(gradeLevel: string): string {
+export function buildImagePromptInstructionsSection(gradeLevel: string): string {
   return `
   IMAGE PROMPT GENERATION
   
@@ -112,7 +112,7 @@ function buildImagePromptInstructionsSection(gradeLevel: string): string {
   `;
 }
 
-function buildOutputFormatSection(): string {
+export function buildOutputFormatSection(): string {
   return `
   OUTPUT FORMAT
   Return a valid JSON array of objects. Do not include markdown code fences (like \`\`\`json).
@@ -129,16 +129,40 @@ function buildOutputFormatSection(): string {
   `;
 }
 
-export {
-  buildSystemRoleSection,
-  buildInputContextSection,
-  buildSourceMaterialSection,
-  buildContentStandardsSection,
-  buildStructureRequirementsSection,
-  buildFormattingConstraintsSection,
-  buildImagePromptInstructionsSection,
-  buildOutputFormatSection
-};
+/**
+ * Builds the prompt for regenerating a single slide's image prompt
+ */
+export function buildSingleSlideImagePromptPrompt(
+  topic: string,
+  subject: string,
+  gradeLevel: string,
+  slideTitle: string,
+  slideContent: string[]
+): string {
+  const sections = [
+    buildSystemRoleSection(),
+    `
+    PRESENTATION CONTEXT
+    Topic: "${topic}"
+    Subject: ${subject}
+    Target Audience: ${gradeLevel}
+    
+    CURRENT SLIDE
+    Title: "${slideTitle}"
+    Content:
+    ${slideContent.map(bullet => `- ${bullet}`).join('\n')}
+    `,
+    buildImagePromptInstructionsSection(gradeLevel),
+    `
+    TEXT AND LABELS:
+    - Return ONLY the image prompt text.
+    - Do not include any JSON formatting or labels like "imagePrompt:".
+    - Do not include markdown code fences.
+    `
+  ];
+
+  return sections.filter(section => section.trim().length > 0).join('\n');
+}
 
 /**
  * Builds the complete prompt for slide generation
