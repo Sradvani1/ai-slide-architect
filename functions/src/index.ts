@@ -21,6 +21,7 @@ import { MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
+import { apiKey } from './utils/geminiClient';
 
 const app = express();
 
@@ -317,7 +318,7 @@ export const api = functions.https.onRequest(
     { 
         timeoutSeconds: 300, 
         memory: '1GiB',
-        secrets: [adminUserIdSecret]
+        secrets: [adminUserIdSecret, apiKey]
     },
     app
 );
