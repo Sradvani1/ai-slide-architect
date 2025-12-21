@@ -1,11 +1,15 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
+import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
 import * as admin from 'firebase-admin';
 
 // Initialize Firebase Admin (must be before middleware)
 admin.initializeApp();
+
+// Define the secret for admin user ID
+const adminUserIdSecret = defineSecret('ADMIN_USER_ID');
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
@@ -292,8 +296,8 @@ app.post('/increment-project-tokens', verifyAuth, async (req: AuthenticatedReque
  */
 app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        // Proper admin check
-        const ADMIN_USER_ID = process.env.ADMIN_USER_ID;
+        // Admin check - secret is accessed via defineSecret().value()
+        const ADMIN_USER_ID = adminUserIdSecret.value();
         if (!ADMIN_USER_ID || req.user?.uid !== ADMIN_USER_ID) {
             res.status(403).json({ error: "Forbidden: Admin access required" });
             return;
@@ -310,6 +314,10 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
 
 // Export the API
 export const api = functions.https.onRequest(
-    { timeoutSeconds: 300, memory: '1GiB' },
+    { 
+        timeoutSeconds: 300, 
+        memory: '1GiB',
+        secrets: [adminUserIdSecret]
+    },
     app
 );
