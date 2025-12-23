@@ -12,7 +12,6 @@ export const SLIDES_SCHEMA = {
                 type: "string",
                 enum: ["Title Slide", "Content"],
             },
-            imagePrompt: { type: "string" },
             speakerNotes: { type: "string" },
         },
         required: [

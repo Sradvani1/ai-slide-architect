@@ -1,5 +1,6 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
@@ -14,7 +15,7 @@ const adminUserIdSecret = defineSecret('ADMIN_USER_ID');
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
-import { generateImage, regenerateImagePrompt } from './services/imageGeneration';
+import { generateImage, generateImagePrompts } from './services/imageGeneration';
 import { calculateAndIncrementProjectCost } from './services/pricingService';
 import { MODEL_SLIDE_GENERATION } from '@shared/constants';
 
@@ -157,71 +158,6 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
     }
 });
 
-// 3. Regenerate Image Prompt
-app.post('/regenerate-image-prompt', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
-    try {
-        const { projectId, slideId } = req.body;
-
-        if (!projectId || !slideId) {
-            res.status(400).json({ error: "Missing required fields: projectId, slideId" });
-            return;
-        }
-
-        if (!req.user) {
-            res.status(401).json({ error: "Unauthorized" });
-            return;
-        }
-
-        const userId = req.user.uid;
-        const db = admin.firestore();
-
-        // Fetch project metadata
-        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-        const projectDoc = await projectRef.get();
-        if (!projectDoc.exists) {
-            res.status(404).json({ error: "Project not found" });
-            return;
-        }
-        const projectData = projectDoc.data();
-
-        // Fetch slide data
-        const slideRef = projectRef.collection('slides').doc(slideId);
-        const slideDoc = await slideRef.get();
-        if (!slideDoc.exists) {
-            res.status(404).json({ error: "Slide not found" });
-            return;
-        }
-        const slideData = slideDoc.data();
-
-        if (!slideData) {
-            res.status(404).json({ error: "Slide data is empty" });
-            return;
-        }
-
-        const result = await regenerateImagePrompt(
-            projectData?.topic || "",
-            projectData?.subject || "",
-            projectData?.gradeLevel || "",
-            slideData.title || "",
-            slideData.content || []
-        );
-
-        // Record tokens and calculate cost
-        await calculateAndIncrementProjectCost(
-            projectRef,
-            MODEL_SLIDE_GENERATION,
-            result.inputTokens,
-            result.outputTokens,
-            'text'
-        );
-
-        res.json(result);
-
-    } catch (error: any) {
-        console.error("Regenerate Image Prompt Error:", error);
-        res.status(500).json({ error: "Failed to regenerate image prompt" });
-    }
-});
 
 
 
@@ -313,10 +249,78 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
     }
 });
 
+// 6. Triggers
+export const onSlideCreated = onDocumentCreated(
+    {
+        document: 'users/{userId}/projects/{projectId}/slides/{slideId}',
+        secrets: [apiKey]
+    },
+    async (event) => {
+        const slideData = event.data?.data();
+        const slideRef = event.data?.ref;
+        if (!slideRef) return;
+
+        const projectId = event.params.projectId;
+        const userId = event.params.userId;
+
+        // Skip if imagePrompts already exists
+        if (slideData?.imagePrompts && slideData.imagePrompts.length > 0) {
+            return;
+        }
+
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+
+        if (!projectDoc.exists) {
+            console.error(`Project ${projectId} not found`);
+            return;
+        }
+
+        const projectData = projectDoc.data();
+
+        try {
+            // Generate 3 initial prompts
+            const result = await generateImagePrompts(
+                projectData?.topic || '',
+                projectData?.subject || '',
+                projectData?.gradeLevel || '',
+                slideData?.title || '',
+                slideData?.content || []
+            );
+
+            if (result.prompts.length > 0) {
+                await slideRef.update({
+                    imagePrompts: result.prompts.map(p => ({
+                        id: p.id,
+                        text: p.text,
+                        createdAt: Date.now(),
+                        inputTokens: p.inputTokens,
+                        outputTokens: p.outputTokens,
+                        isOriginal: true
+                    })),
+                    currentPromptId: result.prompts[0].id
+                });
+
+                // Track costs
+                await calculateAndIncrementProjectCost(
+                    projectRef,
+                    MODEL_SLIDE_GENERATION,
+                    result.totalInputTokens,
+                    result.totalOutputTokens,
+                    'text'
+                );
+            }
+        } catch (error) {
+            console.error(`Error generating image prompts for slide ${slideRef.id}:`, error);
+        }
+    }
+);
+
 // Export the API
 export const api = functions.https.onRequest(
-    { 
-        timeoutSeconds: 300, 
+    {
+        timeoutSeconds: 300,
         memory: '1GiB',
         secrets: [adminUserIdSecret, apiKey]
     },

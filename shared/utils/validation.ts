@@ -17,7 +17,6 @@ export function validateSlideStructure(slide: unknown, idx: number): string[] {
     if (typeof slideObj.title !== 'string') errors.push(`Slide ${idx + 1}: 'title' must be a string`);
     if (!Array.isArray(slideObj.content)) errors.push(`Slide ${idx + 1}: 'content' must be an array`);
     if (slideObj.layout && typeof slideObj.layout !== 'string') errors.push(`Slide ${idx + 1}: 'layout' must be a string`);
-    if (slideObj.imagePrompt && typeof slideObj.imagePrompt !== 'string') errors.push(`Slide ${idx + 1}: 'imagePrompt' must be a string`);
 
     // Enum check
     if (typeof slideObj.layout === 'string' && !["Title Slide", "Content"].includes(slideObj.layout)) {

@@ -228,18 +228,6 @@ export const extractTextFromImage = async (
   return result.text;
 };
 
-/**
- * Regenerates an image prompt for a single slide.
- */
-export const regenerateImagePrompt = async (
-  projectId: string,
-  slideId: string
-): Promise<{ imagePrompt: string; inputTokens: number; outputTokens: number }> => {
-  return authenticatedRequest<{ imagePrompt: string; inputTokens: number; outputTokens: number }>('/regenerate-image-prompt', {
-    projectId,
-    slideId
-  });
-};
 
 /**
  * Increments project tokens and calculates cost on the backend.

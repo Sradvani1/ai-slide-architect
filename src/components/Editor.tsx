@@ -1,5 +1,5 @@
 import React, { useState, useCallback, useEffect } from 'react';
-import { doc, onSnapshot, serverTimestamp, getDoc, updateDoc, deleteField } from 'firebase/firestore';
+import { doc, onSnapshot, serverTimestamp, getDoc, updateDoc, deleteField, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebaseConfig'; // Added db
 import { useNavigate, useParams } from 'react-router-dom';
 import { User } from 'firebase/auth';
@@ -139,18 +139,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             } else if (projectData.status === 'completed') {
                 setIsLoading(false);
                 setGenerationProgress(100);
-
-                // Reload project to get slides if they are not already set
-                setIsLoading(true);
-                getProject(user.uid, projectId).then(project => {
-                    if (project && isMounted) {
-                        setSlides(project.slides);
-                        setSources(project.sources || []);
-                    }
-                    if (isMounted) setIsLoading(false);
-                }).catch(() => {
-                    if (isMounted) setIsLoading(false);
-                });
             } else if (projectData.status === 'failed') {
                 setIsLoading(false);
                 setError(projectData.generationError || "Generation failed. Please try again.");
@@ -164,6 +152,23 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             unsubscribe();
         };
     }, [projectId, user, navigate]);
+
+    // Firestore listener for real-time updates to slides subcollection
+    useEffect(() => {
+        if (!projectId || !user) return;
+
+        const slidesRef = collection(db, 'users', user.uid, 'projects', projectId, 'slides');
+        const q = query(slidesRef, orderBy('sortOrder', 'asc'));
+
+        const unsubscribe = onSnapshot(q, (snapshot) => {
+            const updatedSlides = snapshot.docs.map(doc => doc.data() as Slide);
+            setSlides(updatedSlides);
+        }, (error: unknown) => {
+            console.error("Slides listener error:", error);
+        });
+
+        return () => unsubscribe();
+    }, [projectId, user]);
 
     // Enforce Mutual Exclusivity: Web Search (Researcher Mode) vs. Uploaded Files (Curator Mode)
     useEffect(() => {

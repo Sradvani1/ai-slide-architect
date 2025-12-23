@@ -60,8 +60,8 @@ export function buildContentStandardsSection(): string {
 export function buildStructureRequirementsSection(totalSlides: number, subject: string, gradeLevel: string): string {
   return `
   STRUCTURE REQUIREMENTS
-    - Slide 1: Title Slide (Title, Content, imagePrompt, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
-    - Slides 2-${totalSlides}: Content Slides (Title, Content, imagePrompt, Speaker Notes).
+    - Slide 1: Title Slide (Title, Content, Speaker Notes). "content" array: ["<tagline>", "${subject}", "${gradeLevel} Grade"].
+    - Slides 2-${totalSlides}: Content Slides (Title, Content, Speaker Notes).
   `;
 }
 
@@ -122,46 +122,58 @@ export function buildOutputFormatSection(): string {
       "title": "string",
       "content": ["string", "string", ...], 
       "layout": "Title Slide" | "Content",
-      "imagePrompt": "string",
       "speakerNotes": "string (Script only)"
     }
   ]
   `;
 }
 
-/**
- * Builds the prompt for regenerating a single slide's image prompt
- */
-export function buildSingleSlideImagePromptPrompt(
+export function buildSingleSlideImagePromptSystemInstructions(): string {
+  return `<role>
+You are an expert Visual Learning Specialist.
+</role>
+
+<task>
+Compose a visual description of an educational illustration that depicts the 
+specific concepts from <key_points> within the scope of <title>.
+Construct the description as a cohesive narrative  in this order:
+1. [Subject]: The central physical element.
+2. [Action]: The active process, movement, or visual state.
+3. [Setting]: The immediate environment.
+4. [Labels]: Any necessary visible text.
+</task>
+
+<constraints>
+1. Audience: Ensure the complexity is age-appropriate for the <grade_level> grade.
+2. Visual Clarity: Describe only visible objects and processes, do not use abstract metaphors.
+3. Text and Labels: Include text labels for key elements when they enhance understanding of the concepts from <key_points>.
+4. Exclusions: Strictly exclude descriptions of artistic style, perspective, lighting effects, camera angles, or shading.
+</constraints>
+
+<output_format>
+Return strictly the description text. No markdown, no field labels.
+</output_format>`.trim();
+}
+
+export function buildSingleSlideImagePromptUserPrompt(
   topic: string,
   subject: string,
   gradeLevel: string,
   slideTitle: string,
   slideContent: string[]
 ): string {
-  const sections = [
-    buildSystemRoleSection(),
-    `
-    PRESENTATION CONTEXT
-    Topic: "${topic}"
-    Subject: ${subject}
-    Target Audience: ${gradeLevel}
-    
-    CURRENT SLIDE
-    Title: "${slideTitle}"
-    Content:
-    ${slideContent.map(bullet => `- ${bullet}`).join('\n')}
-    `,
-    buildImagePromptInstructionsSection(gradeLevel),
-    `
-    TEXT AND LABELS:
-    - Return ONLY the image prompt text.
-    - Do not include any JSON formatting or labels like "imagePrompt:".
-    - Do not include markdown code fences.
-    `
-  ];
+  return `<context>
+<topic>${topic}</topic>
+<subject>${subject}</subject>
+<grade_level>${gradeLevel}</grade_level>
+</context>
 
-  return sections.filter(section => section.trim().length > 0).join('\n');
+<slide_content>
+<title>${slideTitle}</title>
+<key_points>
+${slideContent.map(bullet => `- ${bullet}`).join('\n')}
+  </key_points>
+</slide_content>`.trim();
 }
 
 /**
@@ -186,7 +198,6 @@ export function buildSlideGenerationPrompt(
     buildContentStandardsSection(),
     buildStructureRequirementsSection(totalSlides, subject, gradeLevel),
     buildFormattingConstraintsSection(bulletsPerSlide),
-    buildImagePromptInstructionsSection(gradeLevel),
   ];
 
   if (includeOutputFormat) {
