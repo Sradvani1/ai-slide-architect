@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { ModelPricing } from '@shared/types';
 
 const PRICING_CACHE = new Map<string, { data: ModelPricing; timestamp: number }>();
@@ -62,16 +63,16 @@ export async function calculateAndIncrementProjectCost(
     const cost = pricing ? calculateCost(inputTokens, outputTokens, pricing) : 0;
 
     const updateData: any = {
-        totalCost: admin.firestore.FieldValue.increment(cost),
-        updatedAt: admin.firestore.FieldValue.serverTimestamp()
+        totalCost: FieldValue.increment(cost),
+        updatedAt: FieldValue.serverTimestamp()
     };
 
     if (operationType === 'text') {
-        updateData.textInputTokens = admin.firestore.FieldValue.increment(inputTokens);
-        updateData.textOutputTokens = admin.firestore.FieldValue.increment(outputTokens);
+        updateData.textInputTokens = FieldValue.increment(inputTokens);
+        updateData.textOutputTokens = FieldValue.increment(outputTokens);
     } else {
-        updateData.imageInputTokens = admin.firestore.FieldValue.increment(inputTokens);
-        updateData.imageOutputTokens = admin.firestore.FieldValue.increment(outputTokens);
+        updateData.imageInputTokens = FieldValue.increment(inputTokens);
+        updateData.imageOutputTokens = FieldValue.increment(outputTokens);
     }
 
     try {

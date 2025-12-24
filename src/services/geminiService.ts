@@ -48,16 +48,26 @@ export { GeminiError, ImageGenError };
 import { functions } from '../firebaseConfig';
 
 const getApiBaseUrl = () => {
-  // For production, use actual function URL
-  if (import.meta.env.PROD) {
-    // Firebase Functions client SDK doesn't always expose region directly on the instance
-    const projectId = functions.app.options.projectId;
-    const region = import.meta.env.VITE_FUNCTIONS_REGION || 'us-central1';
-    return `https://${region}-${projectId}.cloudfunctions.net/api`;
+  const projectId = functions.app.options.projectId || 'ai-slide-architect-9de88';
+
+  // Check if we should use production API
+  const useProdApi = import.meta.env.PROD || import.meta.env.VITE_USE_PROD_API === 'true';
+  
+  if (useProdApi) {
+    // 2nd Gen functions have specific URLs - prioritize the environment variable if they set it
+    const prodUrl = import.meta.env.VITE_PRODUCTION_API_URL || 'https://api-osqb5umzra-uc.a.run.app';
+    console.log('[API] Using production API:', prodUrl);
+    return prodUrl;
   }
+
   // For local dev with emulator
-  return import.meta.env.VITE_FUNCTIONS_URL || 'http://localhost:5001/ai-slide-architect/us-central1/api';
+  const localUrl = import.meta.env.VITE_FUNCTIONS_URL || `http://localhost:5001/${projectId}/us-central1/api`;
+  console.warn('[API] Using local emulator API:', localUrl, '(Set VITE_USE_PROD_API=true to use production)');
+  return localUrl;
 };
+
+// Compute API URL dynamically on each call to ensure env vars are read correctly
+const getApiBaseUrlDynamic = () => getApiBaseUrl();
 
 const API_BASE_URL = getApiBaseUrl();
 
@@ -68,8 +78,11 @@ async function authenticatedRequest<T>(endpoint: string, body: GeminiRequestBody
   }
 
   const token = await user.getIdToken();
+  
+  // Get API URL dynamically to ensure we use the correct one
+  const apiUrl = getApiBaseUrlDynamic();
 
-  const response = await fetch(`${API_BASE_URL}${endpoint}`, {
+  const response = await fetch(`${apiUrl}${endpoint}`, {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',

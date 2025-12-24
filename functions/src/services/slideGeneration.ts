@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { getAiClient } from '../utils/geminiClient';
 import { buildSlideDeckSystemPrompt, buildSlideDeckUserPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
@@ -132,7 +133,7 @@ export async function generateSlides(
                 content: Array.isArray(s.content) ? s.content : [String(s.content)],
                 speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
                 imagePrompts: [],
-                currentPromptId: undefined
+                currentPromptId: null
             };
         });
 
@@ -242,14 +243,14 @@ export async function generateSlidesAndUpdateFirestore(
         await projectRef.update({
             status: 'generating',
             generationProgress: 0,
-            generationStartedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            generationStartedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
         });
 
         // Update: Research phase (25%)
         await projectRef.update({
             generationProgress: 25,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: FieldValue.serverTimestamp()
         });
 
         // Generate slides
@@ -269,7 +270,7 @@ export async function generateSlidesAndUpdateFirestore(
         // Update: Generation complete, writing to Firestore (75%)
         await projectRef.update({
             generationProgress: 75,
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            updatedAt: FieldValue.serverTimestamp()
         });
 
         // Write slides to subcollection
@@ -283,7 +284,7 @@ export async function generateSlidesAndUpdateFirestore(
                 ...slide,
                 id: slideId,
                 sortOrder: typeof slide.sortOrder === 'number' ? slide.sortOrder : index,
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: FieldValue.serverTimestamp()
             });
         });
 
@@ -303,8 +304,8 @@ export async function generateSlidesAndUpdateFirestore(
             status: 'completed',
             generationProgress: 100,
             sources: result.sources || [],
-            generationCompletedAt: admin.firestore.FieldValue.serverTimestamp(),
-            updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            generationCompletedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
         });
 
     } catch (error: any) {
@@ -313,7 +314,7 @@ export async function generateSlidesAndUpdateFirestore(
             await projectRef.update({
                 status: 'failed',
                 generationError: error.message || "Generation failed",
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                updatedAt: FieldValue.serverTimestamp()
             });
         } catch (updateError) {
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);

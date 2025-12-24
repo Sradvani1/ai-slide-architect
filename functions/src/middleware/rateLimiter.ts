@@ -1,4 +1,5 @@
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 import { Response, NextFunction } from 'express';
 import { AuthenticatedRequest } from './auth';
 
@@ -36,7 +37,7 @@ export async function checkRateLimit(userId: string): Promise<boolean> {
     }
 
     await rateLimitRef.update({
-        count: admin.firestore.FieldValue.increment(1)
+        count: FieldValue.increment(1)
     });
 
     return true;

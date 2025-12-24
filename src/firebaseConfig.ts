@@ -15,11 +15,23 @@ const firebaseConfig = {
     measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID
 };
 
+// Debug: Log environment configuration
+if (!import.meta.env.PROD) {
+    console.log('[Firebase Config] VITE_USE_PROD_API:', import.meta.env.VITE_USE_PROD_API);
+    console.log('[Firebase Config] Project ID:', firebaseConfig.projectId);
+}
+
 const app = initializeApp(firebaseConfig);
-export const analytics = getAnalytics(app);
+
+// Only initialize analytics in production to avoid measurement ID warnings
+export const analytics = import.meta.env.PROD ? getAnalytics(app) : null;
+
 export const auth = getAuth(app);
+
+// Use auto-detect for long polling to avoid CORS issues when connecting from localhost to production
 export const db = initializeFirestore(app, {
-    experimentalForceLongPolling: true
+    experimentalAutoDetectLongPolling: true
 });
+
 export const storage = getStorage(app);
 export const functions = getFunctions(app);
