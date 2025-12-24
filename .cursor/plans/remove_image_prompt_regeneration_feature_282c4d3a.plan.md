@@ -8,6 +8,9 @@ todos:
   - id: remove_frontend_service
     content: Remove regenerateImagePrompt function from src/services/geminiService.ts
     status: pending
+  - id: remove_type_definitions
+    content: Remove RegeneratePromptRequestBody interface and its reference from GeminiRequestBody type in src/services/geminiService.ts
+    status: pending
   - id: remove_state_and_handlers
     content: Remove isGeneratingNewIdea state, ref, and handleNewIdea function from SlideCard.tsx
     status: pending
@@ -32,8 +35,9 @@ Remove the ability for users to generate additional image prompts beyond the ini
 
 1. **Backend endpoint** - `/regenerate-image-prompt` route
 2. **Frontend service function** - `regenerateImagePrompt()` in geminiService.ts
-3. **UI components** - "New Idea" buttons and related handlers
-4. **State management** - `isGeneratingNewIdea` state and refs
+3. **Type definitions** - `RegeneratePromptRequestBody` interface and its reference in `GeminiRequestBody` type
+4. **UI components** - "New Idea" buttons and related handlers
+5. **State management** - `isGeneratingNewIdea` state and refs
 
 ## What Stays
 
@@ -69,6 +73,18 @@ Remove the ability for users to generate additional image prompts beyond the ini
 - Remove the `regenerateImagePrompt()` function (lines 231-242)
 - Remove the function comment/docstring
 - Keep all other functions intact
+
+#### 2.2 Remove RegeneratePromptRequestBody Interface
+
+**File:** [`src/services/geminiService.ts`](src/services/geminiService.ts)
+
+- Remove the `RegeneratePromptRequestBody` interface (lines 32-35)
+- Remove `RegeneratePromptRequestBody` from the `GeminiRequestBody` type union (line 49)
+- The type union should only include:
+  - `GenerateSlidesRequestBody`
+  - `GenerateImageRequestBody`
+  - `ExtractTextRequestBody`
+  - `IncrementTokensRequestBody`
 
 ### Phase 3: Remove UI Components and State
 
@@ -129,13 +145,15 @@ Remove the ability for users to generate additional image prompts beyond the ini
 ## Files to Modify
 
 1. [`functions/src/index.ts`](functions/src/index.ts) - Remove `/regenerate-image-prompt` endpoint
-2. [`src/services/geminiService.ts`](src/services/geminiService.ts) - Remove `regenerateImagePrompt()` function
+2. [`src/services/geminiService.ts`](src/services/geminiService.ts) - Remove `regenerateImagePrompt()` function and `RegeneratePromptRequestBody` interface
 3. [`src/components/SlideCard.tsx`](src/components/SlideCard.tsx) - Remove state, handlers, buttons, and clean up imports
 
 ## Verification Checklist
 
 - [ ] Backend endpoint removed (no `/regenerate-image-prompt` route)
 - [ ] Frontend service function removed
+- [ ] `RegeneratePromptRequestBody` interface removed
+- [ ] `RegeneratePromptRequestBody` removed from `GeminiRequestBody` type union
 - [ ] "New Idea" buttons removed from UI
 - [ ] `handleNewIdea` function removed
 - [ ] `isGeneratingNewIdea` state and ref removed

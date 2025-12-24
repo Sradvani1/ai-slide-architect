@@ -170,11 +170,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         return () => unsubscribe();
     }, [projectId, user]);
 
-    // Enforce Mutual Exclusivity: Web Search (Researcher Mode) vs. Uploaded Files (Curator Mode)
+    // Ensure Web Search is forced ON if no files are uploaded
     useEffect(() => {
-        if (uploadedFiles.length > 0) {
-            setUseWebSearch(false);
-        } else {
+        if (uploadedFiles.length === 0) {
             setUseWebSearch(true);
         }
     }, [uploadedFiles.length]);

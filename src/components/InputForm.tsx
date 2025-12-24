@@ -187,13 +187,13 @@ export const InputForm: React.FC<InputFormProps> = ({
       </div>
 
       <div className="border-t border-white/5 pt-4 space-y-4">
-        <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${uploadedFiles.length > 0 ? 'bg-neutral-bg/50 border-border-light/50 opacity-60' : 'bg-neutral-bg border-border-light hover:border-primary/20'}`}>
+        <div className={`flex items-center justify-between p-3 rounded-lg border transition-colors ${isLoading || uploadedFiles.length === 0 ? 'bg-neutral-bg/50 border-border-light/50 opacity-60' : 'bg-neutral-bg border-border-light hover:border-primary/20'}`}>
           <div className="flex flex-col">
-            <label htmlFor="webSearch" className={`font-medium text-sm ${uploadedFiles.length > 0 ? 'text-secondary-text cursor-not-allowed' : 'text-primary-text cursor-pointer'}`} onClick={() => uploadedFiles.length === 0 && setUseWebSearch(!useWebSearch)}>Use Google Search</label>
+            <label htmlFor="webSearch" className={`font-medium text-sm ${isLoading || uploadedFiles.length === 0 ? 'text-secondary-text cursor-not-allowed' : 'text-primary-text cursor-pointer'}`} onClick={() => !isLoading && uploadedFiles.length > 0 && setUseWebSearch(!useWebSearch)}>Use Google Search</label>
             <p className="text-secondary-text text-xs mt-0.5">
-              {uploadedFiles.length > 0
-                ? "Disabled to prioritize your uploaded content"
-                : "AI will research this topic online"}
+              {uploadedFiles.length === 0
+                ? "Required to research this topic online"
+                : "AI will supplement your files with web research"}
             </p>
           </div>
           <button
@@ -202,9 +202,9 @@ export const InputForm: React.FC<InputFormProps> = ({
             role="switch"
             aria-checked={useWebSearch}
             onClick={() => setUseWebSearch(!useWebSearch)}
-            disabled={isLoading || uploadedFiles.length > 0}
+            disabled={isLoading || uploadedFiles.length === 0}
             className={`relative inline-flex h-5 w-9 flex-shrink-0 cursor-pointer rounded-full border-2 border-transparent transition-colors duration-200 ease-in-out focus:outline-none focus:ring-2 focus:ring-primary focus:ring-offset-2 focus:ring-offset-surface ${useWebSearch ? 'bg-primary' : 'bg-border-light'
-              } ${(isLoading || uploadedFiles.length > 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
+              } ${(isLoading || uploadedFiles.length === 0) ? 'opacity-50 cursor-not-allowed' : ''}`}
           >
             <span
               aria-hidden="true"

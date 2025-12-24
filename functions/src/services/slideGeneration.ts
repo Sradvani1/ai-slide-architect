@@ -1,6 +1,6 @@
 import * as admin from 'firebase-admin';
 import { getAiClient } from '../utils/geminiClient';
-import { buildSlideGenerationPrompt } from '@shared/promptBuilders';
+import { buildSlideDeckSystemPrompt, buildSlideDeckUserPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
@@ -28,17 +28,17 @@ export async function generateSlides(
     webSearchQueries?: string[],
     warnings: string[]
 }> {
-    const prompt = buildSlideGenerationPrompt(
+    const systemPrompt = buildSlideDeckSystemPrompt();
+    const userPrompt = buildSlideDeckUserPrompt(
         topic,
         subject,
         gradeLevel,
-        numSlides + 1, // + Title slide
-        numSlides,
+        numSlides + 1, // totalSlides
+        numSlides,     // numContentSlides
+        bulletsPerSlide || DEFAULT_BULLETS_PER_SLIDE,
         sourceMaterial,
         useWebSearch,
-        bulletsPerSlide || DEFAULT_BULLETS_PER_SLIDE,
-        additionalInstructions,
-        true // includeOutputFormat
+        additionalInstructions
     );
 
     const generateFn = async () => {
@@ -57,8 +57,11 @@ export async function generateSlides(
 
         const result = await getAiClient().models.generateContent({
             model: model,
-            contents: [{ role: 'user', parts: [{ text: prompt }] }],
-            config: config
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            config: {
+                ...config,
+                systemInstruction: { parts: [{ text: systemPrompt }] }
+            }
         });
 
         // The result object from @google/genai usually has .text() helper or candidates structure

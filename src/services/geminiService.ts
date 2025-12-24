@@ -29,11 +29,6 @@ interface ExtractTextRequestBody {
   mimeType: string;
 }
 
-interface RegeneratePromptRequestBody {
-  projectId: string;
-  slideId: string;
-}
-
 interface IncrementTokensRequestBody {
   projectId: string;
   modelId: string;
@@ -46,7 +41,6 @@ type GeminiRequestBody =
   | GenerateSlidesRequestBody
   | GenerateImageRequestBody
   | ExtractTextRequestBody
-  | RegeneratePromptRequestBody
   | IncrementTokensRequestBody;
 
 export { GeminiError, ImageGenError };
