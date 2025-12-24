@@ -1,9 +1,17 @@
 import * as crypto from 'crypto';
 import { getAiClient } from '../utils/geminiClient';
 import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION, STYLE_GUIDELINES } from '@shared/constants';
-import { retryWithBackoff } from '@shared/utils/retryLogic';
+import { retryWithBackoff, retryPromptGeneration } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
 import { buildSingleSlideImagePromptSystemInstructions, buildSingleSlideImagePromptUserPrompt } from '@shared/promptBuilders';
+
+export interface PromptGenerationResult {
+    prompts: Array<{ id: string; text: string; inputTokens: number; outputTokens: number }>;
+    failed: number;
+    totalInputTokens: number;
+    totalOutputTokens: number;
+    isComplete: boolean;
+}
 
 export async function generateImage(
     imagePrompt: string,
@@ -81,21 +89,30 @@ export async function generateImagePrompts(
     subject: string,
     gradeLevel: string,
     slideTitle: string,
-    slideContent: string[]
-): Promise<{
-    prompts: Array<{ id: string; text: string; inputTokens: number; outputTokens: number }>;
-    totalInputTokens: number;
-    totalOutputTokens: number;
-}> {
+    slideContent: string[],
+    existingPrompts: any[] = []
+): Promise<PromptGenerationResult> {
     const systemInstructions = buildSingleSlideImagePromptSystemInstructions();
     const userPrompt = buildSingleSlideImagePromptUserPrompt(topic, subject, gradeLevel, slideTitle, slideContent);
 
     const prompts: Array<{ id: string; text: string; inputTokens: number; outputTokens: number }> = [];
     let totalInputTokens = 0;
     let totalOutputTokens = 0;
+    let failedCount = 0;
 
-    // Generate 3 prompts sequentially
-    for (let i = 0; i < 3; i++) {
+    const promptsToGenerate = 3 - existingPrompts.length;
+    if (promptsToGenerate <= 0) {
+        return {
+            prompts: [],
+            failed: 0,
+            totalInputTokens: 0,
+            totalOutputTokens: 0,
+            isComplete: true
+        };
+    }
+
+    // Generate remaining prompts sequentially
+    for (let i = 0; i < promptsToGenerate; i++) {
         const generateFn = async () => {
             try {
                 const result = await getAiClient().models.generateContent({
@@ -137,19 +154,23 @@ export async function generateImagePrompts(
         };
 
         try {
-            const promptResult = await retryWithBackoff(generateFn);
+            const promptResult = await retryPromptGeneration(generateFn);
             prompts.push(promptResult);
             totalInputTokens += promptResult.inputTokens;
             totalOutputTokens += promptResult.outputTokens;
         } catch (error) {
             console.error(`Prompt generation failed for iteration ${i}, continuing...`, error);
-            // Continue to next iteration even if one fails
+            failedCount++;
         }
     }
 
+    const totalPrompts = existingPrompts.length + prompts.length;
+
     return {
         prompts,
+        failed: failedCount,
         totalInputTokens,
-        totalOutputTokens
+        totalOutputTokens,
+        isComplete: totalPrompts >= 3
     };
 }

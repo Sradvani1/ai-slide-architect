@@ -156,6 +156,7 @@ export interface ProjectData {
     generationCompletedAt?: Timestamp;
 }
 
+
 /**
  * Creates a new project in Firestore.
  */

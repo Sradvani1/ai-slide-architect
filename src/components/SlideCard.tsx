@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon } from './icons';
-import { generateImageFromPrompt, incrementProjectTokens } from '../services/geminiService';
+import { generateImageFromPrompt, incrementProjectTokens, retryPromptGeneration } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
 import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION } from '../constants';
@@ -97,6 +97,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     }, [slide.aspectRatio]);
 
+    const [isRetrying, setIsRetrying] = useState(false);
+
     const sanitizeFilename = (filename: string): string => {
         return filename
             .replace(/[<>:"/\\|?*]/g, '-')
@@ -105,7 +107,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             .replace(/^-|-$/g, '')
             .substring(0, 100);
     };
-
     const handleGenerateImage = async () => {
         if (isGeneratingImageRef.current) return;
         if (!imagePromptText || !currentPromptId || !currentPrompt) {
@@ -172,6 +173,20 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         } finally {
             setIsGeneratingImage(false);
             isGeneratingImageRef.current = false;
+        }
+    };
+
+    const handleRetryPromptGeneration = async () => {
+        if (!projectId || isRetrying) return;
+        setIsRetrying(true);
+        try {
+            await retryPromptGeneration(projectId, slide.id);
+            // State will update via Firestore listener
+        } catch (error) {
+            console.error('Error retrying prompt generation:', error);
+            alert('Failed to retry prompt generation. Please try again.');
+        } finally {
+            setIsRetrying(false);
         }
     };
 
@@ -265,14 +280,53 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             </div>
 
             <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
-                {imagePrompts.length === 0 ? (
+                {slide.promptGenerationState === 'failed' ? (
+                    <div className="flex flex-col items-center justify-center p-6 bg-red-50/50 rounded-xl border border-red-100 shadow-sm animate-fade-in">
+                        <div className="flex flex-col items-center gap-2 mb-3">
+                            <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Generation Failed</span>
+                            <p className="text-xs text-red-500 max-w-[200px] text-center">{slide.promptGenerationError || 'Unknown error occurred'}</p>
+                        </div>
+                        <button
+                            onClick={handleRetryPromptGeneration}
+                            disabled={isRetrying}
+                            className={`px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
+                        >
+                            {isRetrying && (
+                                <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            )}
+                            {isRetrying ? 'Retrying...' : 'Retry Generation'}
+                        </button>
+                    </div>
+                ) : (slide.promptGenerationState === 'partial' || (slide.promptGenerationState !== 'completed' && imagePrompts.length > 0 && imagePrompts.length < 3)) ? (
+                    <div className="flex flex-col items-center justify-center p-8 bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm animate-pulse">
+                        <div className="flex flex-col items-center gap-3">
+                            <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                            </svg>
+                            <span className="text-sm font-bold text-blue-600 uppercase tracking-widest">
+                                Partial Progress
+                            </span>
+                            <span className="text-xs text-blue-500 font-medium">
+                                {slide.promptGenerationProgress?.succeeded || imagePrompts.length} of 3 prompts generated
+                            </span>
+                        </div>
+                    </div>
+                ) : (slide.promptGenerationState !== 'completed' && imagePrompts.length === 0) ? (
                     <div className="flex items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm animate-pulse">
                         <div className="flex flex-col items-center gap-3">
                             <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
-                            <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">Generating Image Ideas...</span>
+                            <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
+                                {slide.promptGenerationState === 'generating' ? 'Generating Visual Ideas...' :
+                                    slide.promptGenerationState === 'queued' ? 'Waiting in Queue...' :
+                                        'Preparing Ideas...'}
+                            </span>
                         </div>
                     </div>
                 ) : (

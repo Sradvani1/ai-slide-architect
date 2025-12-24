@@ -41,6 +41,21 @@ export interface Slide {
     layout?: 'Title Slide' | 'Content' | string;
     aspectRatio?: '16:9' | '1:1';
     updatedAt?: any;                   // Firestore Timestamp
+
+    // State machine fields for image prompt generation
+    promptGenerationState?: 'pending' | 'queued' | 'generating' | 'partial' | 'completed' | 'failed';
+    promptGenerationError?: string;
+    promptGenerationAttempts?: number;
+    promptGenerationLastAttempt?: any; // Firestore Timestamp
+    promptGenerationNextRetry?: any;   // Firestore Timestamp
+    promptGenerationQueuedAt?: any;    // Firestore Timestamp
+
+    // Partial progress tracking
+    promptGenerationProgress?: {
+        succeeded: number; // Count of prompts successfully generated
+        failed: number;    // Count of prompts that failed after retries
+        lastSuccessAt?: any;
+    };
 }
 
 /**
@@ -56,4 +71,50 @@ export interface ModelPricing {
     isActive: boolean;             // Whether this pricing is currently active
     createdAt: number;
     updatedAt: number;
+}
+
+/**
+ * Metadata for a user-uploaded file (PDF/Docx/image).
+ */
+export interface ProjectFile {
+    id: string;
+    name: string;
+    storagePath: string;
+    downloadUrl: string;
+    mimeType: string;
+    size: number;
+    extractedContent?: string;
+}
+
+/**
+ * Root data structure for a project document in Firestore.
+ */
+export interface ProjectData {
+    id?: string;
+    userId: string;
+    title: string;
+    topic: string;
+    gradeLevel: string;
+    subject: string;
+    additionalInstructions?: string;
+    slides?: Slide[]; // Usually loaded from subcollection, but kept for type completeness
+    files?: ProjectFile[];
+
+    // Token Aggregation (per project)
+    textInputTokens?: number;      // Generated slides + prompt regeneration
+    textOutputTokens?: number;
+    imageInputTokens?: number;     // Image generation only
+    imageOutputTokens?: number;
+
+    // Cost Tracking
+    totalCost?: number;            // Total USD cost
+
+    createdAt?: any;               // Firestore Timestamp
+    updatedAt?: any;               // Firestore Timestamp
+    sources?: string[];
+    status?: 'generating' | 'completed' | 'failed';
+    generationProgress?: number;
+    generationError?: string;
+    generationStartedAt?: any;     // Firestore Timestamp
+    generationCompletedAt?: any;   // Firestore Timestamp
 }

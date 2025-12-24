@@ -1,12 +1,34 @@
 {
     "indexes": [
         {
-            "collectionGroup": "projects",
+            "collectionGroup": "promptGenerationQueue",
             "queryScope": "COLLECTION",
             "fields": [
                 {
-                    "fieldPath": "updatedAt",
-                    "order": "DESCENDING"
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "priority",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "queuedAt",
+                    "order": "ASCENDING"
+                }
+            ]
+        },
+        {
+            "collectionGroup": "promptGenerationQueue",
+            "queryScope": "COLLECTION",
+            "fields": [
+                {
+                    "fieldPath": "status",
+                    "order": "ASCENDING"
+                },
+                {
+                    "fieldPath": "processedAt",
+                    "order": "ASCENDING"
                 }
             ]
         }

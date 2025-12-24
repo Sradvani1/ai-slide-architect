@@ -284,6 +284,8 @@ export async function generateSlidesAndUpdateFirestore(
                 ...slide,
                 id: slideId,
                 sortOrder: typeof slide.sortOrder === 'number' ? slide.sortOrder : index,
+                promptGenerationState: 'pending',
+                imagePrompts: [],
                 updatedAt: FieldValue.serverTimestamp()
             });
         });

@@ -1,6 +1,5 @@
 import React, { useState, useEffect } from 'react';
 import JSZip from 'jszip';
-import { useNavigate } from 'react-router-dom';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
@@ -38,45 +37,68 @@ const WelcomeMessage: React.FC = () => (
 );
 
 const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
-    const navigate = useNavigate();
+    const getStatusMessage = () => {
+        if (progress === undefined) return 'Preparing your presentation';
+        if (progress < 25) return 'Researching content';
+        if (progress < 75) return 'Writing slides';
+        if (progress < 100) return 'Finalizing presentation';
+        return 'Almost done';
+    };
+
     return (
-        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4">
-            <div className="w-full max-w-xs mb-10">
-                {/* Progress Bar with actual progress */}
-                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden relative">
+        <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 animate-fade-in">
+            {/* Spinner Icon */}
+            <div className="mb-8">
+                <svg
+                    className="animate-spin h-10 w-10 text-primary"
+                    xmlns="http://www.w3.org/2000/svg"
+                    fill="none"
+                    viewBox="0 0 24 24"
+                    aria-label="Loading"
+                >
+                    <circle
+                        className="opacity-25"
+                        cx="12"
+                        cy="12"
+                        r="10"
+                        stroke="currentColor"
+                        strokeWidth="4"
+                    />
+                    <path
+                        className="opacity-75"
+                        fill="currentColor"
+                        d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"
+                    />
+                </svg>
+            </div>
+
+            <h2 className="text-3xl font-bold text-primary-text mb-6 tracking-tight">
+                {getStatusMessage()}
+            </h2>
+
+            {/* Progress Bar - Clean and minimal */}
+            <div className="w-full max-w-md">
+                <div className="h-1.5 w-full bg-slate-100 rounded-full overflow-hidden">
                     <div
-                        className={`absolute top-0 bottom-0 left-0 bg-primary rounded-full transition-all duration-500 ease-out ${progress === undefined ? 'w-1/3 animate-sliding-progress' : ''}`}
-                        style={progress !== undefined ? { width: `${progress}%` } : {}}
-                    ></div>
-                </div>
-                <div className="flex justify-between mt-2">
-                    <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse"></div>
-                    <div className="w-2 h-2 rounded-full bg-primary/40 animate-pulse delay-75"></div>
-                    <div className="w-2 h-2 rounded-full bg-primary/20 animate-pulse delay-150"></div>
+                        className={`h-full bg-primary rounded-full transition-all duration-500 ease-out ${progress === undefined ? 'animate-pulse' : ''}`}
+                        style={{
+                            width: progress !== undefined
+                                ? `${progress}%`
+                                : '33%'
+                        }}
+                        role="progressbar"
+                        aria-valuenow={progress}
+                        aria-valuemin={0}
+                        aria-valuemax={100}
+                        aria-label="Generation progress"
+                    />
                 </div>
                 {progress !== undefined && (
-                    <p className="text-xs font-bold text-primary mt-2 uppercase tracking-widest">{progress}% Complete</p>
+                    <p className="text-[10px] font-bold text-slate-400 mt-3 uppercase tracking-[0.1em]">
+                        {progress}% Completed
+                    </p>
                 )}
             </div>
-            <h2 className="text-3xl font-bold text-primary-text mb-3 tracking-tight">
-                {progress !== undefined && progress < 25 ? 'Starting build' :
-                    progress !== undefined && progress < 75 ? 'Researching content' :
-                        progress !== undefined && progress < 100 ? 'Writing slides' :
-                            progress === 100 ? 'Finalizing presentation' :
-                                'Building slides'}
-            </h2>
-            <p className="text-secondary-text text-lg font-medium max-w-md mx-auto leading-relaxed">
-                {progress !== undefined && progress < 75 ? 'Searching the web and analyzing your documents' :
-                    progress !== undefined && progress < 100 ? 'Architecting and formatting your slide deck' :
-                        'researching, organizing and writing your content'}
-            </p>
-
-            <button
-                onClick={() => navigate('/')}
-                className="mt-8 px-6 py-2.5 text-sm font-bold text-secondary-text hover:text-primary border border-border-light hover:border-primary/30 rounded-full transition-all bg-white/50 backdrop-blur-sm shadow-sm"
-            >
-                Continue in Background
-            </button>
         </div>
     );
 };

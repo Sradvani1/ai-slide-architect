@@ -171,6 +171,105 @@ export async function retryWithBackoff<T>(fn: () => Promise<T>, retries = MAX_RE
     }
 }
 
+/**
+    * Retry function specifically for prompt generation.
+    * Disables circuit breaker since we have high rate limits (1000/min)
+    * and failures are usually transient network issues.
+ */
+export async function retryPromptGeneration<T>(
+    fn: () => Promise<T>,
+    retries = MAX_RETRIES,
+    delay = INITIAL_DELAY_MS,
+    deadline?: number
+): Promise<T> {
+    if (!deadline) {
+        deadline = Date.now() + TIMEOUT_MS;
+    }
+
+    const now = Date.now();
+    if (now > deadline) {
+        throw new GeminiError(`Request timed out after ${TIMEOUT_MS}ms`, 'TIMEOUT', false);
+    }
+
+    // Use rate limiter for concurrency control but NOT circuit breaker
+    await rateLimiter.acquire();
+
+    let timeoutId: any = null;
+
+    try {
+        const timeRemaining = deadline - now;
+        if (timeRemaining < 250) {
+            throw new GeminiError('Global deadline exceeded', 'TIMEOUT', false);
+        }
+
+        const attemptTimeout = timeRemaining;
+        const timeoutPromise = new Promise<never>((_, reject) => {
+            timeoutId = setTimeout(() => reject(new GeminiError('Request timed out', 'TIMEOUT', true)), attemptTimeout);
+        });
+
+        const result = await Promise.race([fn(), timeoutPromise]);
+        if (timeoutId) clearTimeout(timeoutId);
+
+        rateLimiter.release();
+        return result;
+
+    } catch (error: any) {
+        if (timeoutId) clearTimeout(timeoutId);
+
+        const errorMessage = (error?.message || '').toLowerCase();
+
+        // Non-retryable errors
+        if (errorMessage.includes('context length') || errorMessage.includes('token limit') ||
+            errorMessage.includes('payload too large') || error.status === 400) {
+            rateLimiter.release();
+            if (error instanceof GeminiError) throw error;
+            throw new GeminiError(error.message, 'INVALID_REQUEST', false, error);
+        }
+
+        // Determine if retryable
+        const status = error?.status || error?.response?.status;
+        const isRetryable =
+            (error instanceof GeminiError && error.isRetryable) ||
+            status === 429 || status === 503 || status === 500 ||
+            status === 502 || status === 504 || status === 408 ||
+            errorMessage.includes('429') || errorMessage.includes('503') ||
+            errorMessage.includes('network') || errorMessage.includes('timeout') ||
+            errorMessage.includes('econnreset');
+
+        // DO NOT use circuit breaker - just release and retry
+        rateLimiter.release();
+
+        if (!isRetryable || retries <= 0) {
+            if (error instanceof GeminiError) throw error;
+            throw new GeminiError(error.message, 'API_ERROR', false, error);
+        }
+
+        // Exponential backoff with jitter
+        let nextDelay: number;
+        if (error?.retryDelay) {
+            nextDelay = error.retryDelay + (Math.random() * 200);
+        } else {
+            nextDelay = Math.min(delay * 2, MAX_DELAY_MS) + (Math.random() * 200);
+        }
+
+        const timeNow = Date.now();
+        const timeLeft = deadline - timeNow;
+
+        if (timeLeft < 500) {
+            throw new GeminiError("Deadline exceeded", 'TIMEOUT', false);
+        }
+
+        if (nextDelay > (timeLeft - 500)) {
+            nextDelay = timeLeft - 500;
+        }
+
+        console.warn(`Retrying prompt generation... Attempts left: ${retries}. Delay: ${Math.round(nextDelay)}ms`);
+        await new Promise(resolve => setTimeout(resolve, nextDelay));
+
+        return retryPromptGeneration(fn, retries - 1, nextDelay, deadline);
+    }
+}
+
 // Helper to extract JSON array safely
 export function extractFirstJsonArray(text: string): any[] {
     // 1. Remove ALL code fences to avoid confusion

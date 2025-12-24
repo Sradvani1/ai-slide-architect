@@ -38,8 +38,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
     const [slides, setSlides] = useState<Slide[] | null>(null);
     const [sources, setSources] = useState<string[]>([]);
-    const [currentProjectId, setCurrentProjectId] = useState<string | null>(null);
-    const [isLoading, setIsLoading] = useState<boolean>(false);
+    const [currentProjectId, setCurrentProjectId] = useState<string | null>(projectId || null);
+    const [isLoading, setIsLoading] = useState<boolean>(!!projectId);
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
@@ -66,7 +66,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setGradeLevel(project.gradeLevel);
                     setSubject(project.subject);
                     setAdditionalInstructions(project.additionalInstructions || '');
-                    setSlides(project.slides);
+                    setSlides(project.slides || null);
                     setSources(project.sources || []);
                     setCurrentProjectId(project.id!);
 
@@ -80,11 +80,16 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                             storagePath: f.storagePath
                         })));
                     }
-                    // Don't reset numSlides, useWebSearch, creativityLevel - they persist as user preferences
+                    // Only set isLoading(false) if project is NOT generating
+                    // The Firestore listener will handle status updates for generating projects
+                    if (project.status !== 'generating') {
+                        setIsLoading(false);
+                    }
+                    // If status is 'generating', keep isLoading=true and let the listener handle it
                 } else {
                     setError("Project not found.");
+                    setIsLoading(false);
                 }
-                setIsLoading(false);
             } else {
                 // Reset for new project
                 setTopic('');
@@ -95,6 +100,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setCurrentProjectId(null);
                 setUploadedFiles([]);
                 setError(null);
+                setIsLoading(false);
             }
         };
 
@@ -392,18 +398,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 </button>
             </div>
 
-            {/* Back to Dashboard Button (Desktop) */}
-            <div className="absolute top-4 right-4 z-50 hidden md:block">
-                <button
-                    onClick={() => navigate('/')}
-                    className="flex items-center space-x-2 px-4 py-2 bg-white/80 backdrop-blur-sm border border-border-light rounded-full text-secondary-text hover:text-primary hover:border-primary transition-all shadow-sm"
-                >
-                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-4 h-4">
-                        <path strokeLinecap="round" strokeLinejoin="round" d="M9 15L3 9m0 0l6-6M3 9h12a6 6 0 010 12h-3" />
-                    </svg>
-                    <span className="text-sm font-semibold">Dashboard</span>
-                </button>
-            </div>
+
 
             {/* Mobile Backdrop */}
             {isSidebarOpen && (

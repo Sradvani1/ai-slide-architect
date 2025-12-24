@@ -15,14 +15,16 @@ const adminUserIdSecret = defineSecret('ADMIN_USER_ID');
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
-import { generateImage, generateImagePrompts } from './services/imageGeneration';
+import { generateImage } from './services/imageGeneration';
 import { calculateAndIncrementProjectCost } from './services/pricingService';
-import { MODEL_SLIDE_GENERATION } from '@shared/constants';
+import { processQueueBatch, enqueueSlide, cleanupFailedQueue, enqueueSlideInBatch } from './services/promptQueue';
 
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
+import { generateImagePromptsForSlide } from './services/promptGenerationService';
 
 const app = express();
 
@@ -249,71 +251,208 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
     }
 });
 
+/**
+ * 8. Retry Prompt Generation (for specific slide or all failed in project)
+ */
+app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { projectId, slideId } = req.body;
+
+        if (!projectId) {
+            res.status(400).json({ error: "Missing required field: projectId" });
+            return;
+        }
+
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+
+        // Verify project exists and belongs to user
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found or unauthorized" });
+            return;
+        }
+
+        if (slideId) {
+            // Retry specific slide
+            const slideRef = projectRef.collection('slides').doc(slideId);
+            const slideDoc = await slideRef.get();
+            if (!slideDoc.exists) {
+                res.status(404).json({ error: "Slide not found" });
+                return;
+            }
+
+            // Reset state and enqueue
+            await slideRef.update({
+                promptGenerationState: 'pending',
+                promptGenerationError: admin.firestore.FieldValue.delete(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            await enqueueSlide(slideRef, projectRef, userId, projectId);
+
+            res.json({ success: true, message: `Slide ${slideId} enqueued for retry.` });
+        } else {
+            // Retry all failed slides in project
+            const failedSlidesSnapshot = await projectRef.collection('slides')
+                .where('promptGenerationState', '==', 'failed')
+                .get();
+
+            if (failedSlidesSnapshot.empty) {
+                res.json({ success: true, message: "No failed slides found to retry." });
+                return;
+            }
+
+            const batch = db.batch();
+            for (const slideDoc of failedSlidesSnapshot.docs) {
+                batch.update(slideDoc.ref, {
+                    promptGenerationState: 'pending',
+                    promptGenerationError: admin.firestore.FieldValue.delete(),
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                });
+                enqueueSlideInBatch(batch, slideDoc.ref, projectRef, userId, projectId);
+            }
+            await batch.commit();
+
+            res.json({ success: true, message: `Enqueued ${failedSlidesSnapshot.size} slides for retry.` });
+        }
+    } catch (error: any) {
+        console.error("Retry Prompt Generation Error:", error);
+        res.status(500).json({ error: "Failed to retry prompt generation" });
+    }
+});
+
 // 6. Triggers
 export const onSlideCreated = onDocumentCreated(
     {
         document: 'users/{userId}/projects/{projectId}/slides/{slideId}',
-        secrets: [apiKey]
+        secrets: [apiKey],
+        timeoutSeconds: 60,
+        maxInstances: 100
     },
     async (event) => {
-        const slideData = event.data?.data();
         const slideRef = event.data?.ref;
         if (!slideRef) return;
 
         const projectId = event.params.projectId;
         const userId = event.params.userId;
 
-        // Skip if imagePrompts already exists
-        if (slideData?.imagePrompts && slideData.imagePrompts.length > 0) {
-            return;
-        }
-
         const db = admin.firestore();
         const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-        const projectDoc = await projectRef.get();
-
-        if (!projectDoc.exists) {
-            console.error(`Project ${projectId} not found`);
-            return;
-        }
-
-        const projectData = projectDoc.data();
 
         try {
-            // Generate 3 initial prompts
-            const result = await generateImagePrompts(
-                projectData?.topic || '',
-                projectData?.subject || '',
-                projectData?.gradeLevel || '',
-                slideData?.title || '',
-                slideData?.content || []
-            );
+            // Use transaction to prevent race conditions during state check and update
+            await db.runTransaction(async (transaction) => {
+                const currentDoc = await transaction.get(slideRef);
+                const currentData = currentDoc.data();
 
-            if (result.prompts.length > 0) {
-                await slideRef.update({
-                    imagePrompts: result.prompts.map(p => ({
-                        id: p.id,
-                        text: p.text,
-                        createdAt: Date.now(),
-                        inputTokens: p.inputTokens,
-                        outputTokens: p.outputTokens,
-                        isOriginal: true
-                    })),
-                    currentPromptId: result.prompts[0].id
+                const existingPrompts = currentData?.imagePrompts || [];
+                if (existingPrompts.length >= 3) {
+                    return;
+                }
+
+                const currentState = currentData?.promptGenerationState;
+                if (currentState && currentState !== 'pending' && currentState !== 'failed') {
+                    throw new Error('ALREADY_PROCESSING');
+                }
+
+                transaction.update(slideRef, {
+                    promptGenerationState: 'pending',
+                    promptGenerationError: admin.firestore.FieldValue.delete(),
+                    'promptGenerationProgress.succeeded': existingPrompts.length,
+                    'promptGenerationProgress.failed': 0,
+                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
                 });
+            });
 
-                // Track costs
-                await calculateAndIncrementProjectCost(
-                    projectRef,
-                    MODEL_SLIDE_GENERATION,
-                    result.totalInputTokens,
-                    result.totalOutputTokens,
-                    'text'
-                );
+            await enqueueSlide(slideRef, projectRef, userId, projectId);
+
+            await slideRef.update({
+                promptGenerationState: 'queued',
+                promptGenerationQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            console.log(`[TRIGGER] Slide ${slideRef.id} enqueued for prompt generation.`);
+
+        } catch (error: any) {
+            if (error.message === 'ALREADY_PROCESSING') {
+                return; // Gracefully handle race condition
             }
-        } catch (error) {
-            console.error(`Error generating image prompts for slide ${slideRef.id}:`, error);
+            console.error(`[TRIGGER] Error enqueueing slide ${slideRef.id}:`, error);
+            await slideRef.update({
+                promptGenerationState: 'failed',
+                promptGenerationError: 'Failed to enqueue for processing',
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
         }
+    }
+);
+
+/**
+ * 7. Scheduled Queue Processor
+ * Runs every minute to process pending prompt generation tasks.
+ */
+export const processPromptGenerationQueue = onSchedule(
+    {
+        schedule: 'every 1 minutes',
+        timeZone: 'UTC',
+        secrets: [apiKey],
+        maxInstances: 1 // Concurrency control: only one worker processes the queue
+    },
+    async (event) => {
+        console.log('[SCHEDULE] Starting prompt generation queue processing...');
+
+        let totalProcessed = 0;
+        let batchCount = 0;
+        const maxBatches = 10; // Process up to 10 batches (100 slides) per run
+
+        const FUNCTION_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes (leave buffer for default timeout)
+        const startTime = Date.now();
+
+        while (batchCount < maxBatches) {
+            if (Date.now() - startTime > FUNCTION_TIMEOUT_MS) {
+                console.warn('[SCHEDULE] Approaching timeout, stopping batch processing');
+                break;
+            }
+
+            const processed = await processQueueBatch(async (item) => {
+                await generateImagePromptsForSlide(item);
+            });
+
+            if (processed === 0) break;
+
+            totalProcessed += processed;
+            batchCount++;
+
+            if (batchCount < maxBatches) {
+                // Small delay between batches to allow other instances or tasks some breathing room
+                await new Promise(resolve => setTimeout(resolve, 500));
+            }
+        }
+
+        console.log(`[SCHEDULE] Processed ${totalProcessed} items in ${batchCount} batches.`);
+    }
+);
+
+/**
+ * 8. Daily Queue Cleanup
+ * Removes items from failedPromptGenerationQueue older than 30 days.
+ */
+export const cleanupPromptGenerationQueues = onSchedule(
+    {
+        schedule: 'every 24 hours',
+        timeZone: 'UTC'
+    },
+    async () => {
+        const cleaned = await cleanupFailedQueue();
+        console.log(`[CLEANUP] Removed ${cleaned} old items from failed queue.`);
     }
 );
 

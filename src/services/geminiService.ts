@@ -37,11 +37,17 @@ interface IncrementTokensRequestBody {
   operationType: 'text' | 'image';
 }
 
+interface RetryPromptGenerationRequestBody {
+  projectId: string;
+  slideId?: string;
+}
+
 type GeminiRequestBody =
   | GenerateSlidesRequestBody
   | GenerateImageRequestBody
   | ExtractTextRequestBody
-  | IncrementTokensRequestBody;
+  | IncrementTokensRequestBody
+  | RetryPromptGenerationRequestBody;
 
 export { GeminiError, ImageGenError };
 
@@ -52,7 +58,7 @@ const getApiBaseUrl = () => {
 
   // Check if we should use production API
   const useProdApi = import.meta.env.PROD || import.meta.env.VITE_USE_PROD_API === 'true';
-  
+
   if (useProdApi) {
     // 2nd Gen functions have specific URLs - prioritize the environment variable if they set it
     const prodUrl = import.meta.env.VITE_PRODUCTION_API_URL || 'https://api-osqb5umzra-uc.a.run.app';
@@ -78,7 +84,7 @@ async function authenticatedRequest<T>(endpoint: string, body: GeminiRequestBody
   }
 
   const token = await user.getIdToken();
-  
+
   // Get API URL dynamically to ensure we use the correct one
   const apiUrl = getApiBaseUrlDynamic();
 
@@ -252,6 +258,19 @@ export const incrementProjectTokens = async (
     inputTokens,
     outputTokens,
     operationType
+  });
+};
+
+/**
+ * Retries image prompt generation for a specific slide or all failed slides in a project.
+ */
+export const retryPromptGeneration = async (
+  projectId: string,
+  slideId?: string
+): Promise<{ success: boolean; message: string }> => {
+  return authenticatedRequest<{ success: boolean; message: string }>('/retry-prompt-generation', {
+    projectId,
+    slideId
   });
 };
 
