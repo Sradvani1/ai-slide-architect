@@ -33,7 +33,6 @@ export async function generateSlides(
         topic,
         subject,
         gradeLevel,
-        numSlides + 1, // totalSlides
         numSlides,     // numContentSlides
         bulletsPerSlide || DEFAULT_BULLETS_PER_SLIDE,
         sourceMaterial,
