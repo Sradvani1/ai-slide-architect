@@ -55,15 +55,15 @@ Your goal is to generate a professional, engaging slide deck and speaker notes o
 
 <task>
 - Slide 1: Title Slide. Must include: a title, a tagline (3-5 words), the subject <subject>, and the grade level <grade_level>.
-- Slides 2-<total_slides>: Content Slides. Each must include: a title, exactly <bullets_per_slide> bullet points, and speaker notes.
-- Total Slides: The deck must contain exactly <total_slides> slides (1 title slide + <content_slides_count> content slides).
+- Slides 2-N: Content Slides. Each must include: a title, exactly <bullets_per_slide> bullet points, and speaker notes.
+- Total Slides: The deck must contain exactly <total_slides> slides.
 </task>
 
 <constraints>
-1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound for the target grade level.
-2. Clarity: Use clear, concise language appropriate for the target grade level students.
+1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound for <grade_level>.
+2. Clarity: Use clear, concise language appropriate for <grade_level>.
 3. Engagement: Speaker notes should be engaging and conversational, written in a script format.
-4. Bullets: Use the exact number of bullet points requested per content slide.
+4. Bullets: Use exactly <bullets_per_slide> bullet points per content slide.
 5. No Markdown: Content strings must be plain text. Do NOT use markdown bold (**), italics (*), or manual bullet characters (-).
 </constraints>
 
@@ -100,7 +100,6 @@ export function buildSlideDeckUserPrompt(
   <subject>${subject}</subject>
   <grade_level>${gradeString}</grade_level>
   <total_slides>${totalSlides}</total_slides>
-  <content_slides_count>${numContentSlides}</content_slides_count>
   <bullets_per_slide>${bulletsPerSlide}</bullets_per_slide>
   ${additionalInstructions ? `<additional_instructions>${additionalInstructions}</additional_instructions>` : ''}
 </context>`.trim();
