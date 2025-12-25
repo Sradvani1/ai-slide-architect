@@ -145,6 +145,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             } else if (projectData.status === 'completed') {
                 setIsLoading(false);
                 setGenerationProgress(100);
+                if (projectData.sources) {
+                    setSources(projectData.sources);
+                }
             } else if (projectData.status === 'failed') {
                 setIsLoading(false);
                 setError(projectData.generationError || "Generation failed. Please try again.");

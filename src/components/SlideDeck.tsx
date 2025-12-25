@@ -186,10 +186,10 @@ const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
                     return children;
                 }),
 
-                // Append overall sources at the end if provided
+                // Append sources at the end if provided
                 ...(overallSources.length > 0 ? [
                     new Paragraph({
-                        text: "Overall Sources",
+                        text: "Sources",
                         heading: HeadingLevel.HEADING_1,
                         spacing: { before: 400, after: 200 }
                     }),
