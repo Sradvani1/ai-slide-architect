@@ -13,8 +13,8 @@ import {
 } from '../utils/fileValidation';
 
 interface FileUploaderProps {
-    onFilesSelected: (files: { file?: File; name: string; content: string; size: number }[]) => void;
-    uploadedFiles: { file?: File; name: string; content: string; size: number }[];
+    onFilesSelected: (files: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[]) => void;
+    uploadedFiles: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[];
     onRemoveFile: (index: number) => void;
     isLoading: boolean;
 }
@@ -108,7 +108,7 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
         setFileResults(resultsMap);
         setIsValidating(false);
 
-        const newFiles: { file?: File; name: string; content: string; size: number }[] = [];
+        const newFiles: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[] = [];
         const validFiles = fileArray.filter(f => resultsMap[f.name]?.valid);
 
         for (const file of validFiles) {
@@ -137,20 +137,52 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                     const pdfCheck = await validatePdfContent(buffer, file.name);
                     if (!pdfCheck.valid) throw new Error(pdfCheck.error);
                     content = await extractTextFromPdf(buffer);
+                    // PDF extraction is client-side, no tokens
+                    if (!content || content.trim().length === 0) {
+                        throw new Error('PDF appears to be empty or contains no extractable text');
+                    }
+                    newFiles.push({ file, name: file.name, content, size: file.size });
                 } else if (file.type === 'application/vnd.openxmlformats-officedocument.wordprocessingml.document' || ext === '.docx') {
                     const result = await mammoth.extractRawText({ arrayBuffer: buffer });
                     content = result.value;
+                    // DOCX extraction is client-side, no tokens
+                    if (!content || content.trim().length === 0) {
+                        throw new Error('DOCX file appears to be empty or contains no extractable text');
+                    }
+                    newFiles.push({ file, name: file.name, content, size: file.size });
                 } else if (file.type === 'text/plain' || ext === '.txt') {
                     content = new TextDecoder().decode(buffer);
+                    // TXT extraction is client-side, no tokens
+                    if (!content || content.trim().length === 0) {
+                        throw new Error('Text file appears to be empty');
+                    }
+                    newFiles.push({ file, name: file.name, content, size: file.size });
                 } else if (file.type.startsWith('image/') || /\.(png|jpe?g|webp)$/i.test(file.name)) {
                     const imgCheck = await validateImageContent(file);
                     if (!imgCheck.valid) throw new Error(imgCheck.error);
 
                     const base64Content = await convertFileToBase64(file);
-                    content = await extractTextFromImage(base64Content, file.type || 'image/jpeg');
+                    const extractionResult = await extractTextFromImage(base64Content, file.type || 'image/jpeg');
+                    content = extractionResult.text;
+                    
+                    // Validate image extraction result
+                    if (!content || content.trim().length === 0) {
+                        throw new Error('No text could be extracted from this image');
+                    }
+                    
+                    // Image extraction uses API, track tokens
+                    newFiles.push({ 
+                        file, 
+                        name: file.name, 
+                        content, 
+                        size: file.size,
+                        inputTokens: extractionResult.inputTokens,
+                        outputTokens: extractionResult.outputTokens
+                    });
+                } else {
+                    // Unknown file type - don't add with empty content
+                    throw new Error(`File type "${file.type || 'unknown'}" is not supported for text extraction`);
                 }
-
-                newFiles.push({ file, name: file.name, content, size: file.size });
                 setFileProgress(prev => ({
                     ...prev,
                     [file.name]: { progress: 100, stage: 'done' }

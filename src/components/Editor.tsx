@@ -5,9 +5,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
-import { generateSlidesFromDocument } from '../services/geminiService';
+import { generateSlidesFromDocument, incrementProjectTokens } from '../services/geminiService';
 import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
-import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
+import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '../constants';
 import type { Slide, ProjectFile } from '../types';
 
 interface EditorProps {
@@ -30,6 +30,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         size: number;
         downloadUrl?: string;
         storagePath?: string;
+        inputTokens?: number;
+        outputTokens?: number;
     }[]>([]);
     const [numSlides, setNumSlides] = useState<number>(DEFAULT_NUM_SLIDES);
     const [useWebSearch, setUseWebSearch] = useState<boolean>(true);
@@ -186,7 +188,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
     }, [uploadedFiles.length]);
 
-    const handleFilesSelected = (files: { file?: File; name: string; content: string; size: number }[]) => {
+    const handleFilesSelected = (files: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[]) => {
         setUploadedFiles((prev) => [...prev, ...files]);
     };
 
@@ -206,7 +208,11 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
         let newProjectId: string | null = null;
         try {
-            const sourceMaterial = uploadedFiles.map(f => `File: ${f.name}\n---\n${f.content}\n---`).join('\n\n');
+            // Filter out files with empty content and build sourceMaterial
+            const sourceMaterial = uploadedFiles
+                .filter(f => f.content && f.content.trim().length > 0)
+                .map(f => `File: ${f.name}\n---\n${f.content}\n---`)
+                .join('\n\n');
             const uploadedFileNames = uploadedFiles.map(f => f.name);
 
             if (user) {
@@ -225,6 +231,29 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 });
 
                 setCurrentProjectId(newProjectId);
+
+                // 1a. Track text extraction tokens if any files used text extraction
+                const textExtractionTokens = uploadedFiles
+                    .filter(f => f.inputTokens !== undefined && f.outputTokens !== undefined)
+                    .reduce((acc, f) => ({
+                        inputTokens: acc.inputTokens + (f.inputTokens || 0),
+                        outputTokens: acc.outputTokens + (f.outputTokens || 0)
+                    }), { inputTokens: 0, outputTokens: 0 });
+
+                if (textExtractionTokens.inputTokens > 0 || textExtractionTokens.outputTokens > 0) {
+                    try {
+                        await incrementProjectTokens(
+                            newProjectId,
+                            MODEL_SLIDE_GENERATION,
+                            textExtractionTokens.inputTokens,
+                            textExtractionTokens.outputTokens,
+                            'text'
+                        );
+                    } catch (tokenError) {
+                        console.error('Failed to track text extraction tokens:', tokenError);
+                        // Don't block project creation if token tracking fails
+                    }
+                }
 
                 // 2. Upload files first (if any)
                 const uploadedProjectFiles: ProjectFile[] = [];
@@ -324,10 +353,13 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 updatedAt: serverTimestamp()
             });
 
-            // 3. Reconstruct source material from project files
+            // 3. Reconstruct source material from project files (filter empty content)
             const projectFiles = projectData.files || [];
             const sourceMaterial = projectFiles.length > 0
-                ? projectFiles.map((f: ProjectFile) => `File: ${f.name}\n---\n${f.extractedContent || ''}\n---`).join('\n\n')
+                ? projectFiles
+                    .filter((f: ProjectFile) => f.extractedContent && f.extractedContent.trim().length > 0)
+                    .map((f: ProjectFile) => `File: ${f.name}\n---\n${f.extractedContent}\n---`)
+                    .join('\n\n')
                 : "";
 
             const uploadedFileNames = projectFiles.map((f: ProjectFile) => f.name);

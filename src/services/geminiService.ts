@@ -233,12 +233,16 @@ export const repairSlideJSON = async (
 export const extractTextFromImage = async (
   imageBase64: string,
   mimeType: string
-): Promise<string> => {
-  const result = await authenticatedRequest<{ text: string }>('/extract-text', {
+): Promise<{ text: string; inputTokens: number; outputTokens: number }> => {
+  const result = await authenticatedRequest<{ text: string; inputTokens: number; outputTokens: number }>('/extract-text', {
     imageBase64,
     mimeType
   });
-  return result.text;
+  return {
+    text: result.text,
+    inputTokens: result.inputTokens || 0,
+    outputTokens: result.outputTokens || 0
+  };
 };
 
 

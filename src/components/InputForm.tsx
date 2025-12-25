@@ -9,8 +9,8 @@ interface InputFormProps {
   setGradeLevel: (text: string) => void;
   subject: string;
   setSubject: (text: string) => void;
-  onFilesSelected: (files: { file?: File; name: string; content: string; size: number }[]) => void;
-  uploadedFiles: { file?: File; name: string; content: string; size: number }[];
+  onFilesSelected: (files: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[]) => void;
+  uploadedFiles: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[];
   onRemoveFile: (index: number) => void;
   numSlides: number;
   setNumSlides: (num: number) => void;
