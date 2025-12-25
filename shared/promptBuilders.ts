@@ -54,8 +54,8 @@ Your goal is to generate a professional, engaging slide deck and speaker notes o
 </role>
 
 <task>
-- Slide 1: Title Slide. Must include: a title, a tagline (3-5 words), the subject <subject>, and the grade level <grade_level>.
-- Slides 2-N: Content Slides. Each must include: a title, exactly <bullets_per_slide> bullet points, and speaker notes.
+- Slide 1: Title Slide. The JSON object must have: "title" (main presentation title), "content" array with exactly 3 strings in this order: [tagline (3-5 words), the subject value from <subject>, the grade value from <grade_level>], and "speakerNotes".
+- Slides 2-N: Content Slides. Each JSON object must have: "title" (slide title), "content" array with exactly <bullets_per_slide> strings (bullet points), and "speakerNotes".
 - Total Slides: The deck must contain exactly <total_slides> slides.
 </task>
 
@@ -63,7 +63,7 @@ Your goal is to generate a professional, engaging slide deck and speaker notes o
 1. Educational Value: Content must be accurate, age-appropriate, and pedagogically sound for <grade_level>.
 2. Clarity: Use clear, concise language appropriate for <grade_level>.
 3. Engagement: Speaker notes should be engaging and conversational, written in a script format.
-4. Bullets: Use exactly <bullets_per_slide> bullet points per content slide.
+4. Bullets: Use exactly <bullets_per_slide> bullet points for Content Slides.
 5. No Markdown: Content strings must be plain text. Do NOT use markdown bold (**), italics (*), or manual bullet characters (-).
 </constraints>
 

@@ -632,4 +632,3 @@ function isValidSlide(data) {
 ## Testing Plan
 
 1. **Direct Processing Test**: Create slide deck, verify prompts generate immediately
-2. **Concurrency Test**: Create 10 slides, verify rate limiting works (no floods)
