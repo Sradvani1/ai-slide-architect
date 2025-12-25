@@ -5,6 +5,7 @@ import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
 import * as admin from 'firebase-admin';
+import { FieldValue } from 'firebase-admin/firestore';
 
 // Initialize Firebase Admin (must be before middleware)
 admin.initializeApp();
@@ -17,10 +18,8 @@ import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 import { calculateAndIncrementProjectCost } from './services/pricingService';
-import { enqueueSlide, enqueueSlideInBatch, processQueueItemImmediately } from './services/promptQueue';
-import { QueueItem } from './services/promptQueue';
-
 import { extractTextFromImage } from './services/imageTextExtraction';
+import { Slide } from '@shared/types';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
@@ -98,7 +97,7 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
                 projectRef.update({
                     status: 'failed',
                     generationError: error.message || "Background generation failed",
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    updatedAt: FieldValue.serverTimestamp()
                 }).catch(updateError => {
                     console.error("Failed to update error status in background catch:", updateError);
                 });
@@ -280,39 +279,57 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
         }
 
         if (slideId) {
-            // Retry specific slide
+            // Retry specific slide with transaction
             const slideRef = projectRef.collection('slides').doc(slideId);
-            const slideDoc = await slideRef.get();
-            if (!slideDoc.exists) {
-                res.status(404).json({ error: "Slide not found" });
-                return;
+
+            try {
+                await db.runTransaction(async (transaction) => {
+                    const slideDoc = await transaction.get(slideRef);
+                    if (!slideDoc.exists) {
+                        throw new Error('DOC_NOT_FOUND');
+                    }
+
+                    const data = slideDoc.data() as Slide;
+                    const existingPrompts = data?.imagePrompts || [];
+
+                    // Skip if already complete
+                    if (existingPrompts.length >= 3) {
+                        throw new Error('ALREADY_COMPLETE');
+                    }
+
+                    // Block if already processing
+                    if (data.promptGenerationState === 'generating' || data.promptGenerationState === 'completed') {
+                        throw new Error('ALREADY_PROCESSING');
+                    }
+
+                    // Atomically claim by setting to 'generating'
+                    transaction.update(slideRef, {
+                        promptGenerationState: 'generating',
+                        promptGenerationError: FieldValue.delete(),
+                        updatedAt: FieldValue.serverTimestamp()
+                    });
+                });
+
+                // Process directly (fire and forget)
+                generateImagePromptsForSlide(slideRef, projectRef).catch(error => {
+                    console.error(`[RETRY] Error processing prompts for slide ${slideId}:`, error);
+                });
+
+                res.json({ success: true, message: `Slide ${slideId} retry started.` });
+
+            } catch (error: any) {
+                if (error.message === 'DOC_NOT_FOUND') {
+                    res.status(404).json({ error: "Slide not found" });
+                    return;
+                }
+                if (['ALREADY_PROCESSING', 'ALREADY_COMPLETE'].includes(error.message)) {
+                    res.json({ success: true, message: `Slide ${slideId} is already processing or complete.` });
+                    return;
+                }
+                throw error; // Re-throw to outer catch
             }
-
-            // Reset state and enqueue
-            await slideRef.update({
-                promptGenerationState: 'pending',
-                promptGenerationError: admin.firestore.FieldValue.delete(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            await enqueueSlide(slideRef, projectRef, userId, projectId);
-
-            await slideRef.update({
-                promptGenerationState: 'queued',
-                promptGenerationQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
-
-            // Start processing immediately (non-blocking)
-            processQueueItemImmediately(slideId, async (item: QueueItem) => {
-                await generateImagePromptsForSlide(item);
-            }).catch((err: any) => {
-                console.error(`[RETRY] Error starting immediate processing for ${slideId}:`, err);
-            });
-
-            res.json({ success: true, message: `Slide ${slideId} enqueued for retry.` });
         } else {
-            // Retry all failed slides in project
+            // Retry all failed slides - batch updates (no transaction per slide for simplicity)
             const failedSlidesSnapshot = await projectRef.collection('slides')
                 .where('promptGenerationState', '==', 'failed')
                 .get();
@@ -322,27 +339,37 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
                 return;
             }
 
+            // For batch, use simple batch update
             const batch = db.batch();
+            let count = 0;
             for (const slideDoc of failedSlidesSnapshot.docs) {
+                const data = slideDoc.data() as Slide;
+                // Skip if already complete
+                if ((data.imagePrompts || []).length >= 3) continue;
+
                 batch.update(slideDoc.ref, {
-                    promptGenerationState: 'pending',
-                    promptGenerationError: admin.firestore.FieldValue.delete(),
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    promptGenerationState: 'generating',
+                    promptGenerationError: FieldValue.delete(),
+                    updatedAt: FieldValue.serverTimestamp()
                 });
-                enqueueSlideInBatch(batch, slideDoc.ref, projectRef, userId, projectId);
-            }
-            await batch.commit();
-
-            // Start processing each slide immediately
-            for (const slideDoc of failedSlidesSnapshot.docs) {
-                processQueueItemImmediately(slideDoc.id, async (item: QueueItem) => {
-                    await generateImagePromptsForSlide(item);
-                }).catch((err: any) => {
-                    console.error(`[RETRY] Error starting immediate processing for ${slideDoc.id}:`, err);
-                });
+                count++;
             }
 
-            res.json({ success: true, message: `Enqueued ${failedSlidesSnapshot.size} slides for retry.` });
+            if (count > 0) {
+                await batch.commit();
+
+                // Start processing each slide (fire and forget)
+                for (const slideDoc of failedSlidesSnapshot.docs) {
+                    const data = slideDoc.data() as Slide;
+                    if ((data.imagePrompts || []).length >= 3) continue;
+
+                    generateImagePromptsForSlide(slideDoc.ref, projectRef).catch(error => {
+                        console.error(`[RETRY] Error processing slide ${slideDoc.id}:`, error);
+                    });
+                }
+            }
+
+            res.json({ success: true, message: `Retry started for ${count} slides.` });
         }
     } catch (error: any) {
         console.error("Retry Prompt Generation Error:", error);
@@ -369,57 +396,51 @@ export const onSlideCreated = onDocumentCreated(
         const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
 
         try {
-            // Use transaction to prevent race conditions during state check and update
+            // Use transaction to atomically claim processing
             await db.runTransaction(async (transaction) => {
                 const currentDoc = await transaction.get(slideRef);
-                const currentData = currentDoc.data();
+                if (!currentDoc.exists) throw new Error('DOC_NOT_FOUND');
 
+                const currentData = currentDoc.data() as Slide;
                 const existingPrompts = currentData?.imagePrompts || [];
+
+                // Skip if already complete
                 if (existingPrompts.length >= 3) {
-                    return;
+                    throw new Error('ALREADY_COMPLETE');
                 }
 
+                // Block if already processing or completed
                 const currentState = currentData?.promptGenerationState;
-                if (currentState && currentState !== 'pending' && currentState !== 'failed') {
+                if (currentState === 'generating' || currentState === 'completed') {
                     throw new Error('ALREADY_PROCESSING');
                 }
 
                 transaction.update(slideRef, {
-                    promptGenerationState: 'pending',
-                    promptGenerationError: admin.firestore.FieldValue.delete(),
+                    promptGenerationState: 'generating',
+                    promptGenerationError: FieldValue.delete(),
                     'promptGenerationProgress.succeeded': existingPrompts.length,
-                    'promptGenerationProgress.failed': 0,
-                    updatedAt: admin.firestore.FieldValue.serverTimestamp()
+                    'promptGenerationProgress.failed': FieldValue.delete(),
+                    updatedAt: FieldValue.serverTimestamp()
                 });
             });
 
-            await enqueueSlide(slideRef, projectRef, userId, projectId);
-
-            await slideRef.update({
-                promptGenerationState: 'queued',
-                promptGenerationQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            // Process directly (fire and forget)
+            generateImagePromptsForSlide(slideRef, projectRef).catch(error => {
+                console.error(`[TRIGGER] Error processing prompts for slide ${slideRef.id}:`, error);
+                slideRef.update({
+                    promptGenerationState: 'failed',
+                    promptGenerationError: 'Failed to start prompt generation',
+                    updatedAt: FieldValue.serverTimestamp()
+                }).catch(updateError => {
+                    console.error(`[TRIGGER] Failed to update error state:`, updateError);
+                });
             });
-
-            // Start processing immediately (non-blocking)
-            processQueueItemImmediately(slideRef.id, async (item: QueueItem) => {
-                await generateImagePromptsForSlide(item);
-            }).catch((err: any) => {
-                console.error(`[TRIGGER] Error starting immediate processing for ${slideRef.id}:`, err);
-            });
-
-            console.log(`[TRIGGER] Slide ${slideRef.id} enqueued and processing started.`);
 
         } catch (error: any) {
-            if (error.message === 'ALREADY_PROCESSING') {
-                return; // Gracefully handle race condition
+            if (['ALREADY_PROCESSING', 'ALREADY_COMPLETE', 'DOC_NOT_FOUND'].includes(error.message)) {
+                return; // Gracefully handle expected conditions
             }
-            console.error(`[TRIGGER] Error enqueueing slide ${slideRef.id}:`, error);
-            await slideRef.update({
-                promptGenerationState: 'failed',
-                promptGenerationError: 'Failed to enqueue for processing',
-                updatedAt: admin.firestore.FieldValue.serverTimestamp()
-            });
+            console.error(`[TRIGGER] Error in trigger for slide ${slideRef.id}:`, error);
         }
     }
 );
