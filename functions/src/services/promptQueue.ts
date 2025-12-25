@@ -71,32 +71,6 @@ export function enqueueSlideInBatch(
     }, { merge: true });
 }
 
-/**
- * Cleanup old items from the failed queue (older than 30 days).
- */
-export async function cleanupFailedQueue(): Promise<number> {
-    const db = admin.firestore();
-    const failedQueueRef = db.collection(FAILED_QUEUE_COLLECTION);
-
-    const expireThreshold = admin.firestore.Timestamp.fromDate(
-        new Date(Date.now() - 30 * 24 * 60 * 60 * 1000)
-    );
-
-    const snapshot = await failedQueueRef
-        .where('failedAt', '<', expireThreshold)
-        .where('failedAt', '!=', null)
-        .limit(100)
-        .get();
-
-    if (snapshot.empty) return 0;
-
-    const batch = db.batch();
-    snapshot.docs.forEach(doc => batch.delete(doc.ref));
-    await batch.commit();
-
-    return snapshot.size;
-}
-
 async function moveToFailedQueue(docRef: admin.firestore.DocumentReference, data: any): Promise<void> {
     const db = admin.firestore();
     const failedQueueRef = db.collection(FAILED_QUEUE_COLLECTION).doc(docRef.id);

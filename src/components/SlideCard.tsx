@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageGenError } from '../types';
-import { CopyIcon, CheckIcon, ImageIcon } from './icons';
+import { CopyIcon, CheckIcon, ImageIcon, PencilIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
 import { generateImageFromPrompt, incrementProjectTokens, retryPromptGeneration } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
@@ -224,10 +224,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     </div>
                     <h3 className="text-lg sm:text-xl font-bold text-primary-text break-words line-clamp-2">{slide.title}</h3>
                 </div>
-
-                <div className="flex items-center space-x-1 opacity-100 sm:opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0">
-                    <CopyButton textToCopy={contentToCopy} />
-                </div>
             </header>
 
             {/* Content Area */}
@@ -266,15 +262,16 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             ))}
                         </ul>
 
-                        <button
-                            onClick={() => setIsEditingContent(true)}
-                            className="absolute top-0 right-0 p-2 text-secondary-text hover:text-primary opacity-0 group-hover/content:opacity-100 transition-all bg-surface shadow-sm rounded-lg"
-                            title="Edit Content"
-                        >
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                <path strokeLinecap="round" strokeLinejoin="round" d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z" />
-                            </svg>
-                        </button>
+                        <div className="flex flex-col gap-2 absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-all">
+                            <button
+                                onClick={() => setIsEditingContent(true)}
+                                className="p-2 text-secondary-text hover:text-primary bg-surface shadow-sm rounded-lg border border-slate-100"
+                                title="Edit Content"
+                            >
+                                <PencilIcon className="h-4 w-4" />
+                            </button>
+                            <CopyButton textToCopy={contentToCopy} />
+                        </div>
                     </div>
                 )}
             </div>
@@ -325,7 +322,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
                                 {slide.promptGenerationState === 'generating' ? 'Generating Visual Ideas...' :
                                     slide.promptGenerationState === 'queued' ? 'Waiting in Queue...' :
-                                        'Preparing Ideas...'}
+                                        'Preparing Visual Ideas...'}
                             </span>
                         </div>
                     </div>
@@ -339,39 +336,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             <div className="flex-grow min-w-0">
                                 {/* Control Header */}
                                 <div className="flex items-center justify-between mb-2">
-                                    <div className="flex items-center gap-2">
-                                        <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Image Prompt</span>
-                                        {imagePrompts.length > 1 && (
-                                            <div className="flex items-center gap-1 ml-2" role="tablist" aria-label="Prompt history">
-                                                {imagePrompts.map((p, idx) => (
-                                                    <button
-                                                        key={p.id}
-                                                        onClick={() => !isGeneratingImage && onUpdateSlide({ currentPromptId: p.id })}
-                                                        disabled={isGeneratingImage}
-                                                        className={`w-1.5 h-1.5 rounded-full transition-all ${p.id === currentPromptId ? 'bg-primary scale-125' : 'bg-slate-300'} ${isGeneratingImage ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                        title={`Switch to Idea ${idx + 1}`}
-                                                        role="tab"
-                                                        aria-selected={p.id === currentPromptId}
-                                                    />
-                                                ))}
-                                            </div>
-                                        )}
-                                    </div>
-
-                                    {/* Actions */}
-                                    <div className="flex items-center gap-2">
-                                        {!isEditingPrompt && (
-                                            <>
-                                                <button
-                                                    onClick={() => setIsEditingPrompt(true)}
-                                                    className="px-2 py-1 text-[10px] uppercase font-bold text-slate-400 hover:text-primary transition-colors border border-transparent hover:border-slate-200 rounded disabled:opacity-50"
-                                                    title="Edit Image Prompt"
-                                                >
-                                                    Edit
-                                                </button>
-                                            </>
-                                        )}
-                                    </div>
+                                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Idea</span>
                                 </div>
 
                                 {isEditingPrompt ? (
@@ -393,31 +358,64 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                                 onClick={handleSavePrompt}
                                                 className="px-3 py-1.5 text-xs font-bold bg-primary text-white rounded shadow-sm hover:bg-primary/90"
                                             >
-                                                Save Prompt
+                                                Save Idea
                                             </button>
                                         </div>
                                     </div>
                                 ) : (
-                                    <div className="relative group/prompt">
+                                    <div className="relative group/prompt flex gap-3">
                                         <div
-                                            className={`bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-all cursor-pointer ${!isPromptExpanded ? 'max-h-[80px] overflow-hidden' : ''}`}
+                                            className={`flex-grow bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-all cursor-pointer ${!isPromptExpanded ? 'max-h-[80px] overflow-hidden' : ''}`}
                                             onClick={() => setIsPromptExpanded(!isPromptExpanded)}
                                         >
                                             <div className="prose prose-sm max-w-none text-secondary-text text-sm">
                                                 <p className="whitespace-pre-wrap leading-relaxed">{imagePromptText}</p>
                                             </div>
-                                            {!isPromptExpanded && imagePromptText.length > 150 && (
-                                                <div className="absolute bottom-0 left-0 right-0 h-8 bg-gradient-to-t from-white to-transparent" />
-                                            )}
                                         </div>
-                                        {imagePromptText.length > 150 && (
+
+                                        <div className="flex flex-col gap-2 opacity-0 group-hover/prompt:opacity-100 transition-all">
                                             <button
-                                                onClick={() => setIsPromptExpanded(!isPromptExpanded)}
-                                                className="text-[10px] text-slate-400 hover:text-primary font-bold uppercase mt-1"
+                                                onClick={(e) => { e.stopPropagation(); setIsEditingPrompt(true); }}
+                                                className="p-2 text-secondary-text hover:text-primary bg-white shadow-sm rounded-lg border border-slate-100"
+                                                title="Edit Visual Idea"
                                             >
-                                                {isPromptExpanded ? 'Show Less' : 'Show More'}
+                                                <PencilIcon className="h-4 w-4" />
                                             </button>
-                                        )}
+                                            <CopyButton textToCopy={imagePromptText} />
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* Navigation Arrows */}
+                                {imagePrompts.length > 1 && !isEditingPrompt && (
+                                    <div className="flex items-center gap-4 mt-2 mb-1">
+                                        <button
+                                            onClick={() => {
+                                                const idx = imagePrompts.findIndex(p => p.id === currentPromptId);
+                                                const prevIdx = (idx - 1 + imagePrompts.length) % imagePrompts.length;
+                                                onUpdateSlide({ currentPromptId: imagePrompts[prevIdx].id });
+                                            }}
+                                            disabled={isGeneratingImage}
+                                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-full transition-all disabled:opacity-30"
+                                            title="Previous Idea"
+                                        >
+                                            <ChevronLeftIcon className="w-4 h-4" />
+                                        </button>
+                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
+                                            Idea {imagePrompts.findIndex(p => p.id === currentPromptId) + 1} of {imagePrompts.length}
+                                        </span>
+                                        <button
+                                            onClick={() => {
+                                                const idx = imagePrompts.findIndex(p => p.id === currentPromptId);
+                                                const nextIdx = (idx + 1) % imagePrompts.length;
+                                                onUpdateSlide({ currentPromptId: imagePrompts[nextIdx].id });
+                                            }}
+                                            disabled={isGeneratingImage}
+                                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-full transition-all disabled:opacity-30"
+                                            title="Next Idea"
+                                        >
+                                            <ChevronRightIcon className="w-4 h-4" />
+                                        </button>
                                     </div>
                                 )}
 
@@ -488,11 +486,10 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                 )}
                                 <span>{isGeneratingImage ? 'Generating...' : 'Generate Image'}</span>
                             </button>
-                            <CopyButton textToCopy={imagePromptText} />
                         </div>
                     </>
                 )}
             </footer>
-        </div>
+        </div >
     );
 };

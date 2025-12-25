@@ -17,14 +17,13 @@ import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 import { calculateAndIncrementProjectCost } from './services/pricingService';
-import { enqueueSlide, cleanupFailedQueue, enqueueSlideInBatch, processQueueItemImmediately } from './services/promptQueue';
+import { enqueueSlide, enqueueSlideInBatch, processQueueItemImmediately } from './services/promptQueue';
 import { QueueItem } from './services/promptQueue';
 
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { generateImagePromptsForSlide } from './services/promptGenerationService';
 
 const app = express();
@@ -422,75 +421,6 @@ export const onSlideCreated = onDocumentCreated(
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
         }
-    }
-);
-
-/**
- * 7. Stale Queue Cleanup
- * Runs every 5 minutes to reset items stuck in "processing".
- */
-export const cleanupStaleQueueItems = onSchedule(
-    {
-        schedule: 'every 5 minutes',
-        timeZone: 'UTC',
-        maxInstances: 1
-    },
-    async (event) => {
-        console.log('[SCHEDULE] Starting stale queue item cleanup...');
-
-        const db = admin.firestore();
-        const queueRef = db.collection('promptGenerationQueue');
-
-        // Cleanup stale "processing" items (older than 10 mins)
-        const staleThreshold = admin.firestore.Timestamp.fromDate(
-            new Date(Date.now() - 10 * 60 * 1000)
-        );
-
-        const staleSnapshot = await queueRef
-            .where('status', '==', 'processing')
-            .where('processedAt', '<', staleThreshold)
-            .limit(100)
-            .get();
-
-        if (staleSnapshot.empty) {
-            console.log('[SCHEDULE] No stale items found.');
-            return;
-        }
-
-        console.log(`[SCHEDULE] Resetting ${staleSnapshot.size} stale processing items.`);
-        const cleanupBatch = db.batch();
-        staleSnapshot.docs.forEach(doc => {
-            cleanupBatch.update(doc.ref, {
-                status: 'queued',
-                processedAt: null,
-                error: 'Processing timeout - reset to queued'
-            });
-        });
-        await cleanupBatch.commit();
-
-        // After resetting, trigger immediate processing for each reset item
-        for (const doc of staleSnapshot.docs) {
-            processQueueItemImmediately(doc.id, async (item: QueueItem) => {
-                await generateImagePromptsForSlide(item);
-            }).catch((err: any) => {
-                console.error(`[SCHEDULE] Error starting processing for stale item ${doc.id}:`, err);
-            });
-        }
-    }
-);
-
-/**
- * 8. Daily Queue Cleanup
- * Removes items from failedPromptGenerationQueue older than 30 days.
- */
-export const cleanupPromptGenerationQueues = onSchedule(
-    {
-        schedule: 'every 24 hours',
-        timeZone: 'UTC'
-    },
-    async () => {
-        const cleaned = await cleanupFailedQueue();
-        console.log(`[CLEANUP] Removed ${cleaned} old items from failed queue.`);
     }
 );
 
