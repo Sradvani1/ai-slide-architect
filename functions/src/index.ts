@@ -17,7 +17,8 @@ import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 import { calculateAndIncrementProjectCost } from './services/pricingService';
-import { processQueueBatch, enqueueSlide, cleanupFailedQueue, enqueueSlideInBatch } from './services/promptQueue';
+import { enqueueSlide, cleanupFailedQueue, enqueueSlideInBatch, processQueueItemImmediately } from './services/promptQueue';
+import { QueueItem } from './services/promptQueue';
 
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { initializeModelPricing } from './utils/initializePricing';
@@ -297,6 +298,19 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
 
             await enqueueSlide(slideRef, projectRef, userId, projectId);
 
+            await slideRef.update({
+                promptGenerationState: 'queued',
+                promptGenerationQueuedAt: admin.firestore.FieldValue.serverTimestamp(),
+                updatedAt: admin.firestore.FieldValue.serverTimestamp()
+            });
+
+            // Start processing immediately (non-blocking)
+            processQueueItemImmediately(slideId, async (item: QueueItem) => {
+                await generateImagePromptsForSlide(item);
+            }).catch((err: any) => {
+                console.error(`[RETRY] Error starting immediate processing for ${slideId}:`, err);
+            });
+
             res.json({ success: true, message: `Slide ${slideId} enqueued for retry.` });
         } else {
             // Retry all failed slides in project
@@ -319,6 +333,15 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
                 enqueueSlideInBatch(batch, slideDoc.ref, projectRef, userId, projectId);
             }
             await batch.commit();
+
+            // Start processing each slide immediately
+            for (const slideDoc of failedSlidesSnapshot.docs) {
+                processQueueItemImmediately(slideDoc.id, async (item: QueueItem) => {
+                    await generateImagePromptsForSlide(item);
+                }).catch((err: any) => {
+                    console.error(`[RETRY] Error starting immediate processing for ${slideDoc.id}:`, err);
+                });
+            }
 
             res.json({ success: true, message: `Enqueued ${failedSlidesSnapshot.size} slides for retry.` });
         }
@@ -379,7 +402,14 @@ export const onSlideCreated = onDocumentCreated(
                 updatedAt: admin.firestore.FieldValue.serverTimestamp()
             });
 
-            console.log(`[TRIGGER] Slide ${slideRef.id} enqueued for prompt generation.`);
+            // Start processing immediately (non-blocking)
+            processQueueItemImmediately(slideRef.id, async (item: QueueItem) => {
+                await generateImagePromptsForSlide(item);
+            }).catch((err: any) => {
+                console.error(`[TRIGGER] Error starting immediate processing for ${slideRef.id}:`, err);
+            });
+
+            console.log(`[TRIGGER] Slide ${slideRef.id} enqueued and processing started.`);
 
         } catch (error: any) {
             if (error.message === 'ALREADY_PROCESSING') {
@@ -396,48 +426,56 @@ export const onSlideCreated = onDocumentCreated(
 );
 
 /**
- * 7. Scheduled Queue Processor
- * Runs every minute to process pending prompt generation tasks.
+ * 7. Stale Queue Cleanup
+ * Runs every 5 minutes to reset items stuck in "processing".
  */
-export const processPromptGenerationQueue = onSchedule(
+export const cleanupStaleQueueItems = onSchedule(
     {
-        schedule: 'every 1 minutes',
+        schedule: 'every 5 minutes',
         timeZone: 'UTC',
-        secrets: [apiKey],
-        maxInstances: 1 // Concurrency control: only one worker processes the queue
+        maxInstances: 1
     },
     async (event) => {
-        console.log('[SCHEDULE] Starting prompt generation queue processing...');
+        console.log('[SCHEDULE] Starting stale queue item cleanup...');
 
-        let totalProcessed = 0;
-        let batchCount = 0;
-        const maxBatches = 10; // Process up to 10 batches (100 slides) per run
+        const db = admin.firestore();
+        const queueRef = db.collection('promptGenerationQueue');
 
-        const FUNCTION_TIMEOUT_MS = 8 * 60 * 1000; // 8 minutes (leave buffer for default timeout)
-        const startTime = Date.now();
+        // Cleanup stale "processing" items (older than 10 mins)
+        const staleThreshold = admin.firestore.Timestamp.fromDate(
+            new Date(Date.now() - 10 * 60 * 1000)
+        );
 
-        while (batchCount < maxBatches) {
-            if (Date.now() - startTime > FUNCTION_TIMEOUT_MS) {
-                console.warn('[SCHEDULE] Approaching timeout, stopping batch processing');
-                break;
-            }
+        const staleSnapshot = await queueRef
+            .where('status', '==', 'processing')
+            .where('processedAt', '<', staleThreshold)
+            .limit(100)
+            .get();
 
-            const processed = await processQueueBatch(async (item) => {
-                await generateImagePromptsForSlide(item);
-            });
-
-            if (processed === 0) break;
-
-            totalProcessed += processed;
-            batchCount++;
-
-            if (batchCount < maxBatches) {
-                // Small delay between batches to allow other instances or tasks some breathing room
-                await new Promise(resolve => setTimeout(resolve, 500));
-            }
+        if (staleSnapshot.empty) {
+            console.log('[SCHEDULE] No stale items found.');
+            return;
         }
 
-        console.log(`[SCHEDULE] Processed ${totalProcessed} items in ${batchCount} batches.`);
+        console.log(`[SCHEDULE] Resetting ${staleSnapshot.size} stale processing items.`);
+        const cleanupBatch = db.batch();
+        staleSnapshot.docs.forEach(doc => {
+            cleanupBatch.update(doc.ref, {
+                status: 'queued',
+                processedAt: null,
+                error: 'Processing timeout - reset to queued'
+            });
+        });
+        await cleanupBatch.commit();
+
+        // After resetting, trigger immediate processing for each reset item
+        for (const doc of staleSnapshot.docs) {
+            processQueueItemImmediately(doc.id, async (item: QueueItem) => {
+                await generateImagePromptsForSlide(item);
+            }).catch((err: any) => {
+                console.error(`[SCHEDULE] Error starting processing for stale item ${doc.id}:`, err);
+            });
+        }
     }
 );
 

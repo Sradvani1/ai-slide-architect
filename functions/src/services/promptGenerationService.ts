@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import { generateImagePrompts } from './imageGeneration';
 import { calculateAndIncrementProjectCost } from './pricingService';
 import { MODEL_SLIDE_GENERATION } from '@shared/constants';
-import { QueueItem, enqueueSlide } from './promptQueue';
+import { QueueItem, enqueueSlide, processQueueItemImmediately } from './promptQueue';
 import { calculateNextRetryTime } from './promptGenerationStateMachine';
 import type { Slide, ImagePrompt, ProjectData } from '@shared/types';
 
@@ -115,6 +115,13 @@ export async function generateImagePromptsForSlide(item: QueueItem): Promise<voi
                 promptGenerationQueuedAt: FieldValue.serverTimestamp(),
                 updatedAt: FieldValue.serverTimestamp()
             });
+
+            // Start processing immediately (non-blocking)
+            processQueueItemImmediately(slideId, async (queueItem) => {
+                await generateImagePromptsForSlide(queueItem);
+            }).catch(err => {
+                console.error(`[PROMPT_GEN] Error starting immediate processing for partial ${slideId}:`, err);
+            });
         } else {
             // All attempts failed in this run
             const newAttempts = attempts + 1;
@@ -153,6 +160,13 @@ export async function generateImagePromptsForSlide(item: QueueItem): Promise<voi
 
             // Re-enqueue for retry - Preserve attempt count to prevent infinite loops
             await enqueueSlide(slideRef, projectRef, item.userId, projectId, newAttempts);
+
+            // Start processing immediately (non-blocking)
+            processQueueItemImmediately(slideId, async (queueItem) => {
+                await generateImagePromptsForSlide(queueItem);
+            }).catch(err => {
+                console.error(`[PROMPT_GEN] Error starting immediate processing for retry ${slideId}:`, err);
+            });
         } else {
             console.error(`[PROMPT_GEN:${correlationId}] Permanent failure for slide ${slideId} after ${newAttempts} attempts.`);
             await slideRef.update({
