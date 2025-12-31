@@ -183,11 +183,51 @@ const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
                     }
 
                     children.push(new Paragraph({ text: "" })); // Spacing between slides
+
+                    // Append project-wide sources to the LAST slide's notes
+                    const isLastSlide = index === slides.length - 1;
+                    if (isLastSlide && overallSources && overallSources.length > 0) {
+                        children.push(new Paragraph({
+                            text: "Sources",
+                            heading: HeadingLevel.HEADING_2,
+                            spacing: { before: 200, after: 100 }
+                        }));
+
+                        overallSources.forEach(source => {
+                            const urlRegex = /(https?:\/\/[^\s]+)/g;
+                            const parts = source.split(urlRegex);
+                            const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
+
+                            parts.forEach(part => {
+                                if (part.match(urlRegex)) {
+                                    paragraphChildren.push(new ExternalHyperlink({
+                                        children: [
+                                            new TextRun({
+                                                text: part,
+                                                style: "Hyperlink",
+                                            }),
+                                        ],
+                                        link: part,
+                                    }));
+                                } else if (part) {
+                                    paragraphChildren.push(new TextRun(part));
+                                }
+                            });
+
+                            children.push(new Paragraph({
+                                children: paragraphChildren,
+                                spacing: { after: 100 }
+                            }));
+                        });
+
+                        children.push(new Paragraph({ text: "" })); // Extra spacing after sources on last slide
+                    }
+
                     return children;
                 }),
 
                 // Append sources at the end if provided
-                ...(overallSources.length > 0 ? [
+                ...(overallSources && overallSources.length > 0 ? [
                     new Paragraph({
                         text: "Sources",
                         heading: HeadingLevel.HEADING_1,

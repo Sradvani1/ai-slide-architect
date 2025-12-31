@@ -71,19 +71,34 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
     };
 
     const extractTextFromPdf = async (buffer: ArrayBuffer): Promise<string> => {
-        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
-        let fullText = '';
-        for (let i = 1; i <= pdf.numPages; i++) {
-            const page = await pdf.getPage(i);
-            const textContent = await page.getTextContent();
-            // In pdfjs-dist, items can be TextItem or TextMarkedContent. 
-            // We use a type guard/filter to ensure we only get items with 'str' property.
-            const pageText = textContent.items
-                .map((item: any) => (item as { str?: string }).str || '')
-                .join(' ');
-            fullText += pageText + '\n';
+        let pdf: any = null;
+        try {
+            pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+            let fullText = '';
+            for (let i = 1; i <= pdf.numPages; i++) {
+                const page = await pdf.getPage(i);
+                const textContent = await page.getTextContent();
+                // In pdfjs-dist, items can be TextItem or TextMarkedContent. 
+                // We use a type guard/filter to ensure we only get items with 'str' property.
+                const pageText = textContent.items
+                    .map((item: any) => (item as { str?: string }).str || '')
+                    .join(' ');
+                fullText += pageText + '\n';
+            }
+            await pdf.destroy();
+            return fullText;
+        } catch (error) {
+            // Clean up PDF if it was created before the error
+            if (pdf) {
+                try {
+                    await pdf.destroy();
+                } catch (destroyError) {
+                    // Ignore destroy errors during error handling
+                    console.warn('Error destroying PDF during extraction cleanup:', destroyError);
+                }
+            }
+            throw error;
         }
-        return fullText;
     };
 
     const processFiles = async (files: FileList | null) => {
@@ -134,7 +149,9 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                 const ext = `.${file.name.split('.').pop()?.toLowerCase()}`;
 
                 if (file.type === 'application/pdf' || ext === '.pdf') {
-                    const pdfCheck = await validatePdfContent(buffer, file.name);
+                    // Clone buffer to prevent detachment - pdfjs-dist transfers buffer to worker
+                    const validationBuffer = buffer.slice(0);
+                    const pdfCheck = await validatePdfContent(validationBuffer, file.name);
                     if (!pdfCheck.valid) throw new Error(pdfCheck.error);
                     content = await extractTextFromPdf(buffer);
                     // PDF extraction is client-side, no tokens
@@ -164,17 +181,17 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                     const base64Content = await convertFileToBase64(file);
                     const extractionResult = await extractTextFromImage(base64Content, file.type || 'image/jpeg');
                     content = extractionResult.text;
-                    
+
                     // Validate image extraction result
                     if (!content || content.trim().length === 0) {
                         throw new Error('No text could be extracted from this image');
                     }
-                    
+
                     // Image extraction uses API, track tokens
-                    newFiles.push({ 
-                        file, 
-                        name: file.name, 
-                        content, 
+                    newFiles.push({
+                        file,
+                        name: file.name,
+                        content,
                         size: file.size,
                         inputTokens: extractionResult.inputTokens,
                         outputTokens: extractionResult.outputTokens

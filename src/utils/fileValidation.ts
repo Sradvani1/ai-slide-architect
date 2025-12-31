@@ -195,18 +195,30 @@ export async function validateTextFileContent(file: File): Promise<{ valid: bool
  * Content validation for PDF
  */
 export async function validatePdfContent(buffer: ArrayBuffer, fileName: string): Promise<{ valid: boolean; error?: string; pageCount?: number }> {
+    let pdf: any = null;
     try {
-        const pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
+        pdf = await pdfjsLib.getDocument({ data: buffer }).promise;
         const pageCount = pdf.numPages;
 
         if (pageCount > MAX_PDF_PAGES) {
+            await pdf.destroy();
             return {
                 valid: false,
                 error: createError(fileName, `Contains ${pageCount} pages, maximum is ${MAX_PDF_PAGES}`)
             };
         }
+        await pdf.destroy();
         return { valid: true, pageCount };
     } catch (error) {
+        // Clean up PDF if it was created before the error
+        if (pdf) {
+            try {
+                await pdf.destroy();
+            } catch (destroyError) {
+                // Ignore destroy errors during error handling
+                console.warn('Error destroying PDF during cleanup:', destroyError);
+            }
+        }
         console.error(`PDF Validation failed for ${fileName}:`, error);
         return { valid: false, error: createError(fileName, 'Invalid or corrupted PDF file') };
     }

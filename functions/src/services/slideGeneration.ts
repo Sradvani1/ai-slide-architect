@@ -210,9 +210,10 @@ function getUniqueSources(
         }
     });
 
-    // 2. Add file sources
     // Use uploadedFileNames if available, otherwise fallback to extraction
-    const fileNames = uploadedFileNames || extractFileNamesFromSourceMaterial(sourceMaterial || "");
+    const fileNames = (uploadedFileNames && uploadedFileNames.length > 0)
+        ? uploadedFileNames
+        : extractFileNamesFromSourceMaterial(sourceMaterial || "");
     fileNames.forEach(f => {
         if (f && f.trim()) {
             allSources.add(`File: ${f.trim()}`);
