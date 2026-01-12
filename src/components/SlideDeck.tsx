@@ -103,7 +103,7 @@ const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
     );
 };
 
-const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
+const generateDocx = async (slides: Slide[]) => {
     const doc = new Document({
         sections: [{
             properties: {},
@@ -121,145 +121,17 @@ const generateDocx = async (slides: Slide[], overallSources: string[] = []) => {
                     ];
 
                     const notes = slide.speakerNotes || "No speaker notes available.";
-                    let cleanNotes = notes;
-                    let slideSources: string[] = [];
-
-                    // Fallback: Parse from speaker notes (Legacy) if overall sources aren't provided
-                    if (overallSources.length === 0) {
-                        const sourcesIndex = notes.indexOf("Sources:");
-                        if (sourcesIndex !== -1) {
-                            cleanNotes = notes.substring(0, sourcesIndex).trim();
-                            const sourcesSection = notes.substring(sourcesIndex).trim();
-                            const sourceContent = sourcesSection.replace(/^Sources:?\s*/i, "");
-                            slideSources = sourceContent.split('\n').map(s => s.trim()).filter(s => s);
-                        }
-                    }
-
                     children.push(new Paragraph({
-                        text: cleanNotes,
+                        text: notes,
                         spacing: {
                             after: 200,
                         },
                     }));
 
-                    if (slideSources.length > 0) {
-                        // Add spacing before sources
-                        children.push(new Paragraph({ text: "" }));
-
-                        // Add Sources Header for this slide (Legacy)
-                        children.push(new Paragraph({
-                            text: "Sources",
-                            heading: HeadingLevel.HEADING_2,
-                            spacing: { after: 100 }
-                        }));
-
-                        // Format sources
-                        slideSources.forEach(line => {
-                            const urlRegex = /(https?:\/\/[^\s]+)/g;
-                            const parts = line.split(urlRegex);
-                            const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
-
-                            parts.forEach(part => {
-                                if (part.match(urlRegex)) {
-                                    paragraphChildren.push(new ExternalHyperlink({
-                                        children: [
-                                            new TextRun({
-                                                text: part,
-                                                style: "Hyperlink",
-                                            }),
-                                        ],
-                                        link: part,
-                                    }));
-                                } else if (part) {
-                                    paragraphChildren.push(new TextRun(part));
-                                }
-                            });
-
-                            children.push(new Paragraph({
-                                children: paragraphChildren,
-                                spacing: { after: 100 }
-                            }));
-                        });
-                    }
-
                     children.push(new Paragraph({ text: "" })); // Spacing between slides
-
-                    // Append project-wide sources to the LAST slide's notes
-                    const isLastSlide = index === slides.length - 1;
-                    if (isLastSlide && overallSources && overallSources.length > 0) {
-                        children.push(new Paragraph({
-                            text: "Sources",
-                            heading: HeadingLevel.HEADING_2,
-                            spacing: { before: 200, after: 100 }
-                        }));
-
-                        overallSources.forEach(source => {
-                            const urlRegex = /(https?:\/\/[^\s]+)/g;
-                            const parts = source.split(urlRegex);
-                            const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
-
-                            parts.forEach(part => {
-                                if (part.match(urlRegex)) {
-                                    paragraphChildren.push(new ExternalHyperlink({
-                                        children: [
-                                            new TextRun({
-                                                text: part,
-                                                style: "Hyperlink",
-                                            }),
-                                        ],
-                                        link: part,
-                                    }));
-                                } else if (part) {
-                                    paragraphChildren.push(new TextRun(part));
-                                }
-                            });
-
-                            children.push(new Paragraph({
-                                children: paragraphChildren,
-                                spacing: { after: 100 }
-                            }));
-                        });
-
-                        children.push(new Paragraph({ text: "" })); // Extra spacing after sources on last slide
-                    }
 
                     return children;
                 }),
-
-                // Append sources at the end if provided
-                ...(overallSources && overallSources.length > 0 ? [
-                    new Paragraph({
-                        text: "Sources",
-                        heading: HeadingLevel.HEADING_1,
-                        spacing: { before: 400, after: 200 }
-                    }),
-                    ...overallSources.flatMap(source => {
-                        const urlRegex = /(https?:\/\/[^\s]+)/g;
-                        const parts = source.split(urlRegex);
-                        const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
-
-                        parts.forEach(part => {
-                            if (part.match(urlRegex)) {
-                                paragraphChildren.push(new ExternalHyperlink({
-                                    children: [
-                                        new TextRun({
-                                            text: part,
-                                            style: "Hyperlink",
-                                        }),
-                                    ],
-                                    link: part,
-                                }));
-                            } else if (part) {
-                                paragraphChildren.push(new TextRun(part));
-                            }
-                        });
-
-                        return [new Paragraph({
-                            children: paragraphChildren,
-                            spacing: { after: 100 }
-                        })];
-                    })
-                ] : [])
             ]
         }],
     });
@@ -422,7 +294,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                 ? slides[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50)
                 : 'speaker_notes';
 
-            const docxBlob = await generateDocx(slides, sources);
+            const docxBlob = await generateDocx(slides);
             const docxUrl = URL.createObjectURL(docxBlob);
             const docxLink = document.createElement('a');
             docxLink.href = docxUrl;

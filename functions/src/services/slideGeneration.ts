@@ -125,13 +125,22 @@ export async function generateSlides(
         const normalizedSlides: Slide[] = slides.map((s, i) => {
             const slideId = `slide-${Date.now()}-${i}`;
 
+            // Clean speaker notes first
+            let speakerNotes = cleanSpeakerNotes(s.speakerNotes || '');
+
+            // Append sources to the last slide only
+            const isLastSlide = i === slides.length - 1;
+            if (isLastSlide && uniqueSources && uniqueSources.length > 0) {
+                speakerNotes += '\n\nSources:\n' + uniqueSources.join('\n');
+            }
+
             return {
                 ...s,
                 id: slideId,
                 sortOrder: i,
                 // Ensure compatibility
                 content: Array.isArray(s.content) ? s.content : [String(s.content)],
-                speakerNotes: cleanSpeakerNotes(s.speakerNotes || ''),
+                speakerNotes: speakerNotes,
                 imagePrompts: [],
                 currentPromptId: null
             };
