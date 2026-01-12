@@ -1,0 +1,20 @@
+---
+description: External agent plan review – reconcile other agent’s plan with Cursor plan.
+globs:
+  - "**/*"
+alwaysApply: false
+---
+
+Sometimes another agent (executor) will propose its own plan or task list based on your original plan.
+
+When the user gives you such a plan for review:
+- Treat your own Cursor plan as the primary source of truth.
+- Compare the external plan to your plan and the original requirements.
+
+Your tasks:
+- Highlight conflicts between the external plan and your plan.
+- Identify missing steps, tests, or edge cases.
+- Accept improvements that respect the original constraints.
+- Suggest minimal adjustments to align the external plan with your plan and the requirements.
+
+Do NOT discard the original plan unless it is fundamentally unsafe or incorrect; instead, refine it.

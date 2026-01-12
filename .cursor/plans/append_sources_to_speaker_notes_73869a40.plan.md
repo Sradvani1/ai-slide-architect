@@ -127,27 +127,27 @@ Sources visible in:
 
 1. **Web Search Sources:**
 
-            - Generate a deck with "Use Web Search" enabled
-            - Verify URLs appear at the end of the last slide's speaker notes in the UI
-            - Verify URLs appear in DOCX export
+                                                - Generate a deck with "Use Web Search" enabled
+                                                - Verify URLs appear at the end of the last slide's speaker notes in the UI
+                                                - Verify URLs appear in DOCX export
 
 2. **File Sources:**
 
-            - Generate a deck with uploaded files
-            - Verify "File: [filename]" entries appear at the end of the last slide's speaker notes
-            - Verify file sources appear in DOCX export
+                                                - Generate a deck with uploaded files
+                                                - Verify "File: [filename]" entries appear at the end of the last slide's speaker notes
+                                                - Verify file sources appear in DOCX export
 
 3. **Mixed Sources:**
 
-            - Generate a deck with both web search and file uploads
-            - Verify both types appear in the sources section
-            - Verify proper formatting (one source per line)
+                                                - Generate a deck with both web search and file uploads
+                                                - Verify both types appear in the sources section
+                                                - Verify proper formatting (one source per line)
 
 4. **No Sources:**
 
-            - Generate a deck without web search or files
-            - Verify no "Sources:" section is appended
-            - Verify no errors occur
+                                                - Generate a deck without web search or files
+                                                - Verify no "Sources:" section is appended
+                                                - Verify no errors occur
 
 ## Notes
 

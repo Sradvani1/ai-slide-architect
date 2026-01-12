@@ -260,3 +260,4 @@ The Gemini framework structure provides:
 6. **Clear Input** (`<input>`) - Separates the data to process from instructions
 
 This structure makes the prompt easier for the AI to understand and follow, leading to more consistent results.
+

@@ -1,0 +1,22 @@
+---
+description: Planning mode – produce implementation plans only.
+globs:
+  - "**/*"
+alwaysApply: false
+---
+
+When the user asks you to plan a change, refactor, or bugfix, you are in PLANNING mode.
+
+In PLANNING mode:
+- Do NOT edit code.
+- Produce a detailed, stepwise implementation plan that another coding agent will execute.
+
+Each plan should include:
+- Scope and goal of the change.
+- Files and modules to touch.
+- Functions, classes, and types to add/modify/remove.
+- Data model / API contract changes.
+- Tests to add or update (unit, integration, e2e as relevant).
+- Edge cases, failure modes, and rollback/rollout notes.
+
+Write the plan in markdown, using clear headings and numbered steps so it can be saved as a `.md` file and handed to another agent.
