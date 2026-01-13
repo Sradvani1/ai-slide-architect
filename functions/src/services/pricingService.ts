@@ -76,9 +76,18 @@ export async function calculateAndIncrementProjectCost(
     }
 
     try {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'pricingService.ts:78',message:'About to update project cost',data:{projectId:projectRef.id,modelId,cost,inputTokens,outputTokens,operationType},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         await projectRef.update(updateData);
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'pricingService.ts:80',message:'Project cost updated successfully',data:{projectId:projectRef.id,cost},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         return cost;
-    } catch (error) {
+    } catch (error: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'pricingService.ts:82',message:'Error updating project cost',data:{projectId:projectRef.id,errorMessage:error?.message,errorStack:error?.stack},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         console.error(`[pricingService] Error updating project ${projectRef.id}:`, error);
         throw error;
     }

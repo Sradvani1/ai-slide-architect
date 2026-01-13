@@ -275,24 +275,40 @@ export async function generateSlidesAndUpdateFirestore(
         result.slides.forEach((slide, index) => {
             const slideId = slide.id || `slide-${Date.now()}-${index}`;
             const slideRef = slidesCollectionRef.doc(slideId);
-            batch.set(slideRef, {
-                ...slide,
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:275',message:'Preparing slide for batch',data:{slideId,index,slideTitle:slide.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            // Destructure to explicitly exclude promptGenerationState and promptGenerationError
+            // These fields should only be set when user triggers generation
+            const { promptGenerationState, promptGenerationError, ...slideWithoutState } = slide;
+            const slideData: any = {
+                ...slideWithoutState,
                 id: slideId,
                 sortOrder: typeof slide.sortOrder === 'number' ? slide.sortOrder : index,
                 imagePrompts: [],
-                // Explicitly ensure promptGenerationState is NOT set (undefined/null)
-                // Only set this field when user triggers generation
-                promptGenerationState: undefined,
                 updatedAt: FieldValue.serverTimestamp()
-            });
+            };
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:289',message:'Slide data prepared',data:{slideId,hasPromptState:slideData.promptGenerationState!==undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            // #endregion
+            batch.set(slideRef, slideData);
         });
 
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:290',message:'About to commit batch',data:{slideCount:result.slides.length,projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         await batch.commit();
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:291',message:'Batch committed successfully',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
 
         // Note: Image prompt generation is now user-triggered per slide
         // No automatic generation after slide creation
 
         // New: Calculate and increment project cost using pricing service
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:296',message:'About to calculate cost',data:{modelId:MODEL_SLIDE_GENERATION,inputTokens:result.inputTokens,outputTokens:result.outputTokens},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
         await calculateAndIncrementProjectCost(
             projectRef,
             MODEL_SLIDE_GENERATION,
@@ -300,8 +316,14 @@ export async function generateSlidesAndUpdateFirestore(
             result.outputTokens,
             'text'
         );
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:302',message:'Cost calculated successfully',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        // #endregion
 
         // Update: Complete (100%) - Remove direct token updates
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:305',message:'About to update to completed',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
         await projectRef.update({
             status: 'completed',
             generationProgress: 100,
@@ -309,8 +331,14 @@ export async function generateSlidesAndUpdateFirestore(
             generationCompletedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
         });
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:311',message:'Update to completed successful',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        // #endregion
 
     } catch (error: any) {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:313',message:'Generation error caught',data:{errorMessage:error?.message,errorStack:error?.stack,errorName:error?.name,projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        // #endregion
         console.error("Generation error:", error);
         try {
             await projectRef.update({
@@ -318,7 +346,13 @@ export async function generateSlidesAndUpdateFirestore(
                 generationError: error.message || "Generation failed",
                 updatedAt: FieldValue.serverTimestamp()
             });
-        } catch (updateError) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:320',message:'Error status updated successfully',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
+        } catch (updateError: any) {
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:322',message:'CRITICAL: Failed to update error status',data:{updateError:updateError?.message,projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);
         }
     }
