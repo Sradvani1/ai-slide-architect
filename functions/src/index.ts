@@ -299,10 +299,20 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
 
         // Check if already generating (prevent duplicate requests)
         if (slideData.promptGenerationState === 'generating') {
-            res.status(409).json({
-                error: "Prompt generation already in progress for this slide."
-            });
-            return;
+            // Self-healing: If it's been stuck for >5 minutes, allow retry
+            const updatedAt = slideData.updatedAt;
+            const updatedAtMs = updatedAt?.toMillis?.() || updatedAt || 0;
+            const elapsed = Date.now() - updatedAtMs;
+            const timeoutMs = 5 * 60 * 1000; // 5 minutes
+
+            if (elapsed < timeoutMs) {
+                res.status(409).json({
+                    error: "Prompt generation already in progress for this slide."
+                });
+                return;
+            }
+            // Stuck for too long, allow retry (will overwrite state)
+            console.log(`[PROMPT_GEN] Overwriting stuck generation state for slide ${slideId} (elapsed: ${Math.round(elapsed / 1000)}s)`);
         }
 
         // Atomically claim by setting to 'generating'
@@ -323,7 +333,7 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
         });
     } catch (error: any) {
         console.error("Generate Prompt Error:", error);
-        res.status(500).json({ error: "Failed to start prompt generation" });
+        res.status(500).json({ error: "Failed to initiate prompt generation" });
     }
 });
 

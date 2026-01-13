@@ -98,7 +98,19 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     }, [slide.aspectRatio]);
 
+
     const [isRetrying, setIsRetrying] = useState(false);
+
+    // Sync local generating state with Firestore
+    useEffect(() => {
+        if (slide.promptGenerationState === 'completed' || slide.promptGenerationState === 'failed') {
+            setIsGeneratingPrompt(false);
+            setIsRetrying(false);
+        }
+    }, [slide.promptGenerationState]);
+
+    const showGenerating = isGeneratingPrompt;
+
 
     const sanitizeFilename = (filename: string): string => {
         return filename
@@ -182,12 +194,11 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setIsGeneratingPrompt(true);
         try {
             await generatePrompt(projectId, slide.id, false);
-            // State will update via Firestore listener
+            // State will update via Firestore listener, which triggers useEffect above
         } catch (error: any) {
             console.error('Error generating prompt:', error);
             const message = error?.response?.data?.error || 'Failed to generate prompt. Please try again.';
             alert(message);
-        } finally {
             setIsGeneratingPrompt(false);
         }
     };
@@ -197,12 +208,11 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setIsRetrying(true);
         try {
             await generatePrompt(projectId, slide.id, true); // regenerate = true
-            // State will update via Firestore listener
+            // State will update via Firestore listener, which triggers useEffect above
         } catch (error: any) {
             console.error('Error retrying prompt generation:', error);
             const message = error?.response?.data?.error || 'Failed to retry prompt generation. Please try again.';
             alert(message);
-        } finally {
             setIsRetrying(false);
         }
     };
@@ -317,7 +327,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 ) : imagePrompts.length === 0 ? (
                     // New: Show generate button when no prompt exists
                     <div className="flex flex-col items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm w-full">
-                        {slide.promptGenerationState === 'generating' ? (
+                        {showGenerating ? (
                             // Show loading state if generation is in progress
                             <div className="flex flex-col items-center gap-3">
                                 <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">

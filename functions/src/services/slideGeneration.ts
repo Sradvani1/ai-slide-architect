@@ -126,14 +126,7 @@ export async function generateSlides(
         const normalizedSlides: Slide[] = slides.map((s, i) => {
             const slideId = `slide-${Date.now()}-${i}`;
 
-            // Clean speaker notes first
-            let speakerNotes = cleanSpeakerNotes(s.speakerNotes || '');
-
-            // Append sources to the last slide only
-            const isLastSlide = i === slides.length - 1;
-            if (isLastSlide && uniqueSources && uniqueSources.length > 0) {
-                speakerNotes += '\n\nSources:\n' + uniqueSources.join('\n');
-            }
+            const speakerNotes = s.speakerNotes || '';
 
             return {
                 ...s,
@@ -161,15 +154,6 @@ export async function generateSlides(
     return retryWithBackoff(generateFn);
 }
 
-/**
- * Clean speaker notes by removing "Sources:" or "References:" sections
- */
-function cleanSpeakerNotes(notes: string): string {
-    if (!notes) return "";
-    // Remove "Sources:" or "References:" section at the end of the text
-    // Matches "Sources:" optionally followed by anything until end of string
-    return notes.replace(/(?:Sources|References|Citations):\s*[\s\S]*$/i, '').trim();
-}
 
 /**
  * Validate URL (http/https only)
@@ -296,6 +280,9 @@ export async function generateSlidesAndUpdateFirestore(
                 id: slideId,
                 sortOrder: typeof slide.sortOrder === 'number' ? slide.sortOrder : index,
                 imagePrompts: [],
+                // Explicitly ensure promptGenerationState is NOT set (undefined/null)
+                // Only set this field when user triggers generation
+                promptGenerationState: undefined,
                 updatedAt: FieldValue.serverTimestamp()
             });
         });
@@ -402,3 +389,4 @@ export async function generateImagePromptsForSingleSlide(
         });
     }
 }
+

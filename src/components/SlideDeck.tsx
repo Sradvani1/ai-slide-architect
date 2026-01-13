@@ -103,7 +103,7 @@ const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
     );
 };
 
-const generateDocx = async (slides: Slide[]) => {
+const generateDocx = async (slides: Slide[], sources: string[] = []) => {
     const doc = new Document({
         sections: [{
             properties: {},
@@ -132,6 +132,43 @@ const generateDocx = async (slides: Slide[]) => {
 
                     return children;
                 }),
+
+                // Sources section at the end (if sources exist)
+                ...(sources && sources.length > 0 ? [
+                    new Paragraph({
+                        text: "Sources",
+                        heading: HeadingLevel.HEADING_1,
+                        spacing: { before: 400, after: 200 },
+                    }),
+                    ...sources.map(source => {
+                        const urlRegex = /(https?:\/\/[^\s]+)/g;
+                        const parts = source.split(urlRegex);
+                        const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
+
+                        parts.forEach(part => {
+                            if (part.match(urlRegex)) {
+                                // Format URLs as clickable hyperlinks
+                                paragraphChildren.push(new ExternalHyperlink({
+                                    children: [
+                                        new TextRun({
+                                            text: part,
+                                            style: "Hyperlink",
+                                        }),
+                                    ],
+                                    link: part,
+                                }));
+                            } else if (part) {
+                                // Format file names and other text as regular text
+                                paragraphChildren.push(new TextRun(part));
+                            }
+                        });
+
+                        return new Paragraph({
+                            children: paragraphChildren,
+                            spacing: { after: 100 },
+                        });
+                    }),
+                ] : []),
             ]
         }],
     });
@@ -294,7 +331,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                 ? slides[0].title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50)
                 : 'speaker_notes';
 
-            const docxBlob = await generateDocx(slides);
+            const docxBlob = await generateDocx(slides, sources || []);
             const docxUrl = URL.createObjectURL(docxBlob);
             const docxLink = document.createElement('a');
             docxLink.href = docxUrl;
