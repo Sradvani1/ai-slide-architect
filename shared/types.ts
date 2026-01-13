@@ -45,12 +45,6 @@ export interface Slide {
     // Simplified state tracking
     promptGenerationState?: 'generating' | 'completed' | 'failed';
     promptGenerationError?: string;
-
-    // Partial progress tracking
-    promptGenerationProgress?: {
-        succeeded: number; // Count of prompts successfully generated
-        failed: number;    // Count of prompts that failed after retries
-    };
 }
 
 /**

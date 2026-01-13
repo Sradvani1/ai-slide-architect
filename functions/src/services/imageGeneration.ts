@@ -10,7 +10,6 @@ export interface PromptGenerationResult {
     failed: number;
     totalInputTokens: number;
     totalOutputTokens: number;
-    isComplete: boolean;
 }
 
 export async function generateImage(
@@ -82,95 +81,73 @@ ${STYLE_GUIDELINES}`;
 }
 
 /**
- * Generates 3 image prompts for a single slide sequentially
+ * Generates a single image prompt for a slide
  */
 export async function generateImagePrompts(
     topic: string,
     subject: string,
     gradeLevel: string,
     slideTitle: string,
-    slideContent: string[],
-    existingPrompts: any[] = []
+    slideContent: string[]
 ): Promise<PromptGenerationResult> {
     const systemInstructions = buildSingleSlideImagePromptSystemInstructions();
     const userPrompt = buildSingleSlideImagePromptUserPrompt(topic, subject, gradeLevel, slideTitle, slideContent);
 
-    const prompts: Array<{ id: string; text: string; inputTokens: number; outputTokens: number }> = [];
-    let totalInputTokens = 0;
-    let totalOutputTokens = 0;
-    let failedCount = 0;
+    const generateFn = async () => {
+        try {
+            const result = await getAiClient().models.generateContent({
+                model: MODEL_SLIDE_GENERATION,
+                contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+                config: {
+                    systemInstruction: { parts: [{ text: systemInstructions }] },
+                    temperature: 0.7, // Fixed temperature for single prompt
+                }
+            });
 
-    const promptsToGenerate = 3 - existingPrompts.length;
-    if (promptsToGenerate <= 0) {
+            const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+            if (!text) {
+                throw new Error("Empty response from AI model");
+            }
+
+            // Clean up the response
+            let cleanedPrompt = text
+                .replace(/```[a-z]*\n?/gi, '') // Remove code fences
+                .replace(/```/g, '')
+                .trim();
+
+            // Handle cases where AI might add "imagePrompt:" or similar prefixes
+            cleanedPrompt = cleanedPrompt.replace(/^(imagePrompt|Image Prompt|Prompt):\s*/i, '').trim();
+
+            const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+            const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+            return {
+                id: crypto.randomUUID(),
+                text: cleanedPrompt,
+                inputTokens,
+                outputTokens
+            };
+        } catch (error: any) {
+            console.error(`Error in generateImagePrompts:`, error);
+            throw error;
+        }
+    };
+
+    try {
+        const promptResult = await retryPromptGeneration(generateFn);
+        return {
+            prompts: [promptResult],
+            failed: 0,
+            totalInputTokens: promptResult.inputTokens,
+            totalOutputTokens: promptResult.outputTokens
+        };
+    } catch (error) {
+        console.error(`Prompt generation failed:`, error);
         return {
             prompts: [],
-            failed: 0,
+            failed: 1,
             totalInputTokens: 0,
-            totalOutputTokens: 0,
-            isComplete: true
+            totalOutputTokens: 0
         };
     }
-
-    // Generate remaining prompts sequentially
-    for (let i = 0; i < promptsToGenerate; i++) {
-        const generateFn = async () => {
-            try {
-                const result = await getAiClient().models.generateContent({
-                    model: MODEL_SLIDE_GENERATION,
-                    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-                    config: {
-                        systemInstruction: { parts: [{ text: systemInstructions }] },
-                        temperature: 0.7 + (i * 0.1), // Slightly vary temperature for each prompt
-                    }
-                });
-
-                const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
-                if (!text) {
-                    throw new Error("Empty response from AI model");
-                }
-
-                // Clean up the response
-                let cleanedPrompt = text
-                    .replace(/```[a-z]*\n?/gi, '') // Remove code fences
-                    .replace(/```/g, '')
-                    .trim();
-
-                // Handle cases where AI might add "imagePrompt:" or similar prefixes
-                cleanedPrompt = cleanedPrompt.replace(/^(imagePrompt|Image Prompt|Prompt):\s*/i, '').trim();
-
-                const inputTokens = result.usageMetadata?.promptTokenCount || 0;
-                const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
-
-                return {
-                    id: crypto.randomUUID(),
-                    text: cleanedPrompt,
-                    inputTokens,
-                    outputTokens
-                };
-            } catch (error: any) {
-                console.error(`Error in generateImagePrompts iteration ${i}:`, error);
-                throw error;
-            }
-        };
-
-        try {
-            const promptResult = await retryPromptGeneration(generateFn);
-            prompts.push(promptResult);
-            totalInputTokens += promptResult.inputTokens;
-            totalOutputTokens += promptResult.outputTokens;
-        } catch (error) {
-            console.error(`Prompt generation failed for iteration ${i}, continuing...`, error);
-            failedCount++;
-        }
-    }
-
-    const totalPrompts = existingPrompts.length + prompts.length;
-
-    return {
-        prompts,
-        failed: failedCount,
-        totalInputTokens,
-        totalOutputTokens,
-        isComplete: totalPrompts >= 3
-    };
 }

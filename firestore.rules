@@ -41,9 +41,7 @@ service cloud.firestore {
                && data.keys().hasAll(['id', 'title', 'content', 'sortOrder'])
                // VALIDATE prompt generation state if present
                && (!data.keys().hasAny(['promptGenerationState']) || 
-                   data.promptGenerationState in ['generating', 'completed', 'failed'])
-               // VALIDATE promptHistory if present (Must be list)
-               && (!data.keys().hasAny(['promptHistory']) || data.promptHistory is list);
+                   data.promptGenerationState in ['generating', 'completed', 'failed']);
         }
         
         allow create: if request.auth != null && request.auth.uid == userId && isValidSlide();

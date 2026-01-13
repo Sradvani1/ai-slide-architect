@@ -5,9 +5,10 @@ import { buildSlideDeckSystemPrompt, buildSlideDeckUserPrompt } from '@shared/pr
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
-import { Slide } from '@shared/types';
+import { Slide, ProjectData } from '@shared/types';
 import { GeminiError } from '@shared/errors';
 import { calculateAndIncrementProjectCost } from './pricingService';
+import { generateImagePrompts } from './imageGeneration';
 
 export async function generateSlides(
     topic: string,
@@ -301,6 +302,14 @@ export async function generateSlidesAndUpdateFirestore(
 
         await batch.commit();
 
+        // New: Generate image prompts in parallel for all slides
+        await generateImagePromptsForAllSlides(projectRef, {
+            topic,
+            gradeLevel,
+            subject,
+            ...result
+        } as any);
+
         // New: Calculate and increment project cost using pricing service
         await calculateAndIncrementProjectCost(
             projectRef,
@@ -330,5 +339,111 @@ export async function generateSlidesAndUpdateFirestore(
         } catch (updateError) {
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);
         }
+    }
+}
+
+/**
+ * Generates image prompts for all slides in parallel (one prompt per slide).
+ * Processes slides simultaneously with no rate limiting constraints.
+ * Errors are handled per slide independently.
+ */
+async function generateImagePromptsForAllSlides(
+    projectRef: admin.firestore.DocumentReference,
+    projectData: ProjectData
+): Promise<void> {
+    const slidesCollectionRef = projectRef.collection('slides');
+
+    // Query all slides ordered by sortOrder
+    const slidesSnapshot = await slidesCollectionRef
+        .orderBy('sortOrder', 'asc')
+        .get();
+
+    if (slidesSnapshot.empty) {
+        console.log('[PROMPT_GEN] No slides found to process');
+        return;
+    }
+
+    console.log(`[PROMPT_GEN] Starting parallel prompt generation for ${slidesSnapshot.size} slides`);
+
+    // Process all slides in parallel
+    const promptPromises = slidesSnapshot.docs.map(async (slideDoc) => {
+        const slideData = slideDoc.data() as Slide;
+
+        // Skip if already has a prompt
+        if ((slideData.imagePrompts || []).length >= 1) {
+            console.log(`[PROMPT_GEN] Slide ${slideDoc.id} already has prompt, skipping`);
+            return;
+        }
+
+        return generateImagePromptsForSingleSlide(slideDoc.ref, projectRef, projectData, slideData);
+    });
+
+    // Wait for all slides to complete (success or failure)
+    await Promise.allSettled(promptPromises);
+    console.log(`[PROMPT_GEN] Parallel prompt generation completed for project ${projectRef.id}`);
+}
+
+/**
+ * Helper to generate prompts for a single slide and update Firestore
+ */
+export async function generateImagePromptsForSingleSlide(
+    slideRef: admin.firestore.DocumentReference,
+    projectRef: admin.firestore.DocumentReference,
+    projectData: ProjectData,
+    slideData: Slide
+): Promise<void> {
+    try {
+        // Update state to generating
+        await slideRef.update({
+            promptGenerationState: 'generating',
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        // Generate single prompt
+        const result = await generateImagePrompts(
+            projectData.topic || '',
+            projectData.subject || '',
+            projectData.gradeLevel || '',
+            slideData.title || '',
+            slideData.content || []
+        );
+
+        // Save the prompt
+        if (result.prompts.length > 0) {
+            const prompt = result.prompts[0];
+            await slideRef.update({
+                imagePrompts: [{
+                    id: prompt.id,
+                    text: prompt.text,
+                    inputTokens: prompt.inputTokens,
+                    outputTokens: prompt.outputTokens,
+                    createdAt: Date.now(),
+                    isOriginal: true
+                }],
+                currentPromptId: prompt.id,
+                promptGenerationState: 'completed',
+                updatedAt: FieldValue.serverTimestamp()
+            });
+
+            // Track costs
+            await calculateAndIncrementProjectCost(
+                projectRef,
+                MODEL_SLIDE_GENERATION,
+                result.totalInputTokens,
+                result.totalOutputTokens,
+                'text'
+            );
+
+            console.log(`[PROMPT_GEN] Successfully generated prompt for slide ${slideRef.id}`);
+        } else {
+            throw new Error('No prompt generated');
+        }
+    } catch (error: any) {
+        console.error(`[PROMPT_GEN] Error generating prompt for slide ${slideRef.id}:`, error);
+        await slideRef.update({
+            promptGenerationState: 'failed',
+            promptGenerationError: error.message || 'Failed to generate prompt',
+            updatedAt: FieldValue.serverTimestamp()
+        });
     }
 }

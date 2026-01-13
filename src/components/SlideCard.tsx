@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageGenError } from '../types';
-import { CopyIcon, CheckIcon, ImageIcon, PencilIcon, ChevronLeftIcon, ChevronRightIcon } from './icons';
+import { CopyIcon, CheckIcon, ImageIcon, PencilIcon } from './icons';
 import { generateImageFromPrompt, incrementProjectTokens, retryPromptGeneration } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
@@ -297,30 +297,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             {isRetrying ? 'Retrying...' : 'Retry Generation'}
                         </button>
                     </div>
-                ) : (slide.promptGenerationState !== 'completed' && imagePrompts.length > 0 && imagePrompts.length < 3) ? (
-                    <div className="flex flex-col items-center justify-center p-8 bg-blue-50/50 rounded-xl border border-blue-100 shadow-sm animate-pulse">
-                        <div className="flex flex-col items-center gap-3">
-                            <svg className="animate-spin h-5 w-5 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            <span className="text-sm font-bold text-blue-600 uppercase tracking-widest">
-                                Partial Progress
-                            </span>
-                            <span className="text-xs text-blue-500 font-medium">
-                                {slide.promptGenerationProgress?.succeeded || imagePrompts.length} of 3 prompts generated
-                            </span>
-                        </div>
-                    </div>
                 ) : (slide.promptGenerationState !== 'completed' && imagePrompts.length === 0) ? (
-                    <div className="flex items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm animate-pulse">
+                    <div className="flex items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm animate-pulse w-full">
                         <div className="flex flex-col items-center gap-3">
                             <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                 <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                 <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                             </svg>
                             <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
-                                {slide.promptGenerationState === 'generating' ? 'Generating Visual Ideas...' : 'Preparing Visual Ideas...'}
+                                {slide.promptGenerationState === 'generating' ? 'Generating Visual Idea...' : 'Preparing Visual Idea...'}
                             </span>
                         </div>
                     </div>
@@ -381,39 +366,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                                             </button>
                                             <CopyButton textToCopy={imagePromptText} />
                                         </div>
-                                    </div>
-                                )}
-
-                                {/* Navigation Arrows */}
-                                {imagePrompts.length > 1 && !isEditingPrompt && (
-                                    <div className="flex items-center gap-4 mt-2 mb-1">
-                                        <button
-                                            onClick={() => {
-                                                const idx = imagePrompts.findIndex(p => p.id === currentPromptId);
-                                                const prevIdx = (idx - 1 + imagePrompts.length) % imagePrompts.length;
-                                                onUpdateSlide({ currentPromptId: imagePrompts[prevIdx].id });
-                                            }}
-                                            disabled={isGeneratingImage}
-                                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-full transition-all disabled:opacity-30"
-                                            title="Previous Idea"
-                                        >
-                                            <ChevronLeftIcon className="w-4 h-4" />
-                                        </button>
-                                        <span className="text-[10px] font-bold text-slate-400 uppercase tracking-widest">
-                                            Idea {imagePrompts.findIndex(p => p.id === currentPromptId) + 1} of {imagePrompts.length}
-                                        </span>
-                                        <button
-                                            onClick={() => {
-                                                const idx = imagePrompts.findIndex(p => p.id === currentPromptId);
-                                                const nextIdx = (idx + 1) % imagePrompts.length;
-                                                onUpdateSlide({ currentPromptId: imagePrompts[nextIdx].id });
-                                            }}
-                                            disabled={isGeneratingImage}
-                                            className="p-1.5 text-slate-400 hover:text-primary hover:bg-slate-100 rounded-full transition-all disabled:opacity-30"
-                                            title="Next Idea"
-                                        >
-                                            <ChevronRightIcon className="w-4 h-4" />
-                                        </button>
                                     </div>
                                 )}
 

@@ -5,7 +5,8 @@ globs:
 alwaysApply: false
 ---
 
-When the user asks how a feature works or how a bug occurs, behave as a senior engineer who deeply understands this codebase.
+When the user asks how a feature works or how a bug occurs, you are in ASK mode. 
+Behave as a senior engineer who deeply understands the codebase.
 
 Your responsibilities in this mode:
 - Explain existing behavior, control flow, and data flow.

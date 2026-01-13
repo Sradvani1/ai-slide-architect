@@ -1,6 +1,5 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
@@ -15,15 +14,14 @@ const adminUserIdSecret = defineSecret('ADMIN_USER_ID');
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
-import { generateSlides, generateSlidesAndUpdateFirestore } from './services/slideGeneration';
+import { generateSlides, generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 import { calculateAndIncrementProjectCost } from './services/pricingService';
 import { extractTextFromImage } from './services/imageTextExtraction';
-import { Slide } from '@shared/types';
+import { Slide, ProjectData } from '@shared/types';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
-import { generateImagePromptsForSlide } from './services/promptGenerationService';
 
 const app = express();
 
@@ -279,57 +277,33 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
         }
 
         if (slideId) {
-            // Retry specific slide with transaction
+            // Retry specific slide
             const slideRef = projectRef.collection('slides').doc(slideId);
+            const slideDoc = await slideRef.get();
 
-            try {
-                await db.runTransaction(async (transaction) => {
-                    const slideDoc = await transaction.get(slideRef);
-                    if (!slideDoc.exists) {
-                        throw new Error('DOC_NOT_FOUND');
-                    }
-
-                    const data = slideDoc.data() as Slide;
-                    const existingPrompts = data?.imagePrompts || [];
-
-                    // Skip if already complete
-                    if (existingPrompts.length >= 3) {
-                        throw new Error('ALREADY_COMPLETE');
-                    }
-
-                    // Block if already processing
-                    if (data.promptGenerationState === 'generating' || data.promptGenerationState === 'completed') {
-                        throw new Error('ALREADY_PROCESSING');
-                    }
-
-                    // Atomically claim by setting to 'generating'
-                    transaction.update(slideRef, {
-                        promptGenerationState: 'generating',
-                        promptGenerationError: FieldValue.delete(),
-                        updatedAt: FieldValue.serverTimestamp()
-                    });
-                });
-
-                // Process directly (fire and forget)
-                generateImagePromptsForSlide(slideRef, projectRef).catch(error => {
-                    console.error(`[RETRY] Error processing prompts for slide ${slideId}:`, error);
-                });
-
-                res.json({ success: true, message: `Slide ${slideId} retry started.` });
-
-            } catch (error: any) {
-                if (error.message === 'DOC_NOT_FOUND') {
-                    res.status(404).json({ error: "Slide not found" });
-                    return;
-                }
-                if (['ALREADY_PROCESSING', 'ALREADY_COMPLETE'].includes(error.message)) {
-                    res.json({ success: true, message: `Slide ${slideId} is already processing or complete.` });
-                    return;
-                }
-                throw error; // Re-throw to outer catch
+            if (!slideDoc.exists) {
+                res.status(404).json({ error: "Slide not found" });
+                return;
             }
+
+            const slideData = slideDoc.data() as Slide;
+            const projectData = projectDoc.data() as ProjectData;
+
+            // Atomically claim by setting to 'generating'
+            await slideRef.update({
+                promptGenerationState: 'generating',
+                promptGenerationError: FieldValue.delete(),
+                updatedAt: FieldValue.serverTimestamp()
+            });
+
+            // Process directly (fire and forget)
+            generateImagePromptsForSingleSlide(slideRef, projectRef, projectData, slideData).catch(error => {
+                console.error(`[RETRY] Error processing prompts for slide ${slideId}:`, error);
+            });
+
+            res.json({ success: true, message: `Slide ${slideId} retry started.` });
         } else {
-            // Retry all failed slides - batch updates (no transaction per slide for simplicity)
+            // Retry all failed slides
             const failedSlidesSnapshot = await projectRef.collection('slides')
                 .where('promptGenerationState', '==', 'failed')
                 .get();
@@ -339,37 +313,28 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
                 return;
             }
 
-            // For batch, use simple batch update
-            const batch = db.batch();
-            let count = 0;
-            for (const slideDoc of failedSlidesSnapshot.docs) {
-                const data = slideDoc.data() as Slide;
-                // Skip if already complete
-                if ((data.imagePrompts || []).length >= 3) continue;
+            const projectData = projectDoc.data() as ProjectData;
+            const retryPromises = failedSlidesSnapshot.docs.map(async (slideDoc) => {
+                const slideData = slideDoc.data() as Slide;
 
-                batch.update(slideDoc.ref, {
+                // Skip if already has a prompt
+                if ((slideData.imagePrompts || []).length >= 1) {
+                    return;
+                }
+
+                await slideDoc.ref.update({
                     promptGenerationState: 'generating',
                     promptGenerationError: FieldValue.delete(),
                     updatedAt: FieldValue.serverTimestamp()
                 });
-                count++;
-            }
 
-            if (count > 0) {
-                await batch.commit();
+                return generateImagePromptsForSingleSlide(slideDoc.ref, projectRef, projectData, slideData);
+            });
 
-                // Start processing each slide (fire and forget)
-                for (const slideDoc of failedSlidesSnapshot.docs) {
-                    const data = slideDoc.data() as Slide;
-                    if ((data.imagePrompts || []).length >= 3) continue;
+            // Process all in parallel
+            Promise.allSettled(retryPromises).catch(console.error);
 
-                    generateImagePromptsForSlide(slideDoc.ref, projectRef).catch(error => {
-                        console.error(`[RETRY] Error processing slide ${slideDoc.id}:`, error);
-                    });
-                }
-            }
-
-            res.json({ success: true, message: `Retry started for ${count} slides.` });
+            res.json({ success: true, message: `Retry started for ${failedSlidesSnapshot.size} slides.` });
         }
     } catch (error: any) {
         console.error("Retry Prompt Generation Error:", error);
@@ -377,73 +342,7 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
     }
 });
 
-// 6. Triggers
-export const onSlideCreated = onDocumentCreated(
-    {
-        document: 'users/{userId}/projects/{projectId}/slides/{slideId}',
-        secrets: [apiKey],
-        timeoutSeconds: 60,
-        maxInstances: 100
-    },
-    async (event) => {
-        const slideRef = event.data?.ref;
-        if (!slideRef) return;
 
-        const projectId = event.params.projectId;
-        const userId = event.params.userId;
-
-        const db = admin.firestore();
-        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-
-        try {
-            // Use transaction to atomically claim processing
-            await db.runTransaction(async (transaction) => {
-                const currentDoc = await transaction.get(slideRef);
-                if (!currentDoc.exists) throw new Error('DOC_NOT_FOUND');
-
-                const currentData = currentDoc.data() as Slide;
-                const existingPrompts = currentData?.imagePrompts || [];
-
-                // Skip if already complete
-                if (existingPrompts.length >= 3) {
-                    throw new Error('ALREADY_COMPLETE');
-                }
-
-                // Block if already processing or completed
-                const currentState = currentData?.promptGenerationState;
-                if (currentState === 'generating' || currentState === 'completed') {
-                    throw new Error('ALREADY_PROCESSING');
-                }
-
-                transaction.update(slideRef, {
-                    promptGenerationState: 'generating',
-                    promptGenerationError: FieldValue.delete(),
-                    'promptGenerationProgress.succeeded': existingPrompts.length,
-                    'promptGenerationProgress.failed': FieldValue.delete(),
-                    updatedAt: FieldValue.serverTimestamp()
-                });
-            });
-
-            // Process directly (fire and forget)
-            generateImagePromptsForSlide(slideRef, projectRef).catch(error => {
-                console.error(`[TRIGGER] Error processing prompts for slide ${slideRef.id}:`, error);
-                slideRef.update({
-                    promptGenerationState: 'failed',
-                    promptGenerationError: 'Failed to start prompt generation',
-                    updatedAt: FieldValue.serverTimestamp()
-                }).catch(updateError => {
-                    console.error(`[TRIGGER] Failed to update error state:`, updateError);
-                });
-            });
-
-        } catch (error: any) {
-            if (['ALREADY_PROCESSING', 'ALREADY_COMPLETE', 'DOC_NOT_FOUND'].includes(error.message)) {
-                return; // Gracefully handle expected conditions
-            }
-            console.error(`[TRIGGER] Error in trigger for slide ${slideRef.id}:`, error);
-        }
-    }
-);
 
 // Export the API
 export const api = functions.https.onRequest(
