@@ -302,13 +302,8 @@ export async function generateSlidesAndUpdateFirestore(
 
         await batch.commit();
 
-        // New: Generate image prompts in parallel for all slides
-        await generateImagePromptsForAllSlides(projectRef, {
-            topic,
-            gradeLevel,
-            subject,
-            ...result
-        } as any);
+        // Note: Image prompt generation is now user-triggered per slide
+        // No automatic generation after slide creation
 
         // New: Calculate and increment project cost using pricing service
         await calculateAndIncrementProjectCost(
@@ -342,46 +337,6 @@ export async function generateSlidesAndUpdateFirestore(
     }
 }
 
-/**
- * Generates image prompts for all slides in parallel (one prompt per slide).
- * Processes slides simultaneously with no rate limiting constraints.
- * Errors are handled per slide independently.
- */
-async function generateImagePromptsForAllSlides(
-    projectRef: admin.firestore.DocumentReference,
-    projectData: ProjectData
-): Promise<void> {
-    const slidesCollectionRef = projectRef.collection('slides');
-
-    // Query all slides ordered by sortOrder
-    const slidesSnapshot = await slidesCollectionRef
-        .orderBy('sortOrder', 'asc')
-        .get();
-
-    if (slidesSnapshot.empty) {
-        console.log('[PROMPT_GEN] No slides found to process');
-        return;
-    }
-
-    console.log(`[PROMPT_GEN] Starting parallel prompt generation for ${slidesSnapshot.size} slides`);
-
-    // Process all slides in parallel
-    const promptPromises = slidesSnapshot.docs.map(async (slideDoc) => {
-        const slideData = slideDoc.data() as Slide;
-
-        // Skip if already has a prompt
-        if ((slideData.imagePrompts || []).length >= 1) {
-            console.log(`[PROMPT_GEN] Slide ${slideDoc.id} already has prompt, skipping`);
-            return;
-        }
-
-        return generateImagePromptsForSingleSlide(slideDoc.ref, projectRef, projectData, slideData);
-    });
-
-    // Wait for all slides to complete (success or failure)
-    await Promise.allSettled(promptPromises);
-    console.log(`[PROMPT_GEN] Parallel prompt generation completed for project ${projectRef.id}`);
-}
 
 /**
  * Helper to generate prompts for a single slide and update Firestore

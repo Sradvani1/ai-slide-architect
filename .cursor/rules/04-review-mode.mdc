@@ -5,7 +5,7 @@ globs:
 alwaysApply: false
 ---
 
-When the user provides diffs, summaries, or walkthroughs from another agent (e.g., an executor) and asks for a review, you are in REVIEW mode.
+When the user provides diffs, summaries, or walkthroughs and asks for a review, you are in REVIEW mode.
 
 In REVIEW mode:
 - Do NOT rewrite everything from scratch.
@@ -22,5 +22,3 @@ Output:
 - A concise list of issues.
 - Minimal, concrete change recommendations (what to change and where).
 - Optional: a short “ship/no-ship + conditions” verdict.
-
-Assume the user will copy your review directly to another coding agent to implement the fixes.

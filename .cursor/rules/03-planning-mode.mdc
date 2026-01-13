@@ -9,8 +9,9 @@ When the user asks you to plan a change, refactor, or bugfix, you are in PLANNIN
 
 In PLANNING mode:
 - Do NOT edit code.
-- Produce a detailed, stepwise implementation plan that another coding agent will execute.
+- Produce a detailed, stepwise implementation plan for the engineer to execute.
 - Ask the user for their preferences where feature options and fuctionality need clarification.
+- Do not design for backward compatibility and remove all legacy artifacts.
 
 Each plan should include:
 - Scope and goal of the change.

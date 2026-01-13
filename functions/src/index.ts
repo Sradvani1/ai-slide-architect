@@ -249,14 +249,15 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
 });
 
 /**
- * 8. Retry Prompt Generation (for specific slide or all failed in project)
+ * 8. Generate or regenerate image prompt for a specific slide.
+ * Handles both initial generation and retry scenarios.
  */
-app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { projectId, slideId } = req.body;
+        const { projectId, slideId, regenerate = false } = req.body;
 
-        if (!projectId) {
-            res.status(400).json({ error: "Missing required field: projectId" });
+        if (!projectId || !slideId) {
+            res.status(400).json({ error: "Missing required fields: projectId, slideId" });
             return;
         }
 
@@ -276,71 +277,56 @@ app.post('/retry-prompt-generation', verifyAuth, async (req: AuthenticatedReques
             return;
         }
 
-        if (slideId) {
-            // Retry specific slide
-            const slideRef = projectRef.collection('slides').doc(slideId);
-            const slideDoc = await slideRef.get();
+        const slideRef = projectRef.collection('slides').doc(slideId);
+        const slideDoc = await slideRef.get();
 
-            if (!slideDoc.exists) {
-                res.status(404).json({ error: "Slide not found" });
-                return;
-            }
-
-            const slideData = slideDoc.data() as Slide;
-            const projectData = projectDoc.data() as ProjectData;
-
-            // Atomically claim by setting to 'generating'
-            await slideRef.update({
-                promptGenerationState: 'generating',
-                promptGenerationError: FieldValue.delete(),
-                updatedAt: FieldValue.serverTimestamp()
-            });
-
-            // Process directly (fire and forget)
-            generateImagePromptsForSingleSlide(slideRef, projectRef, projectData, slideData).catch(error => {
-                console.error(`[RETRY] Error processing prompts for slide ${slideId}:`, error);
-            });
-
-            res.json({ success: true, message: `Slide ${slideId} retry started.` });
-        } else {
-            // Retry all failed slides
-            const failedSlidesSnapshot = await projectRef.collection('slides')
-                .where('promptGenerationState', '==', 'failed')
-                .get();
-
-            if (failedSlidesSnapshot.empty) {
-                res.json({ success: true, message: "No failed slides found to retry." });
-                return;
-            }
-
-            const projectData = projectDoc.data() as ProjectData;
-            const retryPromises = failedSlidesSnapshot.docs.map(async (slideDoc) => {
-                const slideData = slideDoc.data() as Slide;
-
-                // Skip if already has a prompt
-                if ((slideData.imagePrompts || []).length >= 1) {
-                    return;
-                }
-
-                await slideDoc.ref.update({
-                    promptGenerationState: 'generating',
-                    promptGenerationError: FieldValue.delete(),
-                    updatedAt: FieldValue.serverTimestamp()
-                });
-
-                return generateImagePromptsForSingleSlide(slideDoc.ref, projectRef, projectData, slideData);
-            });
-
-            // Process all in parallel
-            Promise.allSettled(retryPromises).catch(console.error);
-
-            res.json({ success: true, message: `Retry started for ${failedSlidesSnapshot.size} slides.` });
+        if (!slideDoc.exists) {
+            res.status(404).json({ error: "Slide not found" });
+            return;
         }
+
+        const slideData = slideDoc.data() as Slide;
+        const projectData = projectDoc.data() as ProjectData;
+
+        // Check if prompt already exists
+        const hasPrompt = (slideData.imagePrompts || []).length > 0;
+        if (hasPrompt && !regenerate) {
+            res.status(400).json({
+                error: "Slide already has a prompt. Set regenerate=true to create a new one."
+            });
+            return;
+        }
+
+        // Check if already generating (prevent duplicate requests)
+        if (slideData.promptGenerationState === 'generating') {
+            res.status(409).json({
+                error: "Prompt generation already in progress for this slide."
+            });
+            return;
+        }
+
+        // Atomically claim by setting to 'generating'
+        await slideRef.update({
+            promptGenerationState: 'generating',
+            promptGenerationError: FieldValue.delete(),
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        // Process in background (fire and forget)
+        generateImagePromptsForSingleSlide(slideRef, projectRef, projectData, slideData).catch(error => {
+            console.error(`[PROMPT_GEN] Error processing prompt for slide ${slideId}:`, error);
+        });
+
+        res.json({
+            success: true,
+            message: `Prompt generation started for slide ${slideId}.`
+        });
     } catch (error: any) {
-        console.error("Retry Prompt Generation Error:", error);
-        res.status(500).json({ error: "Failed to retry prompt generation" });
+        console.error("Generate Prompt Error:", error);
+        res.status(500).json({ error: "Failed to start prompt generation" });
     }
 });
+
 
 
 

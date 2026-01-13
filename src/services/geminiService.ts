@@ -37,9 +37,11 @@ interface IncrementTokensRequestBody {
   operationType: 'text' | 'image';
 }
 
-interface RetryPromptGenerationRequestBody {
+
+interface GeneratePromptRequestBody {
   projectId: string;
-  slideId?: string;
+  slideId: string;
+  regenerate?: boolean;
 }
 
 type GeminiRequestBody =
@@ -47,7 +49,7 @@ type GeminiRequestBody =
   | GenerateImageRequestBody
   | ExtractTextRequestBody
   | IncrementTokensRequestBody
-  | RetryPromptGenerationRequestBody;
+  | GeneratePromptRequestBody;
 
 export { GeminiError, ImageGenError };
 
@@ -266,15 +268,19 @@ export const incrementProjectTokens = async (
 };
 
 /**
- * Retries image prompt generation for a specific slide or all failed slides in a project.
+ * Generates an image prompt for a specific slide.
+ * Can be used for initial generation or regeneration.
  */
-export const retryPromptGeneration = async (
+export const generatePrompt = async (
   projectId: string,
-  slideId?: string
+  slideId: string,
+  regenerate: boolean = false
 ): Promise<{ success: boolean; message: string }> => {
-  return authenticatedRequest<{ success: boolean; message: string }>('/retry-prompt-generation', {
+  return authenticatedRequest<{ success: boolean; message: string }>('/generate-prompt', {
     projectId,
-    slideId
+    slideId,
+    regenerate
   });
 };
+
 

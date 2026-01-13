@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon, PencilIcon } from './icons';
-import { generateImageFromPrompt, incrementProjectTokens, retryPromptGeneration } from '../services/geminiService';
+import { generateImageFromPrompt, incrementProjectTokens, generatePrompt } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
 import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION } from '../constants';
@@ -47,6 +47,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const [isPromptExpanded, setIsPromptExpanded] = useState(false);
+    const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
 
     // Source of Truth
     const imagePrompts = slide.imagePrompts || [];
@@ -176,15 +177,31 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     };
 
+    const handleGeneratePrompt = async () => {
+        if (!projectId || isGeneratingPrompt) return;
+        setIsGeneratingPrompt(true);
+        try {
+            await generatePrompt(projectId, slide.id, false);
+            // State will update via Firestore listener
+        } catch (error: any) {
+            console.error('Error generating prompt:', error);
+            const message = error?.response?.data?.error || 'Failed to generate prompt. Please try again.';
+            alert(message);
+        } finally {
+            setIsGeneratingPrompt(false);
+        }
+    };
+
     const handleRetryPromptGeneration = async () => {
         if (!projectId || isRetrying) return;
         setIsRetrying(true);
         try {
-            await retryPromptGeneration(projectId, slide.id);
+            await generatePrompt(projectId, slide.id, true); // regenerate = true
             // State will update via Firestore listener
-        } catch (error) {
+        } catch (error: any) {
             console.error('Error retrying prompt generation:', error);
-            alert('Failed to retry prompt generation. Please try again.');
+            const message = error?.response?.data?.error || 'Failed to retry prompt generation. Please try again.';
+            alert(message);
         } finally {
             setIsRetrying(false);
         }
@@ -297,17 +314,47 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             {isRetrying ? 'Retrying...' : 'Retry Generation'}
                         </button>
                     </div>
-                ) : (slide.promptGenerationState !== 'completed' && imagePrompts.length === 0) ? (
-                    <div className="flex items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm animate-pulse w-full">
-                        <div className="flex flex-col items-center gap-3">
-                            <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                            </svg>
-                            <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
-                                {slide.promptGenerationState === 'generating' ? 'Generating Visual Idea...' : 'Preparing Visual Idea...'}
-                            </span>
-                        </div>
+                ) : imagePrompts.length === 0 ? (
+                    // New: Show generate button when no prompt exists
+                    <div className="flex flex-col items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm w-full">
+                        {slide.promptGenerationState === 'generating' ? (
+                            // Show loading state if generation is in progress
+                            <div className="flex flex-col items-center gap-3">
+                                <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                                <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
+                                    Generating Visual Idea...
+                                </span>
+                            </div>
+                        ) : (
+                            // Show generate button
+                            <div className="flex flex-col items-center gap-3">
+                                <div className="p-3 bg-primary/10 rounded-full">
+                                    <ImageIcon className="w-6 h-6 text-primary" />
+                                </div>
+                                <span className="text-sm font-bold text-secondary-text uppercase tracking-widest text-center">
+                                    No Visual Idea Yet
+                                </span>
+                                <p className="text-xs text-secondary-text text-center max-w-[200px]">
+                                    Generate a visual idea for this slide
+                                </p>
+                                <button
+                                    onClick={handleGeneratePrompt}
+                                    disabled={isGeneratingPrompt}
+                                    className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                    {isGeneratingPrompt && (
+                                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {isGeneratingPrompt ? 'Generating...' : 'Generate Visual Idea'}
+                                </button>
+                            </div>
+                        )}
                     </div>
                 ) : (
                     <>
