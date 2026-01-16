@@ -1,13 +1,13 @@
 
 export function buildSingleSlideImagePromptSystemInstructions(): string {
   return `<role>
-You are an expert Visual Learning Specialist.
+You are an educational content creator and curriculum designer.
 </role>
 
 <task>
-Compose a visual description of an educational illustration that depicts the 
-specific concepts from <key_points> within the scope of <title>.
-Construct the description as a cohesive narrative  in this order:
+Compose a detailed description of an educational illustration that depicts 
+the concepts from <key_points> within the scope of <title>.
+Construct the description as a cohesive narrative in this order:
 1. [Subject]: The central physical element.
 2. [Action]: The active process, movement, or visual state.
 3. [Setting]: The immediate environment.
@@ -49,12 +49,12 @@ ${slideContent.map(bullet => `- ${bullet}`).join('\n')}
 
 export function buildSlideDeckSystemPrompt(): string {
   return `<role>
-You are an expert educational content creator and curriculum designer.
-Your goal is to generate a professional, engaging slide deck and speaker notes on the topic <topic> tailored to <grade_level> <subject>.
+You are an educational content creator and curriculum designer.
+Your goal is to generate a professional, engaging slide deck and speaker notes on the topic: <topic>, tailored to <grade_level> <subject>.
 </role>
 
 <task>
-- Slide 1: Title Slide. The JSON object must have: "title" (main presentation title), "content" array with exactly 3 strings in this order: [tagline (3-5 words), the subject value from <subject>, the grade value from <grade_level>], and "speakerNotes".
+- Slide 1: Title Slide. The JSON object must have: "title" (main presentation title), "content" array with exactly 3 strings in this order (no labels): [tagline (3-5 words), the subject value from <subject>, the grade value from <grade_level>], and "speakerNotes".
 - Slides 2-N: Content Slides. Each JSON object must have: "title" (slide title), "content" array with exactly <bullets_per_slide> strings (bullet points), and "speakerNotes".
 - Total Slides: The deck must contain exactly <total_slides> slides.
 </task>
@@ -85,8 +85,7 @@ export function buildSlideDeckUserPrompt(
   gradeLevel: string,
   numContentSlides: number,
   bulletsPerSlide: number,
-  sourceMaterial?: string,
-  useWebSearch?: boolean,
+  researchContent?: string,
   additionalInstructions?: string
 ): string {
   const gradeString = gradeLevel.toLowerCase().includes('grade')
@@ -106,10 +105,69 @@ export function buildSlideDeckUserPrompt(
 
   const sections = [context];
 
+  if (researchContent) {
+    const instruction = 'You must derive your content ENTIRELY from the following research.';
+
+    sections.push(`<source_material>
+${instruction}
+
+SOURCE BEGIN:
+${researchContent}
+SOURCE END
+</source_material>`.trim());
+  }
+
+
+  return sections.join('\n\n').trim();
+}
+
+export function buildResearchSystemPrompt(): string {
+  return `<role>
+You are an educational content researcher and curriculum designer.
+</role>
+
+<task>
+Create a single, structured research summary that will be used to generate slides.
+The summary should be complete, coherent, and organized for easy conversion into a slide deck.
+</task>
+
+<constraints>
+1. Accuracy: Use factual, verifiable information.
+2. Clarity: Use clear, age-appropriate language.
+3. Structure: Organize the summary logically for slide creation.
+4. No Sources: Do NOT include citations, URLs, or references in the research summary.
+</constraints>
+
+<output_format>
+Return a single plain-text research summary. No markdown. No JSON. No lists of sources.
+</output_format>`.trim();
+}
+
+export function buildResearchUserPrompt(
+  topic: string,
+  subject: string,
+  gradeLevel: string,
+  sourceMaterial?: string,
+  useWebSearch: boolean = true,
+  additionalInstructions?: string
+): string {
+  const gradeString = gradeLevel.toLowerCase().includes('grade')
+    ? gradeLevel
+    : `${gradeLevel} Grade`;
+
+  const sections: string[] = [];
+
+  sections.push(`<context>
+<topic>${topic}</topic>
+<subject>${subject}</subject>
+<grade_level>${gradeString}</grade_level>
+${additionalInstructions ? `<additional_instructions>${additionalInstructions}</additional_instructions>` : ''}
+</context>`.trim());
+
   if (sourceMaterial) {
     const instruction = useWebSearch
       ? 'Use the following text as your primary source of truth. Supplement with web search for additional context.'
-      : 'You must derive your content ENTIRELY from the following text.';
+      : 'Use ONLY the following text as your source. Do NOT use web search.';
 
     sections.push(`<source_material>
 ${instruction}
@@ -129,7 +187,13 @@ SOURCE END
 ${instruction}
 
 1. Find high-quality, age-appropriate information.
-2. Synthesize results as the core content for the presentation.
+2. Synthesize results into a single, structured research summary.
+3. Focus on facts, concepts, and explanations appropriate for ${gradeString} students.
+</research_instructions>`.trim());
+  } else {
+    sections.push(`<research_instructions>
+You must derive your research summary ENTIRELY from the provided source material.
+Do NOT include sources, citations, URLs, or references.
 </research_instructions>`.trim());
   }
 

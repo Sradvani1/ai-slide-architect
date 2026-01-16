@@ -1,7 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import { getAiClient } from '../utils/geminiClient';
-import { buildSlideDeckSystemPrompt, buildSlideDeckUserPrompt } from '@shared/promptBuilders';
+import { buildResearchSystemPrompt, buildResearchUserPrompt, buildSlideDeckSystemPrompt, buildSlideDeckUserPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
@@ -9,6 +9,197 @@ import { Slide, ProjectData } from '@shared/types';
 import { GeminiError } from '@shared/errors';
 import { calculateAndIncrementProjectCost } from './pricingService';
 import { generateImagePrompts } from './imageGeneration';
+
+type ResearchResult = {
+    researchContent: string;
+    sources: string[];
+    searchEntryPoint?: any;
+    webSearchQueries?: string[];
+    inputTokens: number;
+    outputTokens: number;
+};
+
+type GenerationResult = {
+    slides: Slide[];
+    inputTokens: number;
+    outputTokens: number;
+    warnings: string[];
+};
+
+function extractGroundingData(groundingMetadata: any): {
+    sources: Array<{ uri: string; title?: string }>;
+    searchEntryPoint?: any;
+    webSearchQueries?: string[];
+} {
+    const sources: Array<{ uri: string; title?: string }> = [];
+    let searchEntryPoint = undefined;
+    let webSearchQueries = undefined;
+
+    if (groundingMetadata) {
+        searchEntryPoint = groundingMetadata.searchEntryPoint?.renderedContent;
+        webSearchQueries = groundingMetadata.webSearchQueries;
+
+        if (groundingMetadata.groundingChunks) {
+            groundingMetadata.groundingChunks.forEach((chunk: any) => {
+                if (chunk.web?.uri) {
+                    sources.push({
+                        uri: chunk.web.uri,
+                        title: chunk.web.title
+                    });
+                }
+            });
+        }
+    }
+
+    return { sources, searchEntryPoint, webSearchQueries };
+}
+
+async function performUnifiedResearch(
+    topic: string,
+    gradeLevel: string,
+    subject: string,
+    sourceMaterial: string,
+    useWebSearch: boolean,
+    additionalInstructions?: string,
+    temperature?: number,
+    uploadedFileNames?: string[]
+): Promise<ResearchResult> {
+    const model = MODEL_SLIDE_GENERATION;
+    const config: any = {
+        temperature: temperature || DEFAULT_TEMPERATURE,
+    };
+
+    if (useWebSearch) {
+        config.tools = [{ googleSearch: {} }];
+    }
+
+    const researchSystemPrompt = buildResearchSystemPrompt();
+    const researchUserPrompt = buildResearchUserPrompt(
+        topic,
+        subject,
+        gradeLevel,
+        sourceMaterial,
+        useWebSearch,
+        additionalInstructions
+    );
+
+    const result = await retryWithBackoff(() => getAiClient().models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: researchUserPrompt }] }],
+        config: {
+            ...config,
+            systemInstruction: { parts: [{ text: researchSystemPrompt }] }
+        }
+    }));
+
+    const candidates = result.candidates;
+    const researchContent = candidates?.[0]?.content?.parts?.[0]?.text || "";
+
+    if (!researchContent) {
+        throw new GeminiError("Empty response from research API", 'API_ERROR', true);
+    }
+
+    const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+    const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+    const groundingMetadata = candidates?.[0]?.groundingMetadata;
+    const { sources: groundingSources, searchEntryPoint, webSearchQueries } = extractGroundingData(groundingMetadata);
+
+    const resolvedSources = await resolveSourceUrls(groundingSources);
+    const uniqueSources = getUniqueSources(resolvedSources, uploadedFileNames, sourceMaterial) || [];
+
+    return {
+        researchContent,
+        sources: uniqueSources,
+        searchEntryPoint,
+        webSearchQueries,
+        inputTokens,
+        outputTokens
+    };
+}
+
+async function performSlideGeneration(
+    topic: string,
+    gradeLevel: string,
+    subject: string,
+    numSlides: number,
+    researchContent: string,
+    additionalInstructions?: string,
+    temperature?: number,
+    bulletsPerSlide?: number
+): Promise<GenerationResult> {
+    const systemPrompt = buildSlideDeckSystemPrompt();
+    const userPrompt = buildSlideDeckUserPrompt(
+        topic,
+        subject,
+        gradeLevel,
+        numSlides,
+        bulletsPerSlide || DEFAULT_BULLETS_PER_SLIDE,
+        researchContent,
+        additionalInstructions
+    );
+
+    const model = MODEL_SLIDE_GENERATION;
+    const config: any = {
+        temperature: temperature || DEFAULT_TEMPERATURE,
+        responseMimeType: "application/json"
+    };
+
+    const result = await retryWithBackoff(() => getAiClient().models.generateContent({
+        model,
+        contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+        config: {
+            ...config,
+            systemInstruction: { parts: [{ text: systemPrompt }] }
+        }
+    }));
+
+    const candidates = result.candidates;
+    const text = candidates?.[0]?.content?.parts?.[0]?.text;
+
+    if (!text) {
+        throw new GeminiError("Empty response from AI model", 'API_ERROR', true);
+    }
+
+    const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+    const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+    let slides: any[];
+    try {
+        slides = extractFirstJsonArray(text);
+    } catch (e) {
+        throw new GeminiError("Failed to parse JSON from model response", 'INVALID_REQUEST', false, { responseText: text });
+    }
+
+    const warnings: string[] = [];
+    slides.forEach((slide, idx) => {
+        const errors = validateSlideStructure(slide, idx);
+        if (errors.length > 0) {
+            warnings.push(...errors);
+        }
+    });
+
+    const normalizedSlides: Slide[] = slides.map((s, i) => {
+        const slideId = `slide-${Date.now()}-${i}`;
+
+        return {
+            ...s,
+            id: slideId,
+            sortOrder: i,
+            content: Array.isArray(s.content) ? s.content : [String(s.content)],
+            speakerNotes: s.speakerNotes || '',
+            imagePrompts: [],
+            currentPromptId: null
+        };
+    });
+
+    return {
+        slides: normalizedSlides,
+        inputTokens,
+        outputTokens,
+        warnings
+    };
+}
 
 export async function generateSlides(
     topic: string,
@@ -30,128 +221,39 @@ export async function generateSlides(
     webSearchQueries?: string[],
     warnings: string[]
 }> {
-    const systemPrompt = buildSlideDeckSystemPrompt();
-    const userPrompt = buildSlideDeckUserPrompt(
+    const shouldUseWebSearch = useWebSearch || (!sourceMaterial && (!uploadedFileNames || uploadedFileNames.length === 0));
+
+    const researchResult = await performUnifiedResearch(
         topic,
-        subject,
         gradeLevel,
-        numSlides,     // numContentSlides
-        bulletsPerSlide || DEFAULT_BULLETS_PER_SLIDE,
+        subject,
         sourceMaterial,
-        useWebSearch,
-        additionalInstructions
+        shouldUseWebSearch,
+        additionalInstructions,
+        temperature,
+        uploadedFileNames
     );
 
-    const generateFn = async () => {
-        const model = MODEL_SLIDE_GENERATION;
-        const config: any = {
-            temperature: temperature || DEFAULT_TEMPERATURE,
-        };
+    const generationResult = await performSlideGeneration(
+        topic,
+        gradeLevel,
+        subject,
+        numSlides,
+        researchResult.researchContent,
+        additionalInstructions,
+        temperature,
+        bulletsPerSlide
+    );
 
-        // SDK specific tool definition
-        if (useWebSearch) {
-            config.tools = [{ googleSearch: {} }];
-        } else {
-            // Only enforce JSON mode if NO tools are used, as they are mutually exclusive in some models
-            config.responseMimeType = "application/json";
-        }
-
-        const result = await getAiClient().models.generateContent({
-            model: model,
-            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-            config: {
-                ...config,
-                systemInstruction: { parts: [{ text: systemPrompt }] }
-            }
-        });
-
-        // The result object from @google/genai usually has .text() helper or candidates structure
-        // Let's check candidates.
-        const candidates = result.candidates;
-        const text = candidates?.[0]?.content?.parts?.[0]?.text;
-
-        if (!text) {
-            throw new GeminiError("Empty response from AI model", 'API_ERROR', true);
-        }
-
-        const inputTokens = result.usageMetadata?.promptTokenCount || 0;
-        const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
-
-        // Extract Grounding Metadata if available
-        const groundingMetadata = candidates?.[0]?.groundingMetadata;
-        let searchEntryPoint = undefined;
-        let webSearchQueries = undefined;
-        const sources: Array<{ uri: string; title?: string }> = [];
-
-        if (groundingMetadata) {
-            searchEntryPoint = groundingMetadata.searchEntryPoint?.renderedContent;
-            webSearchQueries = groundingMetadata.webSearchQueries;
-
-            if (groundingMetadata.groundingChunks) {
-                groundingMetadata.groundingChunks.forEach((chunk: any) => {
-                    if (chunk.web?.uri) {
-                        sources.push({
-                            uri: chunk.web.uri,
-                            title: chunk.web.title
-                        });
-                    }
-                });
-            }
-        }
-
-
-        // Extract and Validate
-        let slides: any[];
-        try {
-            slides = extractFirstJsonArray(text);
-        } catch (e) {
-            // Fallback or repair could go here, but for now rethrow as GeminiError
-            throw new GeminiError("Failed to parse JSON from model response", 'INVALID_REQUEST', false, { responseText: text });
-        }
-
-        // Validate each slide
-        const warnings: string[] = [];
-        slides.forEach((slide, idx) => {
-            const errors = validateSlideStructure(slide, idx);
-            if (errors.length > 0) {
-                // Collect errors as warnings instead of failing hard
-                warnings.push(...errors);
-            }
-        });
-
-        // Create unique sources for the entire deck
-        const uniqueSources = getUniqueSources(sources, uploadedFileNames, sourceMaterial);
-
-        // Normalize slides (add IDs, etc)
-        const normalizedSlides: Slide[] = slides.map((s, i) => {
-            const slideId = `slide-${Date.now()}-${i}`;
-
-            const speakerNotes = s.speakerNotes || '';
-
-            return {
-                ...s,
-                id: slideId,
-                sortOrder: i,
-                // Ensure compatibility
-                content: Array.isArray(s.content) ? s.content : [String(s.content)],
-                speakerNotes: speakerNotes,
-                imagePrompts: [],
-                currentPromptId: null
-            };
-        });
-
-        return {
-            slides: normalizedSlides,
-            inputTokens,
-            outputTokens,
-            sources: uniqueSources || [],
-            searchEntryPoint,
-            webSearchQueries,
-            warnings
-        };
+    return {
+        slides: generationResult.slides,
+        inputTokens: researchResult.inputTokens + generationResult.inputTokens,
+        outputTokens: researchResult.outputTokens + generationResult.outputTokens,
+        sources: researchResult.sources,
+        searchEntryPoint: researchResult.searchEntryPoint,
+        webSearchQueries: researchResult.webSearchQueries,
+        warnings: generationResult.warnings
     };
-
-    return retryWithBackoff(generateFn);
 }
 
 
@@ -165,6 +267,90 @@ function isValidUrl(urlString: string): boolean {
     } catch (e) {
         return false;
     }
+}
+
+function getUrlForLog(uri: string): string {
+    try {
+        const url = new URL(uri);
+        return `${url.origin}${url.pathname}`;
+    } catch (e) {
+        return uri;
+    }
+}
+
+/**
+ * Resolves vertexaisearch.cloud.google.com redirect links to their final URLs
+ * Uses HEAD request to follow redirects without downloading content
+ * Falls back to GET if HEAD is blocked or non-200
+ * Returns original URL if resolution fails (graceful degradation)
+ */
+async function getOriginalUrl(uri: string): Promise<string> {
+    if (!uri || !isValidUrl(uri)) {
+        return uri;
+    }
+
+    if (!uri.includes('vertexaisearch.cloud.google.com')) {
+        return uri;
+    }
+
+    const attemptRequest = async (method: 'HEAD' | 'GET'): Promise<Response> => {
+        const controller = new AbortController();
+        const timeoutId = setTimeout(() => controller.abort(), 5000);
+
+        try {
+            return await fetch(uri, {
+                method,
+                redirect: 'follow',
+                signal: controller.signal,
+                headers: method === 'GET' ? { Range: 'bytes=0-0' } : undefined
+            });
+        } finally {
+            clearTimeout(timeoutId);
+        }
+    };
+
+    try {
+        const headResponse = await attemptRequest('HEAD');
+        if (headResponse.ok) {
+            return headResponse.url || headResponse.headers.get('location') || uri;
+        }
+    } catch (error) {
+        // Fall back to GET
+    }
+
+    try {
+        const getResponse = await attemptRequest('GET');
+        getResponse.body?.cancel();
+        return getResponse.url || getResponse.headers.get('location') || uri;
+    } catch (error: any) {
+        console.warn(`[getOriginalUrl] Failed to resolve ${getUrlForLog(uri)}:`, error?.message || error);
+        return uri;
+    }
+}
+
+/**
+ * Resolves all source URIs in parallel
+ * Returns array with resolved URIs, preserving titles
+ */
+async function resolveSourceUrls(
+    sources: Array<{ uri: string; title?: string }>
+): Promise<Array<{ uri: string; title?: string }>> {
+    if (!sources || sources.length === 0) {
+        return [];
+    }
+
+    const resolvedSources = await Promise.all(
+        sources.map(async source => {
+            try {
+                const resolvedUri = await getOriginalUrl(source.uri);
+                return { ...source, uri: resolvedUri };
+            } catch (error) {
+                return source;
+            }
+        })
+    );
+
+    return resolvedSources;
 }
 
 /**
@@ -232,6 +418,10 @@ export async function generateSlidesAndUpdateFirestore(
     uploadedFileNames?: string[]
 ): Promise<void> {
     const db = admin.firestore();
+    const shouldUseWebSearch = useWebSearch || (!sourceMaterial && (!uploadedFileNames || uploadedFileNames.length === 0));
+    const maxGenerationRetries = 3;
+    let researchResult: ResearchResult | null = null;
+    let generationResult: GenerationResult | null = null;
 
     try {
         // Update: Generation started
@@ -242,25 +432,53 @@ export async function generateSlidesAndUpdateFirestore(
             updatedAt: FieldValue.serverTimestamp()
         });
 
-        // Update: Research phase (25%)
-        await projectRef.update({
-            generationProgress: 25,
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        // Generate slides
-        const result = await generateSlides(
+        // Step 1: Unified research phase
+        researchResult = await performUnifiedResearch(
             topic,
             gradeLevel,
             subject,
             sourceMaterial,
-            numSlides,
-            useWebSearch,
+            shouldUseWebSearch,
             additionalInstructions,
             temperature,
-            bulletsPerSlide,
             uploadedFileNames
         );
+
+        // Save research before Step 2 (resumable if generation fails)
+        await projectRef.update({
+            generationProgress: 25,
+            sources: researchResult.sources || [],
+            researchContent: researchResult.researchContent,
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        // Step 2: Generate slides (auto-retry using saved research)
+        for (let attempt = 1; attempt <= maxGenerationRetries; attempt++) {
+            try {
+                generationResult = await performSlideGeneration(
+                    topic,
+                    gradeLevel,
+                    subject,
+                    numSlides,
+                    researchResult.researchContent,
+                    additionalInstructions,
+                    temperature,
+                    bulletsPerSlide
+                );
+                break;
+            } catch (error: any) {
+                if (attempt >= maxGenerationRetries) {
+                    throw error;
+                }
+                const delayMs = 1000 * attempt;
+                console.warn(`Generation attempt ${attempt} failed, retrying in ${delayMs}ms...`);
+                await new Promise(resolve => setTimeout(resolve, delayMs));
+            }
+        }
+
+        if (!generationResult) {
+            throw new GeminiError("Generation failed after retries", 'API_ERROR', false);
+        }
 
         // Update: Generation complete, writing to Firestore (75%)
         await projectRef.update({
@@ -272,11 +490,11 @@ export async function generateSlidesAndUpdateFirestore(
         const slidesCollectionRef = projectRef.collection('slides');
         const batch = db.batch();
 
-        result.slides.forEach((slide, index) => {
+        generationResult.slides.forEach((slide, index) => {
             const slideId = slide.id || `slide-${Date.now()}-${index}`;
             const slideRef = slidesCollectionRef.doc(slideId);
             // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:275',message:'Preparing slide for batch',data:{slideId,index,slideTitle:slide.title},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:275', message: 'Preparing slide for batch', data: { slideId, index, slideTitle: slide.title }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
             // #endregion
             // Destructure to explicitly exclude promptGenerationState and promptGenerationError
             // These fields should only be set when user triggers generation
@@ -289,17 +507,17 @@ export async function generateSlidesAndUpdateFirestore(
                 updatedAt: FieldValue.serverTimestamp()
             };
             // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:289',message:'Slide data prepared',data:{slideId,hasPromptState:slideData.promptGenerationState!==undefined},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:289', message: 'Slide data prepared', data: { slideId, hasPromptState: slideData.promptGenerationState !== undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
             // #endregion
             batch.set(slideRef, slideData);
         });
 
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:290',message:'About to commit batch',data:{slideCount:result.slides.length,projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:290', message: 'About to commit batch', data: { slideCount: generationResult.slides.length, projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
         // #endregion
         await batch.commit();
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:291',message:'Batch committed successfully',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:291', message: 'Batch committed successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
         // #endregion
 
         // Note: Image prompt generation is now user-triggered per slide
@@ -307,37 +525,40 @@ export async function generateSlidesAndUpdateFirestore(
 
         // New: Calculate and increment project cost using pricing service
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:296',message:'About to calculate cost',data:{modelId:MODEL_SLIDE_GENERATION,inputTokens:result.inputTokens,outputTokens:result.outputTokens},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        const totalInputTokens = researchResult.inputTokens + generationResult.inputTokens;
+        const totalOutputTokens = researchResult.outputTokens + generationResult.outputTokens;
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:296', message: 'About to calculate cost', data: { modelId: MODEL_SLIDE_GENERATION, inputTokens: totalInputTokens, outputTokens: totalOutputTokens }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
         await calculateAndIncrementProjectCost(
             projectRef,
             MODEL_SLIDE_GENERATION,
-            result.inputTokens,
-            result.outputTokens,
+            totalInputTokens,
+            totalOutputTokens,
             'text'
         );
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:302',message:'Cost calculated successfully',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:302', message: 'Cost calculated successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
         // #endregion
 
         // Update: Complete (100%) - Remove direct token updates
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:305',message:'About to update to completed',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:305', message: 'About to update to completed', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
         // #endregion
         await projectRef.update({
             status: 'completed',
             generationProgress: 100,
-            sources: result.sources || [],
+            sources: researchResult.sources || [],
+            researchContent: researchResult.researchContent,
             generationCompletedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
         });
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:311',message:'Update to completed successful',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:311', message: 'Update to completed successful', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
         // #endregion
 
     } catch (error: any) {
         // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:313',message:'Generation error caught',data:{errorMessage:error?.message,errorStack:error?.stack,errorName:error?.name,projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:313', message: 'Generation error caught', data: { errorMessage: error?.message, errorStack: error?.stack, errorName: error?.name, projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
         // #endregion
         console.error("Generation error:", error);
         try {
@@ -347,11 +568,11 @@ export async function generateSlidesAndUpdateFirestore(
                 updatedAt: FieldValue.serverTimestamp()
             });
             // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:320',message:'Error status updated successfully',data:{projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:320', message: 'Error status updated successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
             // #endregion
         } catch (updateError: any) {
             // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'slideGeneration.ts:322',message:'CRITICAL: Failed to update error status',data:{updateError:updateError?.message,projectId:projectRef.id},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:322', message: 'CRITICAL: Failed to update error status', data: { updateError: updateError?.message, projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
             // #endregion
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);
         }

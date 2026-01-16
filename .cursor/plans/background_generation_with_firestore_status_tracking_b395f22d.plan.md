@@ -47,8 +47,6 @@ sequenceDiagram
     Dashboard->>User: Card shows "Ready" badge
 ```
 
-
-
 ## Data Model Changes
 
 ### 1. Update ProjectData Interface
@@ -84,8 +82,6 @@ function isValidProject() {
        && (!data.keys().hasAny(['generationProgress']) || (data.generationProgress is int && data.generationProgress >= 0 && data.generationProgress <= 100));
 }
 ```
-
-
 
 ## Backend Changes (Cloud Functions)
 
@@ -186,8 +182,6 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
     }
 });
 ```
-
-
 
 ### 4. Create Async Generation Function
 
@@ -406,8 +400,6 @@ const handleGenerateSlides = useCallback(async () => {
 }, [/* dependencies */]);
 ```
 
-
-
 ### 6. Add Firestore Listener in Editor
 
 **File:** `src/components/Editor.tsx`Add `useEffect` hook to listen for project status changes when `projectId` exists:
@@ -451,8 +443,6 @@ useEffect(() => {
     return () => unsubscribe();
 }, [projectId, user]);
 ```
-
-
 
 ### 7. Update Gemini Service to Accept projectId
 
@@ -526,8 +516,6 @@ export const generateSlidesFromDocument = async (
 };
 ```
 
-
-
 ### 8. Update SlideDeck Component - Show Progress
 
 **File:** `src/components/SlideDeck.tsx`Modify `Loader` component (lines 37-55) to accept and display progress percentage:**Changes:**
@@ -577,8 +565,6 @@ if (isLoading) {
 }
 ```
 
-
-
 ### 9. Update Editor to Pass Progress to SlideDeck
 
 **File:** `src/components/Editor.tsx`Add state for `generationProgress` and pass to `SlideDeck`:
@@ -613,8 +599,6 @@ useEffect(() => {
     generationProgress={generationProgress}  // NEW
 />
 ```
-
-
 
 ### 10. Update Dashboard - Real-time Project Status
 
@@ -668,8 +652,6 @@ useEffect(() => {
 }, [user.uid]);
 ```
 
-
-
 ### 11. Add Progress Badge to Dashboard Cards
 
 **File:** `src/components/Dashboard.tsx`Update project card rendering (lines 140-186) to show status badge:
@@ -701,8 +683,6 @@ useEffect(() => {
     </div>
 ))}
 ```
-
-
 
 ### 12. Update ProjectService - Handle Status Fields
 
@@ -749,8 +729,6 @@ export const createProject = async (userId: string, data: Omit<ProjectData, 'use
 };
 ```
 
-
-
 ## Edge Cases & Error Handling
 
 ### 13. Handle Function Timeout
@@ -790,8 +768,6 @@ try {
 }
 ```
 
-
-
 ### 15. Handle Stale Generating Status
 
 **File:** `functions/src/services/slideGeneration.ts`If a project is stuck in 'generating' state (e.g., function crashed):
@@ -816,8 +792,6 @@ if (status === 'generating') {
     // Show progress badge
 }
 ```
-
-
 
 ## Testing Considerations
 

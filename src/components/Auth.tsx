@@ -11,13 +11,34 @@ export function Auth({ isModal = false }: AuthProps) {
     const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
 
     const handleGoogleLogin = async () => {
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Auth.tsx:13',message:'Button clicked - handleGoogleLogin entry',data:{isModal,timestamp:Date.now()},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
+        const clickTimestamp = Date.now();
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Auth.tsx:16',message:'Before state updates',data:{clickTimestamp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'A'})}).catch(()=>{});
+        // #endregion
         setLoading(true);
         setMessage(null);
+        // #region agent log
+        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Auth.tsx:20',message:'After state updates, before provider creation',data:{timeSinceClick:Date.now()-clickTimestamp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'B'})}).catch(()=>{});
+        // #endregion
         try {
             const provider = new GoogleAuthProvider();
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Auth.tsx:24',message:'Before signInWithPopup call',data:{timeSinceClick:Date.now()-clickTimestamp,isModal},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'C'})}).catch(()=>{});
+            // #endregion
             await signInWithPopup(auth, provider);
+            // #region agent log
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Auth.tsx:27',message:'signInWithPopup succeeded',data:{timeSinceClick:Date.now()-clickTimestamp},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'D'})}).catch(()=>{});
+            // #endregion
             // Successful sign-in is handled by onAuthStateChanged in App.tsx
         } catch (error: unknown) {
+            // #region agent log
+            const errorCode = (error as any)?.code;
+            const errorMessage = error instanceof Error ? error.message : "Authentication failed";
+            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877',{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({location:'Auth.tsx:31',message:'signInWithPopup error caught',data:{errorCode,errorMessage,timeSinceClick:Date.now()-clickTimestamp,isModal,errorString:String(error)},timestamp:Date.now(),sessionId:'debug-session',runId:'run1',hypothesisId:'E'})}).catch(()=>{});
+            // #endregion
             const message = error instanceof Error ? error.message : "Authentication failed";
             setMessage({ type: 'error', text: message });
             setLoading(false);
