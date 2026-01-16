@@ -278,6 +278,15 @@ function getUrlForLog(uri: string): string {
     }
 }
 
+function resolveLocationHeader(location: string | null, baseUri: string): string | null {
+    if (!location) return null;
+    try {
+        return new URL(location, baseUri).toString();
+    } catch (e) {
+        return null;
+    }
+}
+
 /**
  * Resolves vertexaisearch.cloud.google.com redirect links to their final URLs
  * Uses HEAD request to follow redirects without downloading content
@@ -311,8 +320,13 @@ async function getOriginalUrl(uri: string): Promise<string> {
 
     try {
         const headResponse = await attemptRequest('HEAD');
-        if (headResponse.ok) {
-            return headResponse.url || headResponse.headers.get('location') || uri;
+        const finalUrl = headResponse.url;
+        if (finalUrl && finalUrl !== uri) {
+            return finalUrl;
+        }
+        const location = resolveLocationHeader(headResponse.headers.get('location'), uri);
+        if (location) {
+            return location;
         }
     } catch (error) {
         // Fall back to GET
@@ -321,7 +335,12 @@ async function getOriginalUrl(uri: string): Promise<string> {
     try {
         const getResponse = await attemptRequest('GET');
         getResponse.body?.cancel();
-        return getResponse.url || getResponse.headers.get('location') || uri;
+        const finalUrl = getResponse.url;
+        if (finalUrl && finalUrl !== uri) {
+            return finalUrl;
+        }
+        const location = resolveLocationHeader(getResponse.headers.get('location'), uri);
+        return location || uri;
     } catch (error: any) {
         console.warn(`[getOriginalUrl] Failed to resolve ${getUrlForLog(uri)}:`, error?.message || error);
         return uri;
