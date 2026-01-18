@@ -4,6 +4,26 @@ import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION, STYLE_GUIDELINES } from
 import { retryWithBackoff, retryPromptGeneration } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
 import { recordUsageEvent, UsageEventContext } from './usageEventsService';
+
+async function safeRecordUsageEvent(params: Parameters<typeof recordUsageEvent>[0]): Promise<void> {
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await recordUsageEvent(params);
+            return;
+        } catch (error: any) {
+            if (attempt >= maxAttempts) {
+                console.warn(
+                    `[imageGeneration] Failed to record usage event (${params.operationKey}) after ${maxAttempts} attempts:`,
+                    error?.message || error
+                );
+                return;
+            }
+            const delayMs = 200 * attempt;
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+}
 import { buildSingleSlideImagePromptSystemInstructions, buildSingleSlideImagePromptUserPrompt } from '@shared/promptBuilders';
 
 export interface PromptGenerationResult {
@@ -62,7 +82,7 @@ ${STYLE_GUIDELINES}`;
             const inputTokens = response.usageMetadata?.promptTokenCount || 0;
             const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
 
-            await recordUsageEvent({
+            await safeRecordUsageEvent({
                 ...trackingContext,
                 operationKey: 'image-generation',
                 inputTokens,
@@ -131,7 +151,7 @@ export async function generateImagePrompts(
             const inputTokens = result.usageMetadata?.promptTokenCount || 0;
             const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-            await recordUsageEvent({
+            await safeRecordUsageEvent({
                 ...trackingContext,
                 operationKey: 'image-prompt',
                 inputTokens,

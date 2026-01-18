@@ -78,10 +78,22 @@ function normalizeSourceUri(uri: string): string {
 }
 
 async function safeRecordUsageEvent(params: Parameters<typeof recordUsageEvent>[0]): Promise<void> {
-    try {
-        await recordUsageEvent(params);
-    } catch (error: any) {
-        console.warn(`[slideGeneration] Failed to record usage event (${params.operationKey}):`, error?.message || error);
+    const maxAttempts = 3;
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+            await recordUsageEvent(params);
+            return;
+        } catch (error: any) {
+            if (attempt >= maxAttempts) {
+                console.warn(
+                    `[slideGeneration] Failed to record usage event (${params.operationKey}) after ${maxAttempts} attempts:`,
+                    error?.message || error
+                );
+                return;
+            }
+            const delayMs = 200 * attempt;
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
     }
 }
 
@@ -439,7 +451,7 @@ async function computeResolvedSources(
     groundingSources: Array<{ uri: string; title?: string }>,
     uploadedFileNames?: string[],
     sourceMaterial?: string
-): Promise<{ sources: string[]; stats: SourceResolutionStats; resolvedSources: Array<{ uri: string; title?: string }> }> {
+): Promise<{ sources: string[]; stats: SourceResolutionStats }> {
     const resolvedSources = await resolveSourceUrls(groundingSources);
     let resolvedCount = 0;
     let fallbackCount = 0;
@@ -461,8 +473,8 @@ async function computeResolvedSources(
     let usedSourcesFallback = false;
     if (uniqueSources.length === 0 && resolvedSources.length > 0) {
         const fallbackSources = resolvedSources
-            .map(source => source.uri)
-            .filter(uri => uri && uri.trim());
+            .map(source => normalizeSourceUri(source.uri))
+            .filter(uri => uri && uri.trim() && isValidUrl(uri));
         if (fallbackSources.length > 0) {
             uniqueSources = Array.from(new Set(fallbackSources));
             usedSourcesFallback = true;
@@ -477,8 +489,7 @@ async function computeResolvedSources(
             fallback: fallbackCount,
             finalCount: uniqueSources.length,
             usedSourcesFallback
-        },
-        resolvedSources
+        }
     };
 }
 
