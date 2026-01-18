@@ -9,6 +9,7 @@ interface InputFormProps {
   setGradeLevel: (text: string) => void;
   subject: string;
   setSubject: (text: string) => void;
+  projectId: string | null;
   onFilesSelected: (files: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[]) => void;
   uploadedFiles: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[];
   onRemoveFile: (index: number) => void;
@@ -66,6 +67,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   setGradeLevel,
   subject,
   setSubject,
+  projectId,
   onFilesSelected,
   uploadedFiles,
   onRemoveFile,
@@ -179,6 +181,7 @@ export const InputForm: React.FC<InputFormProps> = ({
 
       <div className="border-t border-white/5 pt-4">
         <FileUploader
+          projectId={projectId}
           onFilesSelected={onFilesSelected}
           uploadedFiles={uploadedFiles}
           onRemoveFile={onRemoveFile}

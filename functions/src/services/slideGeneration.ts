@@ -7,8 +7,8 @@ import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { Slide, ProjectData } from '@shared/types';
 import { GeminiError } from '@shared/errors';
-import { calculateAndIncrementProjectCost } from './pricingService';
 import { generateImagePrompts } from './imageGeneration';
+import { recordUsageEvent, UsageEventContext } from './usageEventsService';
 
 type ResearchResult = {
     researchContent: string;
@@ -24,6 +24,14 @@ type GenerationResult = {
     inputTokens: number;
     outputTokens: number;
     warnings: string[];
+};
+
+type SlideGenerationTracking = {
+    baseRequestId: string;
+    userId: string;
+    projectId: string;
+    idempotencyKeySource: 'client' | 'server';
+    sourceEndpoint?: string;
 };
 
 function extractGroundingData(groundingMetadata: any): {
@@ -60,6 +68,7 @@ async function performUnifiedResearch(
     subject: string,
     sourceMaterial: string,
     useWebSearch: boolean,
+    trackingContext: UsageEventContext,
     additionalInstructions?: string,
     temperature?: number,
     uploadedFileNames?: string[]
@@ -102,6 +111,13 @@ async function performUnifiedResearch(
     const inputTokens = result.usageMetadata?.promptTokenCount || 0;
     const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
+    await recordUsageEvent({
+        ...trackingContext,
+        operationKey: 'slide-research',
+        inputTokens,
+        outputTokens
+    });
+
     const groundingMetadata = candidates?.[0]?.groundingMetadata;
     const { sources: groundingSources, searchEntryPoint, webSearchQueries } = extractGroundingData(groundingMetadata);
 
@@ -130,6 +146,7 @@ async function performSlideGeneration(
     subject: string,
     numSlides: number,
     researchContent: string,
+    trackingContext: UsageEventContext,
     additionalInstructions?: string,
     temperature?: number,
     bulletsPerSlide?: number
@@ -170,6 +187,13 @@ async function performSlideGeneration(
     const inputTokens = result.usageMetadata?.promptTokenCount || 0;
     const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
+    await recordUsageEvent({
+        ...trackingContext,
+        operationKey: 'slide-generation',
+        inputTokens,
+        outputTokens
+    });
+
     let slides: any[];
     try {
         slides = extractFirstJsonArray(text);
@@ -207,60 +231,7 @@ async function performSlideGeneration(
     };
 }
 
-export async function generateSlides(
-    topic: string,
-    gradeLevel: string,
-    subject: string,
-    sourceMaterial: string,
-    numSlides: number,
-    useWebSearch: boolean,
-    additionalInstructions?: string,
-    temperature?: number,
-    bulletsPerSlide?: number,
-    uploadedFileNames?: string[]
-): Promise<{
-    slides: Slide[],
-    inputTokens: number,
-    outputTokens: number,
-    sources: string[],
-    searchEntryPoint?: any,
-    webSearchQueries?: string[],
-    warnings: string[]
-}> {
-    const shouldUseWebSearch = useWebSearch || (!sourceMaterial && (!uploadedFileNames || uploadedFileNames.length === 0));
 
-    const researchResult = await performUnifiedResearch(
-        topic,
-        gradeLevel,
-        subject,
-        sourceMaterial,
-        shouldUseWebSearch,
-        additionalInstructions,
-        temperature,
-        uploadedFileNames
-    );
-
-    const generationResult = await performSlideGeneration(
-        topic,
-        gradeLevel,
-        subject,
-        numSlides,
-        researchResult.researchContent,
-        additionalInstructions,
-        temperature,
-        bulletsPerSlide
-    );
-
-    return {
-        slides: generationResult.slides,
-        inputTokens: researchResult.inputTokens + generationResult.inputTokens,
-        outputTokens: researchResult.outputTokens + generationResult.outputTokens,
-        sources: researchResult.sources,
-        searchEntryPoint: researchResult.searchEntryPoint,
-        webSearchQueries: researchResult.webSearchQueries,
-        warnings: generationResult.warnings
-    };
-}
 
 
 /**
@@ -505,6 +476,7 @@ export async function generateSlidesAndUpdateFirestore(
     sourceMaterial: string,
     numSlides: number,
     useWebSearch: boolean,
+    tracking: SlideGenerationTracking,
     additionalInstructions?: string,
     temperature?: number,
     bulletsPerSlide?: number,
@@ -515,6 +487,22 @@ export async function generateSlidesAndUpdateFirestore(
     const maxGenerationRetries = 3;
     let researchResult: ResearchResult | null = null;
     let generationResult: GenerationResult | null = null;
+    const researchTracking = {
+        requestId: `${tracking.baseRequestId}-research`,
+        parentRequestId: tracking.baseRequestId,
+        userId: tracking.userId,
+        projectId: tracking.projectId,
+        idempotencyKeySource: tracking.idempotencyKeySource,
+        sourceEndpoint: tracking.sourceEndpoint
+    };
+    const generationTracking = {
+        requestId: `${tracking.baseRequestId}-generation`,
+        parentRequestId: tracking.baseRequestId,
+        userId: tracking.userId,
+        projectId: tracking.projectId,
+        idempotencyKeySource: tracking.idempotencyKeySource,
+        sourceEndpoint: tracking.sourceEndpoint
+    };
 
     try {
         // Update: Generation started
@@ -532,6 +520,7 @@ export async function generateSlidesAndUpdateFirestore(
             subject,
             sourceMaterial,
             shouldUseWebSearch,
+            researchTracking,
             additionalInstructions,
             temperature,
             uploadedFileNames
@@ -554,6 +543,7 @@ export async function generateSlidesAndUpdateFirestore(
                     subject,
                     numSlides,
                     researchResult.researchContent,
+                    generationTracking,
                     additionalInstructions,
                     temperature,
                     bulletsPerSlide
@@ -616,23 +606,6 @@ export async function generateSlidesAndUpdateFirestore(
         // Note: Image prompt generation is now user-triggered per slide
         // No automatic generation after slide creation
 
-        // New: Calculate and increment project cost using pricing service
-        // #region agent log
-        const totalInputTokens = researchResult.inputTokens + generationResult.inputTokens;
-        const totalOutputTokens = researchResult.outputTokens + generationResult.outputTokens;
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:296', message: 'About to calculate cost', data: { modelId: MODEL_SLIDE_GENERATION, inputTokens: totalInputTokens, outputTokens: totalOutputTokens }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-        // #endregion
-        await calculateAndIncrementProjectCost(
-            projectRef,
-            MODEL_SLIDE_GENERATION,
-            totalInputTokens,
-            totalOutputTokens,
-            'text'
-        );
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:302', message: 'Cost calculated successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'C' }) }).catch(() => { });
-        // #endregion
-
         // Update: Complete (100%) - Remove direct token updates
         // #region agent log
         fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:305', message: 'About to update to completed', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
@@ -687,9 +660,9 @@ export async function generateSlidesAndUpdateFirestore(
  */
 export async function generateImagePromptsForSingleSlide(
     slideRef: admin.firestore.DocumentReference,
-    projectRef: admin.firestore.DocumentReference,
     projectData: ProjectData,
-    slideData: Slide
+    slideData: Slide,
+    trackingContext: UsageEventContext
 ): Promise<void> {
     try {
         // Update state to generating
@@ -704,7 +677,8 @@ export async function generateImagePromptsForSingleSlide(
             projectData.subject || '',
             projectData.gradeLevel || '',
             slideData.title || '',
-            slideData.content || []
+            slideData.content || [],
+            trackingContext
         );
 
         // Save the prompt
@@ -723,15 +697,6 @@ export async function generateImagePromptsForSingleSlide(
                 promptGenerationState: 'completed',
                 updatedAt: FieldValue.serverTimestamp()
             });
-
-            // Track costs
-            await calculateAndIncrementProjectCost(
-                projectRef,
-                MODEL_SLIDE_GENERATION,
-                result.totalInputTokens,
-                result.totalOutputTokens,
-                'text'
-            );
 
             console.log(`[PROMPT_GEN] Successfully generated prompt for slide ${slideRef.id}`);
         } else {

@@ -1,10 +1,9 @@
 import React, { useState, useEffect, useRef } from 'react';
 import type { Slide, ImageGenError } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon, PencilIcon } from './icons';
-import { generateImageFromPrompt, incrementProjectTokens, generatePrompt } from '../services/geminiService';
+import { generateImageFromPrompt, generatePrompt } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
-import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION } from '../constants';
 
 interface SlideCardProps {
     slide: Slide;
@@ -126,11 +125,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             alert("No image prompt available for this slide.");
             return;
         }
+        if (!projectId) {
+            alert("Project is required to generate images.");
+            return;
+        }
 
         isGeneratingImageRef.current = true;
         setIsGeneratingImage(true);
         try {
-            const { blob, inputTokens, outputTokens } = await generateImageFromPrompt(imagePromptText, {
+            const { blob, inputTokens, outputTokens } = await generateImageFromPrompt(projectId, imagePromptText, {
                 aspectRatio,
                 temperature: creativityLevel
             });
@@ -153,15 +156,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     generatedImages: [...generatedImages, generatedImage],
                     backgroundImage: generatedImage.url
                 });
-
-                // Report tokens to backend for cost tracking
-                await incrementProjectTokens(
-                    projectId,
-                    MODEL_IMAGE_GENERATION,
-                    inputTokens,
-                    outputTokens,
-                    'image'
-                );
 
             } else {
                 const url = URL.createObjectURL(blob);

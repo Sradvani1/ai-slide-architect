@@ -3,6 +3,7 @@ import { getAiClient } from '../utils/geminiClient';
 import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION, STYLE_GUIDELINES } from '@shared/constants';
 import { retryWithBackoff, retryPromptGeneration } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
+import { recordUsageEvent, UsageEventContext } from './usageEventsService';
 import { buildSingleSlideImagePromptSystemInstructions, buildSingleSlideImagePromptUserPrompt } from '@shared/promptBuilders';
 
 export interface PromptGenerationResult {
@@ -14,6 +15,7 @@ export interface PromptGenerationResult {
 
 export async function generateImage(
     imagePrompt: string,
+    trackingContext: UsageEventContext,
     options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
 ): Promise<{ base64Data: string; mimeType: string; renderedPrompt: string; inputTokens: number; outputTokens: number }> {
 
@@ -60,6 +62,13 @@ ${STYLE_GUIDELINES}`;
             const inputTokens = response.usageMetadata?.promptTokenCount || 0;
             const outputTokens = response.usageMetadata?.candidatesTokenCount || 0;
 
+            await recordUsageEvent({
+                ...trackingContext,
+                operationKey: 'image-generation',
+                inputTokens,
+                outputTokens
+            });
+
             return {
                 base64Data: inlineData.data || "",
                 mimeType: inlineData.mimeType || inlineData.mime_type || "image/png",
@@ -88,7 +97,8 @@ export async function generateImagePrompts(
     subject: string,
     gradeLevel: string,
     slideTitle: string,
-    slideContent: string[]
+    slideContent: string[],
+    trackingContext: UsageEventContext
 ): Promise<PromptGenerationResult> {
     const systemInstructions = buildSingleSlideImagePromptSystemInstructions();
     const userPrompt = buildSingleSlideImagePromptUserPrompt(topic, subject, gradeLevel, slideTitle, slideContent);
@@ -120,6 +130,13 @@ export async function generateImagePrompts(
 
             const inputTokens = result.usageMetadata?.promptTokenCount || 0;
             const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+            await recordUsageEvent({
+                ...trackingContext,
+                operationKey: 'image-prompt',
+                inputTokens,
+                outputTokens
+            });
 
             return {
                 id: crypto.randomUUID(),

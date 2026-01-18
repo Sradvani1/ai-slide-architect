@@ -13,10 +13,11 @@ interface GenerateSlidesRequestBody {
   bulletsPerSlide: number;
   additionalInstructions?: string;
   uploadedFileNames?: string[];
-  projectId?: string;
+  projectId: string;
 }
 
 interface GenerateImageRequestBody {
+  projectId: string;
   imagePrompt: string;
   options: {
     aspectRatio?: '16:9' | '1:1';
@@ -25,16 +26,9 @@ interface GenerateImageRequestBody {
 }
 
 interface ExtractTextRequestBody {
+  projectId: string;
   imageBase64: string;
   mimeType: string;
-}
-
-interface IncrementTokensRequestBody {
-  projectId: string;
-  modelId: string;
-  inputTokens: number;
-  outputTokens: number;
-  operationType: 'text' | 'image';
 }
 
 
@@ -48,7 +42,6 @@ type GeminiRequestBody =
   | GenerateSlidesRequestBody
   | GenerateImageRequestBody
   | ExtractTextRequestBody
-  | IncrementTokensRequestBody
   | GeneratePromptRequestBody;
 
 export { GeminiError, ImageGenError };
@@ -136,8 +129,8 @@ export const generateSlidesFromDocument = async (
   temperature: number = 0.7,
   bulletsPerSlide: number = 4,
   additionalInstructions: string = '',
-  uploadedFileNames?: string[],
-  projectId?: string
+  projectId: string,
+  uploadedFileNames?: string[]
 ): Promise<{
   slides: Slide[],
   inputTokens: number,
@@ -166,27 +159,14 @@ export const generateSlidesFromDocument = async (
     additionalInstructions,
     temperature,
     bulletsPerSlide,
-    uploadedFileNames,
-    projectId
+    projectId,
+    uploadedFileNames
   });
 
-  // If projectId provided, function returns 202 and updates Firestore directly
-  // Return empty result (slides will come from Firestore listener)
-  if (projectId) {
-    return {
-      slides: [],
-      inputTokens: 0,
-      outputTokens: 0,
-      sources: [],
-      warnings: []
-    };
-  }
-
-  // Transform result to match client expectations if needed (e.g. sources format)
   return {
-    slides: result.slides,
-    inputTokens: result.inputTokens,
-    outputTokens: result.outputTokens,
+    slides: result.slides || [],
+    inputTokens: result.inputTokens || 0,
+    outputTokens: result.outputTokens || 0,
     sources: result.sources || [],
     searchEntryPoint: result.searchEntryPoint,
     webSearchQueries: result.webSearchQueries,
@@ -198,10 +178,12 @@ export const generateSlidesFromDocument = async (
  * Generates an image based on the provided prompt using the Imagen 3 model.
  */
 export const generateImageFromPrompt = async (
+  projectId: string,
   imagePrompt: string,
   options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
 ): Promise<{ blob: Blob; renderedPrompt: string; inputTokens: number; outputTokens: number }> => {
   const result = await authenticatedRequest<{ base64Data: string; mimeType: string, renderedPrompt?: string; inputTokens: number; outputTokens: number }>('/generate-image', {
+    projectId,
     imagePrompt,
     options
   });
@@ -233,10 +215,12 @@ export const repairSlideJSON = async (
 };
 
 export const extractTextFromImage = async (
+  projectId: string,
   imageBase64: string,
   mimeType: string
 ): Promise<{ text: string; inputTokens: number; outputTokens: number }> => {
   const result = await authenticatedRequest<{ text: string; inputTokens: number; outputTokens: number }>('/extract-text', {
+    projectId,
     imageBase64,
     mimeType
   });
@@ -247,25 +231,6 @@ export const extractTextFromImage = async (
   };
 };
 
-
-/**
- * Increments project tokens and calculates cost on the backend.
- */
-export const incrementProjectTokens = async (
-  projectId: string,
-  modelId: string,
-  inputTokens: number,
-  outputTokens: number,
-  operationType: 'text' | 'image'
-): Promise<{ success: boolean; cost: number }> => {
-  return authenticatedRequest<{ success: boolean; cost: number }>('/increment-project-tokens', {
-    projectId,
-    modelId,
-    inputTokens,
-    outputTokens,
-    operationType
-  });
-};
 
 /**
  * Generates an image prompt for a specific slide.

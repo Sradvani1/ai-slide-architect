@@ -142,10 +142,6 @@ export interface ProjectData {
     // Cost Tracking
     totalCost?: number;            // Total USD cost
 
-    // Legacy fields (deprecated, but kept for compatibility)
-    inputTokens?: number;
-    outputTokens?: number;
-
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
     sources?: string[];

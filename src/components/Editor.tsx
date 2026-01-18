@@ -5,9 +5,9 @@ import { useNavigate, useParams } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
-import { generateSlidesFromDocument, incrementProjectTokens } from '../services/geminiService';
+import { generateSlidesFromDocument } from '../services/geminiService';
 import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
-import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '../constants';
+import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
 
 interface EditorProps {
@@ -232,29 +232,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
                 setCurrentProjectId(newProjectId);
 
-                // 1a. Track text extraction tokens if any files used text extraction
-                const textExtractionTokens = uploadedFiles
-                    .filter(f => f.inputTokens !== undefined && f.outputTokens !== undefined)
-                    .reduce((acc, f) => ({
-                        inputTokens: acc.inputTokens + (f.inputTokens || 0),
-                        outputTokens: acc.outputTokens + (f.outputTokens || 0)
-                    }), { inputTokens: 0, outputTokens: 0 });
-
-                if (textExtractionTokens.inputTokens > 0 || textExtractionTokens.outputTokens > 0) {
-                    try {
-                        await incrementProjectTokens(
-                            newProjectId,
-                            MODEL_SLIDE_GENERATION,
-                            textExtractionTokens.inputTokens,
-                            textExtractionTokens.outputTokens,
-                            'text'
-                        );
-                    } catch (tokenError) {
-                        console.error('Failed to track text extraction tokens:', tokenError);
-                        // Don't block project creation if token tracking fails
-                    }
-                }
-
                 // 2. Upload files first (if any)
                 const uploadedProjectFiles: ProjectFile[] = [];
                 for (const fileData of uploadedFiles) {
@@ -294,8 +271,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         creativityLevel,
                         bulletsPerSlide,
                         additionalInstructions,
-                        uploadedFileNames,
-                        newProjectId
+                        newProjectId,
+                        uploadedFileNames
                     );
                 } catch (genError) {
                     console.error("Generation start error:", genError);
@@ -375,8 +352,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 creativityLevel,
                 bulletsPerSlide,
                 projectData.additionalInstructions || "",
-                uploadedFileNames,
-                projectId
+                projectId,
+                uploadedFileNames
             ).catch(async (err) => {
                 console.error("Retry generation call failed:", err);
                 await updateDoc(projectRef, {
@@ -480,6 +457,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         setGradeLevel={setGradeLevel}
                         subject={subject}
                         setSubject={setSubject}
+                        projectId={currentProjectId}
                         onFilesSelected={handleFilesSelected}
                         uploadedFiles={uploadedFiles}
                         onRemoveFile={handleRemoveFile}

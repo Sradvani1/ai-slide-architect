@@ -21,10 +21,12 @@ try {
 // #endregion
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { GeminiError } from '@shared/errors';
+import { recordUsageEvent, UsageEventContext } from './usageEventsService';
 
 export async function extractTextFromImage(
     imageBase64: string,
-    mimeType: string
+    mimeType: string,
+    trackingContext: UsageEventContext
 ): Promise<{ text: string, inputTokens: number, outputTokens: number }> {
 
     const generateFn = async () => {
@@ -53,15 +55,20 @@ export async function extractTextFromImage(
             if (!text) {
                 throw new GeminiError("No text extracted", 'INVALID_REQUEST', false);
             }
-            // The instruction only provided `return text;` but the new return type is an object.
-            // Assuming the full change would include token counts, but for now,
-            // I will return the text as per the provided snippet, which will cause a type error.
-            // To make it syntactically correct and match the new return type,
-            // I'll add placeholder values for inputTokens and outputTokens.
+            const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+            const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+            await recordUsageEvent({
+                ...trackingContext,
+                operationKey: 'text-extraction',
+                inputTokens,
+                outputTokens
+            });
+
             return {
                 text: text,
-                inputTokens: result.usageMetadata?.promptTokenCount || 0,
-                outputTokens: result.usageMetadata?.candidatesTokenCount || 0
+                inputTokens,
+                outputTokens
             };
 
         } catch (error: any) {

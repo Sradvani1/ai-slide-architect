@@ -1,10 +1,12 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
+import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
+import * as crypto from 'crypto';
 
 // Initialize Firebase Admin (must be before middleware)
 admin.initializeApp();
@@ -14,14 +16,14 @@ const adminUserIdSecret = defineSecret('ADMIN_USER_ID');
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
-import { generateSlides, generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
+import { generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
-import { calculateAndIncrementProjectCost } from './services/pricingService';
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { Slide, ProjectData } from '@shared/types';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
+import { processPendingUsageEvents } from './services/pendingCostProcessor';
 
 const app = express();
 
@@ -44,7 +46,8 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             additionalInstructions,
             temperature,
             bulletsPerSlide,
-            uploadedFileNames
+            uploadedFileNames,
+            requestId
         } = req.body;
 
         // Basic validation
@@ -53,71 +56,76 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             return;
         }
 
-        // Background generation if projectId is provided
-        if (projectId) {
-            if (!req.user) {
-                res.status(401).json({ error: "Unauthorized" });
-                return;
-            }
-            const userId = req.user.uid;
-            const db = admin.firestore();
-            const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-
-            // Verify project exists
-            const projectDoc = await projectRef.get();
-            if (!projectDoc.exists) {
-                res.status(404).json({ error: "Project not found" });
-                return;
-            }
-
-            // Return 202 Accepted immediately
-            res.status(202).json({
-                message: "Generation started",
-                projectId
-            });
-
-            // Start background generation
-            generateSlidesAndUpdateFirestore(
-                projectRef,
-                topic,
-                gradeLevel,
-                subject,
-                sourceMaterial || "",
-                numSlides || 5,
-                useWebSearch || false,
-                additionalInstructions,
-                temperature,
-                bulletsPerSlide,
-                uploadedFileNames
-            ).catch(error => {
-                console.error("Background generation error:", error);
-                // Update project with error status as a fallback
-                projectRef.update({
-                    status: 'failed',
-                    generationError: error.message || "Background generation failed",
-                    updatedAt: FieldValue.serverTimestamp()
-                }).catch(updateError => {
-                    console.error("Failed to update error status in background catch:", updateError);
-                });
-            });
+        if (!projectId) {
+            res.status(400).json({ error: "Missing required field: projectId" });
             return;
         }
 
-        // Legacy synchronous behavior
-        const result = await generateSlides(
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+
+        // Verify project exists
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found" });
+            return;
+        }
+
+        const baseRequestId = typeof requestId === 'string' && requestId.trim()
+            ? requestId
+            : crypto.randomUUID();
+        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
+            ? 'client'
+            : 'server';
+
+        await projectRef.update({
+            generationRequestId: baseRequestId,
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        // Return 202 Accepted immediately
+        res.status(202).json({
+            message: "Generation started",
+            projectId
+        });
+
+        // Start background generation
+        generateSlidesAndUpdateFirestore(
+            projectRef,
             topic,
             gradeLevel,
             subject,
             sourceMaterial || "",
             numSlides || 5,
             useWebSearch || false,
+            {
+                baseRequestId,
+                userId,
+                projectId,
+                idempotencyKeySource,
+                sourceEndpoint: '/generate-slides'
+            },
             additionalInstructions,
             temperature,
             bulletsPerSlide,
             uploadedFileNames
-        );
-
-        res.json(result);
+        ).catch(error => {
+            console.error("Background generation error:", error);
+            // Update project with error status as a fallback
+            projectRef.update({
+                status: 'failed',
+                generationError: error.message || "Background generation failed",
+                updatedAt: FieldValue.serverTimestamp()
+            }).catch(updateError => {
+                console.error("Failed to update error status in background catch:", updateError);
+            });
+        });
+        return;
 
     } catch (error: any) {
         console.error("Generate Slides Error:", error);
@@ -136,14 +144,43 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
 // 2. Generate Image
 app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { imagePrompt, options } = req.body;
+        const { imagePrompt, options, projectId, requestId } = req.body;
 
         if (!imagePrompt || typeof imagePrompt !== 'string') {
             res.status(400).json({ error: "Missing required field: imagePrompt (string)" });
             return;
         }
+        if (!projectId) {
+            res.status(400).json({ error: "Missing required field: projectId" });
+            return;
+        }
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found or unauthorized" });
+            return;
+        }
 
-        const result = await generateImage(imagePrompt, options || {});
+        const baseRequestId = typeof requestId === 'string' && requestId.trim()
+            ? requestId
+            : crypto.randomUUID();
+        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
+            ? 'client'
+            : 'server';
+
+        const result = await generateImage(imagePrompt, {
+            requestId: baseRequestId,
+            userId,
+            projectId,
+            idempotencyKeySource,
+            sourceEndpoint: '/generate-image'
+        }, options || {});
         res.json(result);
 
     } catch (error: any) {
@@ -163,7 +200,7 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
 // 4. Extract Text from Image
 app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { imageBase64, mimeType } = req.body;
+        const { imageBase64, mimeType, projectId, requestId } = req.body;
 
         if (!imageBase64) {
             res.status(400).json({ error: "Missing image data" });
@@ -174,55 +211,42 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
             res.status(400).json({ error: "Missing required field: mimeType" });
             return;
         }
+        if (!projectId) {
+            res.status(400).json({ error: "Missing required field: projectId" });
+            return;
+        }
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found or unauthorized" });
+            return;
+        }
 
-        const result = await extractTextFromImage(imageBase64, mimeType);
+        const baseRequestId = typeof requestId === 'string' && requestId.trim()
+            ? requestId
+            : crypto.randomUUID();
+        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
+            ? 'client'
+            : 'server';
+
+        const result = await extractTextFromImage(imageBase64, mimeType, {
+            requestId: baseRequestId,
+            userId,
+            projectId,
+            idempotencyKeySource,
+            sourceEndpoint: '/extract-text'
+        });
         res.json(result);
 
     } catch (error: any) {
         console.error("Extract Text Error:", error);
         res.status(500).json({ error: "Text extraction failed" });
-    }
-});
-
-/**
- * 5. Increment Project Tokens (from frontend)
- */
-app.post('/increment-project-tokens', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
-    try {
-        const { projectId, modelId, inputTokens, outputTokens, operationType } = req.body;
-
-        if (!projectId || !modelId || inputTokens === undefined || outputTokens === undefined || !operationType) {
-            res.status(400).json({ error: "Missing required fields" });
-            return;
-        }
-
-        // Validate token counts are positive numbers
-        if (typeof inputTokens !== 'number' || inputTokens < 0 || typeof outputTokens !== 'number' || outputTokens < 0) {
-            res.status(400).json({ error: "Invalid token values. Must be non-negative numbers." });
-            return;
-        }
-
-        if (!req.user) {
-            res.status(401).json({ error: "Unauthorized" });
-            return;
-        }
-
-        const userId = req.user.uid;
-        const db = admin.firestore();
-        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
-
-        const cost = await calculateAndIncrementProjectCost(
-            projectRef,
-            modelId,
-            inputTokens,
-            outputTokens,
-            operationType
-        );
-
-        res.json({ success: true, cost });
-    } catch (error: any) {
-        console.error("Increment Tokens Error:", error);
-        res.status(500).json({ error: "Failed to update token counts" });
     }
 });
 
@@ -254,7 +278,7 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
  */
 app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { projectId, slideId, regenerate = false } = req.body;
+        const { projectId, slideId, regenerate = false, requestId } = req.body;
 
         if (!projectId || !slideId) {
             res.status(400).json({ error: "Missing required fields: projectId, slideId" });
@@ -287,6 +311,12 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
 
         const slideData = slideDoc.data() as Slide;
         const projectData = projectDoc.data() as ProjectData;
+        const baseRequestId = typeof requestId === 'string' && requestId.trim()
+            ? requestId
+            : (!regenerate && slideData.promptRequestId ? slideData.promptRequestId : crypto.randomUUID());
+        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
+            ? 'client'
+            : 'server';
 
         // Check if prompt already exists
         const hasPrompt = (slideData.imagePrompts || []).length > 0;
@@ -319,11 +349,18 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
         await slideRef.update({
             promptGenerationState: 'generating',
             promptGenerationError: FieldValue.delete(),
+            promptRequestId: baseRequestId,
             updatedAt: FieldValue.serverTimestamp()
         });
 
         // Process in background (fire and forget)
-        generateImagePromptsForSingleSlide(slideRef, projectRef, projectData, slideData).catch(error => {
+        generateImagePromptsForSingleSlide(slideRef, projectData, slideData, {
+            requestId: baseRequestId,
+            userId,
+            projectId,
+            idempotencyKeySource,
+            sourceEndpoint: '/generate-prompt'
+        }).catch(error => {
             console.error(`[PROMPT_GEN] Error processing prompt for slide ${slideId}:`, error);
         });
 
@@ -349,3 +386,7 @@ export const api = functions.https.onRequest(
     },
     app
 );
+
+export const processPendingCosts = onSchedule('every 5 minutes', async () => {
+    await processPendingUsageEvents();
+});

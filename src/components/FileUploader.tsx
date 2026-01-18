@@ -13,6 +13,7 @@ import {
 } from '../utils/fileValidation';
 
 interface FileUploaderProps {
+    projectId: string | null;
     onFilesSelected: (files: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[]) => void;
     uploadedFiles: { file?: File; name: string; content: string; size: number; inputTokens?: number; outputTokens?: number }[];
     onRemoveFile: (index: number) => void;
@@ -25,7 +26,7 @@ interface FileProgress {
     error?: string;
 }
 
-export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, uploadedFiles, onRemoveFile, isLoading }) => {
+export const FileUploader: React.FC<FileUploaderProps> = ({ projectId, onFilesSelected, uploadedFiles, onRemoveFile, isLoading }) => {
     const [isDragging, setIsDragging] = useState(false);
     const [batchError, setBatchError] = useState<string | null>(null);
     const [fileResults, setFileResults] = useState<Record<string, FileValidationResult>>({});
@@ -178,8 +179,12 @@ export const FileUploader: React.FC<FileUploaderProps> = ({ onFilesSelected, upl
                     const imgCheck = await validateImageContent(file);
                     if (!imgCheck.valid) throw new Error(imgCheck.error);
 
+                    if (!projectId) {
+                        throw new Error('Project is required before extracting text from images.');
+                    }
+
                     const base64Content = await convertFileToBase64(file);
-                    const extractionResult = await extractTextFromImage(base64Content, file.type || 'image/jpeg');
+                    const extractionResult = await extractTextFromImage(projectId, base64Content, file.type || 'image/jpeg');
                     content = extractionResult.text;
 
                     // Validate image extraction result

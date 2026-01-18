@@ -45,6 +45,7 @@ export interface Slide {
     // Simplified state tracking
     promptGenerationState?: 'generating' | 'completed' | 'failed';
     promptGenerationError?: string;
+    promptRequestId?: string;
 }
 
 /**
@@ -107,4 +108,5 @@ export interface ProjectData {
     generationError?: string;
     generationStartedAt?: any;     // Firestore Timestamp
     generationCompletedAt?: any;   // Firestore Timestamp
+    generationRequestId?: string;
 }
