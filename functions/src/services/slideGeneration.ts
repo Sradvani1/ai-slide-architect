@@ -105,8 +105,14 @@ async function performUnifiedResearch(
     const groundingMetadata = candidates?.[0]?.groundingMetadata;
     const { sources: groundingSources, searchEntryPoint, webSearchQueries } = extractGroundingData(groundingMetadata);
 
-    const resolvedSources = await resolveSourceUrls(groundingSources);
-    const uniqueSources = getUniqueSources(resolvedSources, uploadedFileNames, sourceMaterial) || [];
+    const { sources: uniqueSources, stats } = await computeResolvedSources(
+        groundingSources,
+        uploadedFileNames,
+        sourceMaterial
+    );
+    console.log(
+        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} resolved=${stats.resolved} fallback=${stats.fallback} final=${stats.finalCount}`
+    );
 
     return {
         researchContent,
@@ -278,6 +284,10 @@ function getUrlForLog(uri: string): string {
     }
 }
 
+function isVertexRedirectUrl(uri: string): boolean {
+    return uri.includes('vertexaisearch.cloud.google.com');
+}
+
 function resolveLocationHeader(location: string | null, baseUri: string): string | null {
     if (!location) return null;
     try {
@@ -298,7 +308,7 @@ async function getOriginalUrl(uri: string): Promise<string> {
         return uri;
     }
 
-    if (!uri.includes('vertexaisearch.cloud.google.com')) {
+    if (!isVertexRedirectUrl(uri)) {
         return uri;
     }
 
@@ -372,6 +382,13 @@ async function resolveSourceUrls(
     return resolvedSources;
 }
 
+type SourceResolutionStats = {
+    totalGrounding: number;
+    resolved: number;
+    fallback: number;
+    finalCount: number;
+};
+
 /**
  * Extract file names from source material string
  */
@@ -423,6 +440,63 @@ function getUniqueSources(
     return uniqueSources.length > 0 ? uniqueSources : undefined;
 }
 
+async function computeResolvedSources(
+    groundingSources: Array<{ uri: string; title?: string }>,
+    uploadedFileNames?: string[],
+    sourceMaterial?: string
+): Promise<{ sources: string[]; stats: SourceResolutionStats }> {
+    const resolvedSources = await resolveSourceUrls(groundingSources);
+    let resolvedCount = 0;
+    let fallbackCount = 0;
+    groundingSources.forEach((source, index) => {
+        const resolvedUri = resolvedSources[index]?.uri;
+        if (!resolvedUri) {
+            return;
+        }
+        if (!isVertexRedirectUrl(source.uri)) {
+            return;
+        }
+        if (resolvedUri !== source.uri) {
+            resolvedCount += 1;
+            return;
+        }
+        fallbackCount += 1;
+    });
+    const uniqueSources = getUniqueSources(resolvedSources, uploadedFileNames, sourceMaterial) || [];
+
+    return {
+        sources: uniqueSources,
+        stats: {
+            totalGrounding: groundingSources.length,
+            resolved: resolvedCount,
+            fallback: fallbackCount,
+            finalCount: uniqueSources.length
+        }
+    };
+}
+
+async function updateProjectWithRetry(
+    projectRef: admin.firestore.DocumentReference,
+    data: Record<string, unknown>,
+    attempts: number = 3
+): Promise<void> {
+    let lastError: unknown;
+    for (let attempt = 1; attempt <= attempts; attempt++) {
+        try {
+            await projectRef.update(data);
+            return;
+        } catch (error) {
+            lastError = error;
+            if (attempt >= attempts) {
+                throw error;
+            }
+            const delayMs = 250 * attempt;
+            await new Promise(resolve => setTimeout(resolve, delayMs));
+        }
+    }
+    throw lastError;
+}
+
 export async function generateSlidesAndUpdateFirestore(
     projectRef: admin.firestore.DocumentReference,
     topic: string,
@@ -464,7 +538,7 @@ export async function generateSlidesAndUpdateFirestore(
         );
 
         // Save research before Step 2 (resumable if generation fails)
-        await projectRef.update({
+        await updateProjectWithRetry(projectRef, {
             generationProgress: 25,
             sources: researchResult.sources || [],
             researchContent: researchResult.researchContent,
@@ -563,10 +637,19 @@ export async function generateSlidesAndUpdateFirestore(
         // #region agent log
         fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:305', message: 'About to update to completed', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
         // #endregion
-        await projectRef.update({
+        let sourcesToWrite = researchResult.sources || [];
+        if (sourcesToWrite.length === 0) {
+            const existingSnapshot = await projectRef.get();
+            const existingSources = existingSnapshot.get('sources');
+            if (Array.isArray(existingSources) && existingSources.length > 0) {
+                sourcesToWrite = existingSources;
+            }
+        }
+
+        await updateProjectWithRetry(projectRef, {
             status: 'completed',
             generationProgress: 100,
-            sources: researchResult.sources || [],
+            sources: sourcesToWrite,
             researchContent: researchResult.researchContent,
             generationCompletedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
