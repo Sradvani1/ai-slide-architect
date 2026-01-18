@@ -50,8 +50,9 @@ function extractGroundingData(groundingMetadata: any): {
         if (groundingMetadata.groundingChunks) {
             groundingMetadata.groundingChunks.forEach((chunk: any) => {
                 if (chunk.web?.uri) {
+                    const normalizedUri = normalizeSourceUri(chunk.web.uri);
                     sources.push({
-                        uri: chunk.web.uri,
+                        uri: normalizedUri,
                         title: chunk.web.title
                     });
                 }
@@ -60,6 +61,28 @@ function extractGroundingData(groundingMetadata: any): {
     }
 
     return { sources, searchEntryPoint, webSearchQueries };
+}
+
+function normalizeSourceUri(uri: string): string {
+    const trimmed = uri.trim();
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+    }
+    if (trimmed.startsWith('vertexaisearch.cloud.google.com/')) {
+        return `https://${trimmed}`;
+    }
+    if (trimmed.startsWith('www.')) {
+        return `https://${trimmed}`;
+    }
+    return trimmed;
+}
+
+async function safeRecordUsageEvent(params: Parameters<typeof recordUsageEvent>[0]): Promise<void> {
+    try {
+        await recordUsageEvent(params);
+    } catch (error: any) {
+        console.warn(`[slideGeneration] Failed to record usage event (${params.operationKey}):`, error?.message || error);
+    }
 }
 
 async function performUnifiedResearch(
@@ -111,7 +134,7 @@ async function performUnifiedResearch(
     const inputTokens = result.usageMetadata?.promptTokenCount || 0;
     const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-    await recordUsageEvent({
+    await safeRecordUsageEvent({
         ...trackingContext,
         operationKey: 'slide-research',
         inputTokens,
@@ -127,7 +150,7 @@ async function performUnifiedResearch(
         sourceMaterial
     );
     console.log(
-        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} resolved=${stats.resolved} fallback=${stats.fallback} final=${stats.finalCount}`
+        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} resolved=${stats.resolved} fallback=${stats.fallback} final=${stats.finalCount} fallbackUsed=${stats.usedSourcesFallback}`
     );
 
     return {
@@ -187,7 +210,7 @@ async function performSlideGeneration(
     const inputTokens = result.usageMetadata?.promptTokenCount || 0;
     const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-    await recordUsageEvent({
+    await safeRecordUsageEvent({
         ...trackingContext,
         operationKey: 'slide-generation',
         inputTokens,
@@ -358,6 +381,7 @@ type SourceResolutionStats = {
     resolved: number;
     fallback: number;
     finalCount: number;
+    usedSourcesFallback: boolean;
 };
 
 /**
@@ -415,7 +439,7 @@ async function computeResolvedSources(
     groundingSources: Array<{ uri: string; title?: string }>,
     uploadedFileNames?: string[],
     sourceMaterial?: string
-): Promise<{ sources: string[]; stats: SourceResolutionStats }> {
+): Promise<{ sources: string[]; stats: SourceResolutionStats; resolvedSources: Array<{ uri: string; title?: string }> }> {
     const resolvedSources = await resolveSourceUrls(groundingSources);
     let resolvedCount = 0;
     let fallbackCount = 0;
@@ -433,7 +457,17 @@ async function computeResolvedSources(
         }
         fallbackCount += 1;
     });
-    const uniqueSources = getUniqueSources(resolvedSources, uploadedFileNames, sourceMaterial) || [];
+    let uniqueSources = getUniqueSources(resolvedSources, uploadedFileNames, sourceMaterial) || [];
+    let usedSourcesFallback = false;
+    if (uniqueSources.length === 0 && resolvedSources.length > 0) {
+        const fallbackSources = resolvedSources
+            .map(source => source.uri)
+            .filter(uri => uri && uri.trim());
+        if (fallbackSources.length > 0) {
+            uniqueSources = Array.from(new Set(fallbackSources));
+            usedSourcesFallback = true;
+        }
+    }
 
     return {
         sources: uniqueSources,
@@ -441,8 +475,10 @@ async function computeResolvedSources(
             totalGrounding: groundingSources.length,
             resolved: resolvedCount,
             fallback: fallbackCount,
-            finalCount: uniqueSources.length
-        }
+            finalCount: uniqueSources.length,
+            usedSourcesFallback
+        },
+        resolvedSources
     };
 }
 
