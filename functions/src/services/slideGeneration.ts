@@ -8,7 +8,7 @@ import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION 
 import { Slide, ProjectData } from '@shared/types';
 import { GeminiError } from '@shared/errors';
 import { generateImagePrompts } from './imageGeneration';
-import { recordUsageEvent, UsageEventContext } from './usageEventsService';
+import { recordUsage } from './usageEventsService';
 
 type ResearchResult = {
     researchContent: string;
@@ -30,8 +30,6 @@ type SlideGenerationTracking = {
     baseRequestId: string;
     userId: string;
     projectId: string;
-    idempotencyKeySource: 'client' | 'server';
-    sourceEndpoint?: string;
 };
 
 function extractGroundingData(groundingMetadata: any): {
@@ -77,33 +75,13 @@ function normalizeSourceUri(uri: string): string {
     return trimmed;
 }
 
-async function safeRecordUsageEvent(params: Parameters<typeof recordUsageEvent>[0]): Promise<void> {
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            await recordUsageEvent(params);
-            return;
-        } catch (error: any) {
-            if (attempt >= maxAttempts) {
-                console.warn(
-                    `[slideGeneration] Failed to record usage event (${params.operationKey}) after ${maxAttempts} attempts:`,
-                    error?.message || error
-                );
-                return;
-            }
-            const delayMs = 200 * attempt;
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-    }
-}
-
 async function performUnifiedResearch(
     topic: string,
     gradeLevel: string,
     subject: string,
     sourceMaterial: string,
     useWebSearch: boolean,
-    trackingContext: UsageEventContext,
+    trackingContext: { userId: string; projectId: string },
     additionalInstructions?: string,
     temperature?: number,
     uploadedFileNames?: string[]
@@ -146,8 +124,9 @@ async function performUnifiedResearch(
     const inputTokens = result.usageMetadata?.promptTokenCount || 0;
     const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-    await safeRecordUsageEvent({
-        ...trackingContext,
+    await recordUsage({
+        userId: trackingContext.userId,
+        projectId: trackingContext.projectId,
         operationKey: 'slide-research',
         inputTokens,
         outputTokens
@@ -189,7 +168,7 @@ async function performSlideGeneration(
     subject: string,
     numSlides: number,
     researchContent: string,
-    trackingContext: UsageEventContext,
+    trackingContext: { userId: string; projectId: string },
     additionalInstructions?: string,
     temperature?: number,
     bulletsPerSlide?: number
@@ -230,8 +209,9 @@ async function performSlideGeneration(
     const inputTokens = result.usageMetadata?.promptTokenCount || 0;
     const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-    await safeRecordUsageEvent({
-        ...trackingContext,
+    await recordUsage({
+        userId: trackingContext.userId,
+        projectId: trackingContext.projectId,
         operationKey: 'slide-generation',
         inputTokens,
         outputTokens
@@ -537,21 +517,9 @@ export async function generateSlidesAndUpdateFirestore(
     const maxGenerationRetries = 3;
     let researchResult: ResearchResult | null = null;
     let generationResult: GenerationResult | null = null;
-    const researchTracking = {
-        requestId: `${tracking.baseRequestId}-research`,
-        parentRequestId: tracking.baseRequestId,
+    const baseTracking = {
         userId: tracking.userId,
-        projectId: tracking.projectId,
-        idempotencyKeySource: tracking.idempotencyKeySource,
-        sourceEndpoint: tracking.sourceEndpoint
-    };
-    const generationTracking = {
-        requestId: `${tracking.baseRequestId}-generation`,
-        parentRequestId: tracking.baseRequestId,
-        userId: tracking.userId,
-        projectId: tracking.projectId,
-        idempotencyKeySource: tracking.idempotencyKeySource,
-        sourceEndpoint: tracking.sourceEndpoint
+        projectId: tracking.projectId
     };
 
     try {
@@ -570,7 +538,7 @@ export async function generateSlidesAndUpdateFirestore(
             subject,
             sourceMaterial,
             shouldUseWebSearch,
-            researchTracking,
+            baseTracking,
             additionalInstructions,
             temperature,
             uploadedFileNames
@@ -593,7 +561,7 @@ export async function generateSlidesAndUpdateFirestore(
                     subject,
                     numSlides,
                     researchResult.researchContent,
-                    generationTracking,
+                    baseTracking,
                     additionalInstructions,
                     temperature,
                     bulletsPerSlide
@@ -712,7 +680,7 @@ export async function generateImagePromptsForSingleSlide(
     slideRef: admin.firestore.DocumentReference,
     projectData: ProjectData,
     slideData: Slide,
-    trackingContext: UsageEventContext
+    trackingContext: { userId: string; projectId: string }
 ): Promise<void> {
     try {
         // Update state to generating

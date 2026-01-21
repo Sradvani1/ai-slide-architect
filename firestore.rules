@@ -60,11 +60,5 @@ service cloud.firestore {
       allow write: if false; // Only admin/backend can write
     }
 
-    // Usage Events (Audit Log)
-    match /usageEvents/{eventId} {
-      allow write: if false;
-      allow read: if request.auth != null &&
-        resource.data.userId == request.auth.uid;
-    }
   }
 }

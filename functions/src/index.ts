@@ -1,6 +1,5 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
-import { onSchedule } from 'firebase-functions/v2/scheduler';
 import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
@@ -23,7 +22,6 @@ import { Slide, ProjectData } from '@shared/types';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
-import { processPendingUsageEvents } from './services/pendingCostProcessor';
 
 const app = express();
 
@@ -79,10 +77,6 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
         const baseRequestId = typeof requestId === 'string' && requestId.trim()
             ? requestId
             : crypto.randomUUID();
-        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
-            ? 'client'
-            : 'server';
-
         await projectRef.update({
             generationRequestId: baseRequestId,
             updatedAt: FieldValue.serverTimestamp()
@@ -106,9 +100,7 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             {
                 baseRequestId,
                 userId,
-                projectId,
-                idempotencyKeySource,
-                sourceEndpoint: '/generate-slides'
+                projectId
             },
             additionalInstructions,
             temperature,
@@ -144,7 +136,7 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
 // 2. Generate Image
 app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { imagePrompt, options, projectId, requestId } = req.body;
+        const { imagePrompt, options, projectId } = req.body;
 
         if (!imagePrompt || typeof imagePrompt !== 'string') {
             res.status(400).json({ error: "Missing required field: imagePrompt (string)" });
@@ -167,19 +159,9 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
             return;
         }
 
-        const baseRequestId = typeof requestId === 'string' && requestId.trim()
-            ? requestId
-            : crypto.randomUUID();
-        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
-            ? 'client'
-            : 'server';
-
         const result = await generateImage(imagePrompt, {
-            requestId: baseRequestId,
             userId,
-            projectId,
-            idempotencyKeySource,
-            sourceEndpoint: '/generate-image'
+            projectId
         }, options || {});
         res.json(result);
 
@@ -200,7 +182,7 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
 // 4. Extract Text from Image
 app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
-        const { imageBase64, mimeType, projectId, requestId } = req.body;
+        const { imageBase64, mimeType, projectId } = req.body;
 
         if (!imageBase64) {
             res.status(400).json({ error: "Missing image data" });
@@ -228,19 +210,9 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
             return;
         }
 
-        const baseRequestId = typeof requestId === 'string' && requestId.trim()
-            ? requestId
-            : crypto.randomUUID();
-        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
-            ? 'client'
-            : 'server';
-
         const result = await extractTextFromImage(imageBase64, mimeType, {
-            requestId: baseRequestId,
             userId,
-            projectId,
-            idempotencyKeySource,
-            sourceEndpoint: '/extract-text'
+            projectId
         });
         res.json(result);
 
@@ -314,9 +286,6 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
         const baseRequestId = typeof requestId === 'string' && requestId.trim()
             ? requestId
             : (!regenerate && slideData.promptRequestId ? slideData.promptRequestId : crypto.randomUUID());
-        const idempotencyKeySource = typeof requestId === 'string' && requestId.trim()
-            ? 'client'
-            : 'server';
 
         // Check if prompt already exists
         const hasPrompt = (slideData.imagePrompts || []).length > 0;
@@ -355,11 +324,8 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
 
         // Process in background (fire and forget)
         generateImagePromptsForSingleSlide(slideRef, projectData, slideData, {
-            requestId: baseRequestId,
             userId,
-            projectId,
-            idempotencyKeySource,
-            sourceEndpoint: '/generate-prompt'
+            projectId
         }).catch(error => {
             console.error(`[PROMPT_GEN] Error processing prompt for slide ${slideId}:`, error);
         });
@@ -387,6 +353,3 @@ export const api = functions.https.onRequest(
     app
 );
 
-export const processPendingCosts = onSchedule('every 5 minutes', async () => {
-    await processPendingUsageEvents();
-});

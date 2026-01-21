@@ -1,24 +1,4 @@
 {
-    "indexes": [
-        {
-            "collectionGroup": "usageEvents",
-            "queryScope": "COLLECTION",
-            "fields": [
-                { "fieldPath": "costStatus", "order": "ASCENDING" },
-                { "fieldPath": "processing", "order": "ASCENDING" },
-                { "fieldPath": "createdAt", "order": "ASCENDING" }
-            ]
-        },
-        {
-            "collectionGroup": "usageEvents",
-            "queryScope": "COLLECTION",
-            "fields": [
-                { "fieldPath": "costStatus", "order": "ASCENDING" },
-                { "fieldPath": "processing", "order": "ASCENDING" },
-                { "fieldPath": "processingAt", "order": "ASCENDING" },
-                { "fieldPath": "createdAt", "order": "ASCENDING" }
-            ]
-        }
-    ],
+    "indexes": [],
     "fieldOverrides": []
 }

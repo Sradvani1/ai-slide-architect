@@ -21,32 +21,12 @@ try {
 // #endregion
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { GeminiError } from '@shared/errors';
-import { recordUsageEvent, UsageEventContext } from './usageEventsService';
-
-async function safeRecordUsageEvent(params: Parameters<typeof recordUsageEvent>[0]): Promise<void> {
-    const maxAttempts = 3;
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-        try {
-            await recordUsageEvent(params);
-            return;
-        } catch (error: any) {
-            if (attempt >= maxAttempts) {
-                console.warn(
-                    `[imageTextExtraction] Failed to record usage event (${params.operationKey}) after ${maxAttempts} attempts:`,
-                    error?.message || error
-                );
-                return;
-            }
-            const delayMs = 200 * attempt;
-            await new Promise(resolve => setTimeout(resolve, delayMs));
-        }
-    }
-}
+import { recordUsage } from './usageEventsService';
 
 export async function extractTextFromImage(
     imageBase64: string,
     mimeType: string,
-    trackingContext: UsageEventContext
+    trackingContext: { userId: string; projectId: string }
 ): Promise<{ text: string, inputTokens: number, outputTokens: number }> {
 
     const generateFn = async () => {
@@ -78,8 +58,9 @@ export async function extractTextFromImage(
             const inputTokens = result.usageMetadata?.promptTokenCount || 0;
             const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
 
-            await safeRecordUsageEvent({
-                ...trackingContext,
+            await recordUsage({
+                userId: trackingContext.userId,
+                projectId: trackingContext.projectId,
                 operationKey: 'text-extraction',
                 inputTokens,
                 outputTokens
