@@ -156,13 +156,21 @@ async function performUnifiedResearch(
     const groundingMetadata = candidates?.[0]?.groundingMetadata;
     const { sources: groundingSources, searchEntryPoint, webSearchQueries } = extractGroundingData(groundingMetadata);
 
+    // Diagnostic: Log when web search was enabled but model didn't use it
+    if (useWebSearch && groundingSources.length === 0) {
+        console.warn(
+            `[performUnifiedResearch] WARNING: Web search was enabled but model returned no grounding sources. ` +
+            `webSearchQueries=${webSearchQueries?.length || 0}, hasGroundingMetadata=${!!groundingMetadata}`
+        );
+    }
+
     const { sources: uniqueSources, stats } = await computeResolvedSources(
         groundingSources,
         uploadedFileNames,
         sourceMaterial
     );
     console.log(
-        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} resolved=${stats.resolved} fallback=${stats.fallback} final=${stats.finalCount} fallbackUsed=${stats.usedSourcesFallback}`
+        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} resolved=${stats.resolved} fallback=${stats.fallback} final=${stats.finalCount}`
     );
 
     return {
@@ -305,8 +313,7 @@ function resolveLocationHeader(location: string | null, baseUri: string): string
 
 /**
  * Resolves vertexaisearch.cloud.google.com redirect links to their final URLs
- * Uses HEAD request to follow redirects without downloading content
- * Falls back to GET if HEAD is blocked or non-200
+ * Uses GET request with redirect: 'manual' to capture the Location header
  * Returns original URL if resolution fails (graceful degradation)
  */
 async function getOriginalUrl(uri: string): Promise<string> {
@@ -318,47 +325,43 @@ async function getOriginalUrl(uri: string): Promise<string> {
         return uri;
     }
 
-    const attemptRequest = async (method: 'HEAD' | 'GET'): Promise<Response> => {
-        const controller = new AbortController();
-        const timeoutId = setTimeout(() => controller.abort(), 5000);
-
-        try {
-            return await fetch(uri, {
-                method,
-                redirect: 'follow',
-                signal: controller.signal,
-                headers: method === 'GET' ? { Range: 'bytes=0-0' } : undefined
-            });
-        } finally {
-            clearTimeout(timeoutId);
-        }
-    };
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
 
     try {
-        const headResponse = await attemptRequest('HEAD');
-        const finalUrl = headResponse.url;
-        if (finalUrl && finalUrl !== uri) {
-            return finalUrl;
-        }
-        const location = resolveLocationHeader(headResponse.headers.get('location'), uri);
-        if (location) {
-            return location;
-        }
-    } catch (error) {
-        // Fall back to GET
-    }
+        // Use redirect: 'manual' to capture the redirect without following
+        // This is faster and works better with redirect services
+        const response = await fetch(uri, {
+            method: 'GET',
+            redirect: 'manual',
+            signal: controller.signal,
+            headers: {
+                'User-Agent': 'Mozilla/5.0 (compatible; SlidesEdu/1.0)',
+                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
+            }
+        });
 
-    try {
-        const getResponse = await attemptRequest('GET');
-        getResponse.body?.cancel();
-        const finalUrl = getResponse.url;
-        if (finalUrl && finalUrl !== uri) {
-            return finalUrl;
+        clearTimeout(timeoutId);
+
+        // Check for redirect status codes (301, 302, 303, 307, 308)
+        if (response.status >= 300 && response.status < 400) {
+            const location = response.headers.get('location');
+            if (location) {
+                const resolvedUrl = resolveLocationHeader(location, uri);
+                if (resolvedUrl && resolvedUrl !== uri) {
+                    return resolvedUrl;
+                }
+            }
         }
-        const location = resolveLocationHeader(getResponse.headers.get('location'), uri);
-        return location || uri;
+
+        // If no redirect, return original
+        return uri;
     } catch (error: any) {
-        console.warn(`[getOriginalUrl] Failed to resolve ${getUrlForLog(uri)}:`, error?.message || error);
+        clearTimeout(timeoutId);
+        // Only log if not a timeout (timeouts are expected and handled gracefully)
+        if (error?.name !== 'AbortError') {
+            console.warn(`[getOriginalUrl] Failed to resolve ${getUrlForLog(uri)}:`, error?.message || error);
+        }
         return uri;
     }
 }

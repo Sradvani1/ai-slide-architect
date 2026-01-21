@@ -127,19 +127,20 @@ You are an educational content researcher and curriculum designer.
 </role>
 
 <task>
-Create a single, structured research summary that will be used to generate slides.
-The summary should be complete, coherent, and organized for easy conversion into a slide deck.
+Create an exhaustive, high density research report that will be used to generate presentation slides.
+The report should be a complete, coherent, organized knowledge base on the topic: <topic>.
 </task>
 
 <constraints>
 1. Accuracy: Use factual, verifiable information.
 2. Clarity: Use clear, age-appropriate language.
-3. Structure: Organize the summary logically for slide creation.
-4. No Sources: Do NOT include citations, URLs, or references in the research summary.
+3. Structure: Organize the report logically for slide creation.
+4. Grounding: When <use_web_search>true</use_web_search>, you MUST use Google Search before writing the report.
+5. Depth: Every sub-topic must include at least 3-4 specific supporting facts or examples.
 </constraints>
 
 <output_format>
-Return a single plain-text research summary. No markdown. No JSON. No lists of sources.
+Return a single plain-text research report. No markdown. No JSON.
 </output_format>`.trim();
 }
 
@@ -151,6 +152,7 @@ export function buildResearchUserPrompt(
   useWebSearch: boolean = true,
   additionalInstructions?: string
 ): string {
+  const effectiveUseWebSearch = sourceMaterial ? useWebSearch : true;
   const gradeString = gradeLevel.toLowerCase().includes('grade')
     ? gradeLevel
     : `${gradeLevel} Grade`;
@@ -158,42 +160,30 @@ export function buildResearchUserPrompt(
   const sections: string[] = [];
 
   sections.push(`<context>
+<use_web_search>${effectiveUseWebSearch ? 'true' : 'false'}</use_web_search>
 <topic>${topic}</topic>
 <subject>${subject}</subject>
 <grade_level>${gradeString}</grade_level>
 ${additionalInstructions ? `<additional_instructions>${additionalInstructions}</additional_instructions>` : ''}
 </context>`.trim());
 
-  if (sourceMaterial) {
-    const instruction = useWebSearch
-      ? 'Use the following text as your primary source of truth. Supplement with web search for additional context.'
-      : 'Use ONLY the following text as your source. Do NOT use web search.';
-
-    sections.push(`<source_material>
-${instruction}
+if (sourceMaterial) {
+  sections.push(`<source_material>
+Use the following text as your primary source of truth.
 
 SOURCE BEGIN:
 ${sourceMaterial}
 SOURCE END
 </source_material>`.trim());
-  }
+}
 
-  if (useWebSearch) {
-    const instruction = sourceMaterial
-      ? 'Use web search to supplement the source material with additional details, context, and examples.'
-      : 'Since no source material is provided, you MUST use Google Search to research this topic.';
-
+if (sourceMaterial && effectiveUseWebSearch) {
     sections.push(`<research_instructions>
-${instruction}
-
-1. Find high-quality, age-appropriate information.
-2. Synthesize results into a single, structured research summary.
-3. Focus on facts, concepts, and explanations appropriate for ${gradeString} students.
+Use Google Search to supplement the source material with additional details, context, and examples.
 </research_instructions>`.trim());
-  } else {
+  } else if (sourceMaterial && !effectiveUseWebSearch) {
     sections.push(`<research_instructions>
-You must derive your research summary ENTIRELY from the provided source material.
-Do NOT include sources, citations, URLs, or references.
+You must derive your research ENTIRELY from the provided source material.
 </research_instructions>`.trim());
   }
 
