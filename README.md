@@ -24,7 +24,7 @@ AI Slide Architect is a powerful, AI-driven application designed to streamline t
 -   **Export Options**:
     -   **PowerPoint (.pptx)**: Download the full presentation with formatted slides.
     -   **Speaker Notes (.docx)**: Export a dedicated document containing detailed speaker notes and sources.
-    -   **Image Assets**: Download all generated slide images in a single ZIP file.
+    -   **Research Report (.docx)**: Download the project research report with metadata and sources.
 -   **Modern UI**: A sleek, responsive interface built with React and Tailwind CSS (via standard CSS) for a premium user experience.
 
 ## 🛠️ Tech Stack
@@ -39,7 +39,6 @@ AI Slide Architect is a powerful, AI-driven application designed to streamline t
     -   `pptxgenjs`: For generating PowerPoint files.
     -   `docx`: For creating Word documents.
     -   `pdfjs-dist` & `mammoth`: For parsing uploaded PDFs and Word docs.
-    -   `jszip`: For bundling image downloads.
 -   **Styling**: CSS / Tailwind-inspired utility classes.
 
 ## 🏁 Getting Started

@@ -21,6 +21,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const navigate = useNavigate();
 
     const [topic, setTopic] = useState('');
+    const [projectTitle, setProjectTitle] = useState('');
+    const [projectTopic, setProjectTopic] = useState('');
     const [gradeLevel, setGradeLevel] = useState('');
     const [subject, setSubject] = useState('');
     const [uploadedFiles, setUploadedFiles] = useState<{
@@ -39,6 +41,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
     const [slides, setSlides] = useState<Slide[] | null>(null);
     const [sources, setSources] = useState<string[]>([]);
+    const [researchContent, setResearchContent] = useState<string>('');
     const [currentProjectId, setCurrentProjectId] = useState<string | null>(projectId || null);
     const [isLoading, setIsLoading] = useState<boolean>(!!projectId);
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
@@ -64,11 +67,14 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 const project = await getProject(user.uid, projectId);
                 if (project) {
                     setTopic(project.title);
+                    setProjectTitle(project.title || '');
+                    setProjectTopic(project.topic || '');
                     setGradeLevel(project.gradeLevel);
                     setSubject(project.subject);
                     setAdditionalInstructions(project.additionalInstructions || '');
                     setSlides(project.slides || null);
                     setSources(project.sources || []);
+                    setResearchContent(project.researchContent || '');
                     setCurrentProjectId(project.id!);
 
                     // Load files if they exist
@@ -94,12 +100,15 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             } else {
                 // Reset for new project
                 setTopic('');
+                setProjectTitle('');
+                setProjectTopic('');
                 setGradeLevel('');
                 setSubject('');
                 setAdditionalInstructions('');
                 setSlides(null);
                 setCurrentProjectId(null);
                 setUploadedFiles([]);
+                setResearchContent('');
                 setError(null);
                 setIsLoading(false);
             }
@@ -127,6 +136,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             if (!isMounted) return;
 
             const projectData = snapshot.data() as ProjectData;
+            setProjectTitle(projectData.title || '');
+            setProjectTopic(projectData.topic || '');
+            setResearchContent(projectData.researchContent || '');
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
@@ -478,6 +490,11 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     <SlideDeck
                         slides={slides}
                         sources={sources}
+                        researchContent={researchContent}
+                        projectTitle={projectTitle || topic}
+                        projectTopic={projectTopic || topic}
+                        projectGradeLevel={gradeLevel}
+                        projectSubject={subject}
                         isLoading={isLoading}
                         error={error}
                         onUpdateSlide={handleUpdateSlide}

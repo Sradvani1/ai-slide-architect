@@ -145,6 +145,7 @@ export interface ProjectData {
     createdAt?: Timestamp;
     updatedAt?: Timestamp;
     sources?: string[];
+    researchContent?: string;
     status?: 'generating' | 'completed' | 'failed';
     generationProgress?: number;
     generationError?: string;

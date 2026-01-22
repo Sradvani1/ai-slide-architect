@@ -1,8 +1,7 @@
 import React, { useState, useEffect } from 'react';
-import JSZip from 'jszip';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
-import { PptxIcon, ImageIcon, DocumentTextIcon } from './icons';
+import { PptxIcon, DocumentTextIcon } from './icons';
 import { generateImageFromPrompt } from '../services/geminiService';
 import type { Slide } from '../types';
 
@@ -11,6 +10,11 @@ import PptxGenJS from 'pptxgenjs';
 interface SlideDeckProps {
     slides: Slide[] | null;
     sources?: string[];
+    researchContent?: string;
+    projectTitle?: string;
+    projectTopic?: string;
+    projectGradeLevel?: string;
+    projectSubject?: string;
     isLoading: boolean;
     error: string | null;
     onUpdateSlide: (index: number, patch: Partial<Slide>) => void;
@@ -102,6 +106,47 @@ const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
     );
 };
 
+const buildSourceParagraphs = (sources: string[]) => {
+    const urlRegex = /(https?:\/\/[^\s]+)/g;
+    return sources.map(source => {
+        const parts = source.split(urlRegex);
+        const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
+
+        parts.forEach(part => {
+            if (part.match(urlRegex)) {
+                paragraphChildren.push(new ExternalHyperlink({
+                    children: [
+                        new TextRun({
+                            text: part,
+                            style: "Hyperlink",
+                        }),
+                    ],
+                    link: part,
+                }));
+            } else if (part) {
+                paragraphChildren.push(new TextRun(part));
+            }
+        });
+
+        return new Paragraph({
+            children: paragraphChildren,
+            spacing: { after: 100 },
+        });
+    });
+};
+
+const buildParagraphsFromText = (text: string) => {
+    if (!text.trim()) {
+        return [new Paragraph({ text: "No research content available." })];
+    }
+
+    const normalized = text.replace(/\r\n/g, '\n');
+    return normalized.split('\n').map(line => new Paragraph({
+        text: line.trim(),
+        spacing: { after: 120 },
+    }));
+};
+
 const generateDocx = async (slides: Slide[], sources: string[] = []) => {
     const doc = new Document({
         sections: [{
@@ -139,34 +184,7 @@ const generateDocx = async (slides: Slide[], sources: string[] = []) => {
                         heading: HeadingLevel.HEADING_1,
                         spacing: { before: 400, after: 200 },
                     }),
-                    ...sources.map(source => {
-                        const urlRegex = /(https?:\/\/[^\s]+)/g;
-                        const parts = source.split(urlRegex);
-                        const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
-
-                        parts.forEach(part => {
-                            if (part.match(urlRegex)) {
-                                // Format URLs as clickable hyperlinks
-                                paragraphChildren.push(new ExternalHyperlink({
-                                    children: [
-                                        new TextRun({
-                                            text: part,
-                                            style: "Hyperlink",
-                                        }),
-                                    ],
-                                    link: part,
-                                }));
-                            } else if (part) {
-                                // Format file names and other text as regular text
-                                paragraphChildren.push(new TextRun(part));
-                            }
-                        });
-
-                        return new Paragraph({
-                            children: paragraphChildren,
-                            spacing: { after: 100 },
-                        });
-                    }),
+                    ...buildSourceParagraphs(sources),
                 ] : []),
             ]
         }],
@@ -175,9 +193,87 @@ const generateDocx = async (slides: Slide[], sources: string[] = []) => {
     return await Packer.toBlob(doc);
 };
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading, error, onUpdateSlide, userId, projectId, generationProgress, onRetry }) => {
+const generateResearchReportDocx = async ({
+    researchContent,
+    sources = [],
+    title,
+    topic,
+    gradeLevel,
+    subject,
+}: {
+    researchContent: string;
+    sources?: string[];
+    title?: string;
+    topic?: string;
+    gradeLevel?: string;
+    subject?: string;
+}) => {
+    const metadataEntries = [
+        { label: 'Title', value: title },
+        { label: 'Topic', value: topic },
+        { label: 'Grade Level', value: gradeLevel },
+        { label: 'Subject', value: subject },
+    ].filter(entry => entry.value);
+
+    const doc = new Document({
+        sections: [{
+            properties: {},
+            children: [
+                new Paragraph({
+                    text: "Research Report",
+                    heading: HeadingLevel.HEADING_1,
+                    spacing: { after: 200 },
+                }),
+                ...(metadataEntries.length > 0 ? [
+                    new Paragraph({
+                        text: "Project Metadata",
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 200, after: 120 },
+                    }),
+                    ...metadataEntries.map(entry => new Paragraph({
+                        text: `${entry.label}: ${entry.value}`,
+                        spacing: { after: 80 },
+                    })),
+                ] : []),
+                new Paragraph({
+                    text: "Research Content",
+                    heading: HeadingLevel.HEADING_2,
+                    spacing: { before: 240, after: 120 },
+                }),
+                ...buildParagraphsFromText(researchContent),
+                ...(sources && sources.length > 0 ? [
+                    new Paragraph({
+                        text: "Sources",
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 240, after: 120 },
+                    }),
+                    ...buildSourceParagraphs(sources),
+                ] : []),
+            ],
+        }],
+    });
+
+    return await Packer.toBlob(doc);
+};
+
+export const SlideDeck: React.FC<SlideDeckProps> = ({
+    slides,
+    sources,
+    researchContent,
+    projectTitle,
+    projectTopic,
+    projectGradeLevel,
+    projectSubject,
+    isLoading,
+    error,
+    onUpdateSlide,
+    userId,
+    projectId,
+    generationProgress,
+    onRetry,
+}) => {
     const [isExporting, setIsExporting] = useState(false);
-    const [isDownloadingImages, setIsDownloadingImages] = useState(false);
+    const [isDownloadingReport, setIsDownloadingReport] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
 
     const handleExportPPTX = async () => {
@@ -258,66 +354,41 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
         }
     };
 
-    const handleDownloadAllImages = async () => {
-        if (!slides) return;
+    const handleDownloadResearchReport = async () => {
+        if (!researchContent || !researchContent.trim()) {
+            alert("No research report content is available for this project.");
+            return;
+        }
 
-        setIsDownloadingImages(true);
+        setIsDownloadingReport(true);
         try {
-            const zip = new JSZip();
-            const folder = zip.folder("slide-images");
+            const baseFileName = (projectTitle || projectTopic || 'research_report')
+                .replace(/[^a-z0-9]/gi, '_')
+                .toLowerCase()
+                .substring(0, 50);
 
-            if (!folder) {
-                throw new Error("Failed to create zip folder");
-            }
-
-            for (let i = 0; i < slides.length; i++) {
-                const slide = slides[i];
-                const prompts = slide.imagePrompts || [];
-                // Respect selection, fallback to first prompt
-                const currentPromptId = slide.currentPromptId || (prompts.length > 0 ? prompts[0].id : undefined);
-
-                // Filter images belonging to the current prompt
-                const promptImages = (slide.generatedImages || []).filter(img => img.promptId === currentPromptId);
-
-                if (promptImages.length === 0) {
-                    folder.file(`slide-${i + 1}-no-images.txt`, `No images found for the selected prompt.`);
-                    continue;
-                }
-
-                const sanitizedTitle = slide.title.replace(/[^a-z0-9]/gi, '_').toLowerCase().substring(0, 50) || 'untitled';
-
-                // Fetch existing images concurrently
-                const imagePromises = promptImages.map(async (img, v) => {
-                    try {
-                        const response = await fetch(img.url);
-                        if (!response.ok) throw new Error("Fetch failed");
-                        const blob = await response.blob();
-                        const filename = `slide-${i + 1}-${sanitizedTitle}-v${v + 1}.png`;
-                        folder.file(filename, blob);
-                    } catch (err) {
-                        console.error(`Failed to fetch image ${img.id} for slide ${i + 1}`, err);
-                        folder.file(`slide-${i + 1}-v${v + 1}-error.txt`, `Failed to download image from storage.`);
-                    }
-                });
-
-                await Promise.all(imagePromises);
-            }
-
-            const content = await zip.generateAsync({ type: "blob" });
-            const url = URL.createObjectURL(content);
-            const a = document.createElement('a');
-            a.href = url;
-            a.download = "presentation-images.zip";
-            document.body.appendChild(a);
-            a.click();
-            document.body.removeChild(a);
-            URL.revokeObjectURL(url);
+            const docxBlob = await generateResearchReportDocx({
+                researchContent,
+                sources: sources || [],
+                title: projectTitle,
+                topic: projectTopic,
+                gradeLevel: projectGradeLevel,
+                subject: projectSubject,
+            });
+            const docxUrl = URL.createObjectURL(docxBlob);
+            const docxLink = document.createElement('a');
+            docxLink.href = docxUrl;
+            docxLink.download = `${baseFileName}_research_report.docx`;
+            document.body.appendChild(docxLink);
+            docxLink.click();
+            document.body.removeChild(docxLink);
+            URL.revokeObjectURL(docxUrl);
 
         } catch (err) {
-            console.error("Error downloading all images:", err);
-            alert("An error occurred while generating the images zip file.");
+            console.error("Error downloading research report:", err);
+            alert("An error occurred while generating the research report.");
         } finally {
-            setIsDownloadingImages(false);
+            setIsDownloadingReport(false);
         }
     };
 
@@ -392,34 +463,34 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                 <h2 className="text-xl font-bold text-primary-text hidden sm:block">Your Slide Deck</h2>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     <button
-                        onClick={handleDownloadAllImages}
-                        disabled={isDownloadingImages || isExporting}
+                        onClick={handleDownloadResearchReport}
+                        disabled={isDownloadingReport || isExporting || !researchContent?.trim()}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
-                            ${isDownloadingImages
+                            ${isDownloadingReport
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                                 : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                             }`}
-                        title="Download Images"
+                        title={researchContent?.trim() ? "Download Research Report" : "Research report not available yet"}
                     >
                         <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-primary/20 transition-colors duration-300"></div>
 
                         <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
-                            {isDownloadingImages ? (
+                            {isDownloadingReport ? (
                                 <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                     <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                     <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                 </svg>
                             ) : (
-                                <ImageIcon className="w-5 h-5 text-secondary-text group-hover:text-primary group-hover:scale-110 transition-all duration-300" />
+                                <DocumentTextIcon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
                             )}
-                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Images</span>
+                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Research Report</span>
                         </div>
                     </button>
 
                     <button
                         onClick={handleDownloadNotes}
-                        disabled={isDownloadingNotes || isExporting || isDownloadingImages}
+                        disabled={isDownloadingNotes || isExporting || isDownloadingReport}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
                             ${isDownloadingNotes
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
@@ -445,7 +516,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
 
                     <button
                         onClick={handleExportPPTX}
-                        disabled={isExporting || isDownloadingImages}
+                        disabled={isExporting || isDownloadingReport}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-wait
                             ${isExporting
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
