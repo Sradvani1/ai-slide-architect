@@ -390,6 +390,8 @@ export async function generateSlidesAndUpdateFirestore(
         await projectRef.update({
             status: 'generating',
             generationProgress: 0,
+            generationPhase: 'research',
+            generationMessage: 'Researching content',
             generationStartedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
         });
@@ -409,6 +411,8 @@ export async function generateSlidesAndUpdateFirestore(
         // Save research before Step 2 (resumable if generation fails)
         await updateProjectWithRetry(projectRef, {
             generationProgress: 25,
+            generationPhase: 'drafting',
+            generationMessage: 'Drafting slides',
             sources: researchResult.sources || [],
             researchContent: researchResult.researchContent,
             updatedAt: FieldValue.serverTimestamp()
@@ -445,6 +449,8 @@ export async function generateSlidesAndUpdateFirestore(
         // Update: Generation complete, writing to Firestore (75%)
         await projectRef.update({
             generationProgress: 75,
+            generationPhase: 'persisting',
+            generationMessage: 'Saving slides',
             updatedAt: FieldValue.serverTimestamp()
         });
 
@@ -482,6 +488,13 @@ export async function generateSlidesAndUpdateFirestore(
         fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:291', message: 'Batch committed successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
         // #endregion
 
+        await updateProjectWithRetry(projectRef, {
+            generationProgress: 90,
+            generationPhase: 'finalizing',
+            generationMessage: 'Finalizing presentation',
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
         // Note: Image prompt generation is now user-triggered per slide
         // No automatic generation after slide creation
 
@@ -501,6 +514,8 @@ export async function generateSlidesAndUpdateFirestore(
         await updateProjectWithRetry(projectRef, {
             status: 'completed',
             generationProgress: 100,
+            generationPhase: 'completed',
+            generationMessage: 'Presentation ready',
             sources: sourcesToWrite,
             researchContent: researchResult.researchContent,
             generationCompletedAt: FieldValue.serverTimestamp(),
@@ -518,6 +533,8 @@ export async function generateSlidesAndUpdateFirestore(
         try {
             await projectRef.update({
                 status: 'failed',
+                generationPhase: 'failed',
+                generationMessage: 'Generation failed',
                 generationError: error.message || "Generation failed",
                 updatedAt: FieldValue.serverTimestamp()
             });
@@ -530,7 +547,6 @@ export async function generateSlidesAndUpdateFirestore(
             // #endregion
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);
         }
-    }
 }
 
 

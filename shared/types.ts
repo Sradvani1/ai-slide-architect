@@ -105,6 +105,8 @@ export interface ProjectData {
     researchContent?: string;
     status?: 'generating' | 'completed' | 'failed';
     generationProgress?: number;
+    generationPhase?: 'research' | 'drafting' | 'persisting' | 'finalizing' | 'completed' | 'failed';
+    generationMessage?: string;
     generationError?: string;
     generationStartedAt?: any;     // Firestore Timestamp
     generationCompletedAt?: any;   // Firestore Timestamp

@@ -1,9 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState } from 'react';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { PptxIcon, DocumentTextIcon } from './icons';
 import { generateImageFromPrompt } from '../services/geminiService';
-import type { Slide } from '../types';
+import type { Slide, ProjectData } from '../types';
+
+type GenerationPhase = NonNullable<ProjectData['generationPhase']>;
 
 import PptxGenJS from 'pptxgenjs';
 
@@ -21,6 +23,8 @@ interface SlideDeckProps {
     userId: string;
     projectId: string | null;
     generationProgress?: number;
+    generationPhase?: ProjectData['generationPhase'];
+    generationMessage?: string;
     onRetry?: () => void;
 }
 
@@ -39,7 +43,19 @@ const WelcomeMessage: React.FC = () => (
     </div>
 );
 
-const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
+const Loader: React.FC<{
+    progress?: number;
+    message?: string;
+    phase?: ProjectData['generationPhase'];
+}> = ({ progress, message, phase }) => {
+    const phaseLabels: Partial<Record<GenerationPhase, string>> = {
+        research: 'Researching content',
+        drafting: 'Drafting slides',
+        persisting: 'Saving slides',
+        finalizing: 'Finalizing presentation',
+        completed: 'Presentation ready',
+        failed: 'Generation failed'
+    };
     const getStatusMessage = () => {
         if (progress === undefined) return 'Preparing your presentation';
         if (progress < 25) return 'Researching content';
@@ -47,6 +63,7 @@ const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
         if (progress < 100) return 'Finalizing presentation';
         return 'Almost done';
     };
+    const statusMessage = message || (phase ? (phaseLabels[phase] || getStatusMessage()) : getStatusMessage());
 
     return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 animate-fade-in">
@@ -76,7 +93,7 @@ const Loader: React.FC<{ progress?: number }> = ({ progress }) => {
             </div>
 
             <h2 className="text-3xl font-bold text-primary-text mb-6 tracking-tight">
-                {getStatusMessage()}
+                {statusMessage}
             </h2>
 
             {/* Progress Bar - Clean and minimal */}
@@ -270,6 +287,8 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     userId,
     projectId,
     generationProgress,
+    generationPhase,
+    generationMessage,
     onRetry,
 }) => {
     const [isExporting, setIsExporting] = useState(false);
@@ -420,7 +439,13 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     };
 
     if (isLoading) {
-        return <Loader progress={generationProgress} />;
+        return (
+            <Loader
+                progress={generationProgress}
+                message={generationMessage}
+                phase={generationPhase}
+            />
+        );
     }
 
     if (error) {

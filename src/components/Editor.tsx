@@ -14,6 +14,14 @@ interface EditorProps {
     user: User;
 }
 
+const toMillis = (value: any): number | undefined => {
+    if (!value) return undefined;
+    if (typeof value.toMillis === 'function') return value.toMillis();
+    if (typeof value === 'number') return value;
+    const parsed = new Date(value as any).getTime();
+    return Number.isNaN(parsed) ? undefined : parsed;
+};
+
 
 
 export const Editor: React.FC<EditorProps> = ({ user }) => {
@@ -47,6 +55,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [isSidebarOpen, setIsSidebarOpen] = useState<boolean>(true);
     const [error, setError] = useState<string | null>(null);
     const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
+    const [generationPhase, setGenerationPhase] = useState<ProjectData['generationPhase']>(undefined);
+    const [generationMessage, setGenerationMessage] = useState<string | undefined>(undefined);
     const [isRetrying, setIsRetrying] = useState<boolean>(false);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
@@ -142,10 +152,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
-                const startTime = typeof projectData.generationStartedAt.toMillis === 'function'
-                    ? projectData.generationStartedAt.toMillis()
-                    : new Date(projectData.generationStartedAt as any).getTime();
-                const elapsed = Date.now() - startTime;
+                const startTime = toMillis(projectData.generationStartedAt);
+                const elapsed = startTime ? Date.now() - startTime : 0;
                 if (elapsed > 10 * 60 * 1000) {
                     console.warn("Generation taking longer than expected for project:", projectId);
                 }
@@ -155,15 +163,21 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             if (projectData.status === 'generating') {
                 setIsLoading(true);
                 setGenerationProgress(projectData.generationProgress);
+                setGenerationPhase(projectData.generationPhase);
+                setGenerationMessage(projectData.generationMessage);
             } else if (projectData.status === 'completed') {
                 setIsLoading(false);
                 setGenerationProgress(100);
+                setGenerationPhase(projectData.generationPhase || 'completed');
+                setGenerationMessage(projectData.generationMessage || 'Presentation ready');
                 if (projectData.sources) {
                     setSources(projectData.sources);
                 }
             } else if (projectData.status === 'failed') {
                 setIsLoading(false);
                 setError(projectData.generationError || "Generation failed. Please try again.");
+                setGenerationPhase('failed');
+                setGenerationMessage(projectData.generationMessage || "Generation failed");
             }
         }, (error: unknown) => {
             console.error("Firestore listener error:", error);
@@ -216,6 +230,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         setError(null);
         setSlides(null);
         setGenerationProgress(0);
+        setGenerationPhase('research');
+        setGenerationMessage('Researching content');
 
         let newProjectId: string | null = null;
         try {
@@ -238,6 +254,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     sources: [],
                     status: 'generating',
                     generationProgress: 0,
+                    generationPhase: 'research',
+                    generationMessage: 'Researching content',
                     // generationStartedAt removed, backend sets it
                 });
 
@@ -336,6 +354,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             await updateDoc(projectRef, {
                 status: 'generating',
                 generationProgress: 0,
+                generationPhase: 'research',
+                generationMessage: 'Researching content',
                 generationError: deleteField(),
                 updatedAt: serverTimestamp()
             });
@@ -501,6 +521,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         userId={user.uid}
                         projectId={currentProjectId}
                         generationProgress={generationProgress}
+                        generationPhase={generationPhase}
+                        generationMessage={generationMessage}
                         onRetry={handleRetry}
                     />
                 </div>
