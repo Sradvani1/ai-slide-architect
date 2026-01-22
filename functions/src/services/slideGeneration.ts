@@ -149,7 +149,7 @@ async function performUnifiedResearch(
         sourceMaterial
     );
     console.log(
-        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} resolved=${stats.resolved} fallback=${stats.fallback} final=${stats.finalCount}`
+        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} final=${stats.finalCount}`
     );
 
     return {
@@ -269,114 +269,9 @@ function isValidUrl(urlString: string): boolean {
     }
 }
 
-function getUrlForLog(uri: string): string {
-    try {
-        const url = new URL(uri);
-        return `${url.origin}${url.pathname}`;
-    } catch (e) {
-        return uri;
-    }
-}
-
-function isVertexRedirectUrl(uri: string): boolean {
-    return uri.includes('vertexaisearch.cloud.google.com');
-}
-
-function resolveLocationHeader(location: string | null, baseUri: string): string | null {
-    if (!location) return null;
-    try {
-        return new URL(location, baseUri).toString();
-    } catch (e) {
-        return null;
-    }
-}
-
-/**
- * Resolves vertexaisearch.cloud.google.com redirect links to their final URLs
- * Uses GET request with redirect: 'manual' to capture the Location header
- * Returns original URL if resolution fails (graceful degradation)
- */
-async function getOriginalUrl(uri: string): Promise<string> {
-    if (!uri || !isValidUrl(uri)) {
-        return uri;
-    }
-
-    if (!isVertexRedirectUrl(uri)) {
-        return uri;
-    }
-
-    const controller = new AbortController();
-    const timeoutId = setTimeout(() => controller.abort(), 15000); // 15 second timeout
-
-    try {
-        // Use redirect: 'manual' to capture the redirect without following
-        // This is faster and works better with redirect services
-        const response = await fetch(uri, {
-            method: 'GET',
-            redirect: 'manual',
-            signal: controller.signal,
-            headers: {
-                'User-Agent': 'Mozilla/5.0 (compatible; SlidesEdu/1.0)',
-                'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8'
-            }
-        });
-
-        clearTimeout(timeoutId);
-
-        // Check for redirect status codes (301, 302, 303, 307, 308)
-        if (response.status >= 300 && response.status < 400) {
-            const location = response.headers.get('location');
-            if (location) {
-                const resolvedUrl = resolveLocationHeader(location, uri);
-                if (resolvedUrl && resolvedUrl !== uri) {
-                    return resolvedUrl;
-                }
-            }
-        }
-
-        // If no redirect, return original
-        return uri;
-    } catch (error: any) {
-        clearTimeout(timeoutId);
-        // Only log if not a timeout (timeouts are expected and handled gracefully)
-        if (error?.name !== 'AbortError') {
-            console.warn(`[getOriginalUrl] Failed to resolve ${getUrlForLog(uri)}:`, error?.message || error);
-        }
-        return uri;
-    }
-}
-
-/**
- * Resolves all source URIs in parallel
- * Returns array with resolved URIs, preserving titles
- */
-async function resolveSourceUrls(
-    sources: Array<{ uri: string; title?: string }>
-): Promise<Array<{ uri: string; title?: string }>> {
-    if (!sources || sources.length === 0) {
-        return [];
-    }
-
-    const resolvedSources = await Promise.all(
-        sources.map(async source => {
-            try {
-                const resolvedUri = await getOriginalUrl(source.uri);
-                return { ...source, uri: resolvedUri };
-            } catch (error) {
-                return source;
-            }
-        })
-    );
-
-    return resolvedSources;
-}
-
 type SourceResolutionStats = {
     totalGrounding: number;
-    resolved: number;
-    fallback: number;
     finalCount: number;
-    usedSourcesFallback: boolean;
 };
 
 /**
@@ -435,43 +330,17 @@ async function computeResolvedSources(
     uploadedFileNames?: string[],
     sourceMaterial?: string
 ): Promise<{ sources: string[]; stats: SourceResolutionStats }> {
-    const resolvedSources = await resolveSourceUrls(groundingSources);
-    let resolvedCount = 0;
-    let fallbackCount = 0;
-    groundingSources.forEach((source, index) => {
-        const resolvedUri = resolvedSources[index]?.uri;
-        if (!resolvedUri) {
-            return;
-        }
-        if (!isVertexRedirectUrl(source.uri)) {
-            return;
-        }
-        if (resolvedUri !== source.uri) {
-            resolvedCount += 1;
-            return;
-        }
-        fallbackCount += 1;
-    });
-    let uniqueSources = getUniqueSources(resolvedSources, uploadedFileNames, sourceMaterial) || [];
-    let usedSourcesFallback = false;
-    if (uniqueSources.length === 0 && resolvedSources.length > 0) {
-        const fallbackSources = resolvedSources
-            .map(source => normalizeSourceUri(source.uri))
-            .filter(uri => uri && uri.trim() && isValidUrl(uri));
-        if (fallbackSources.length > 0) {
-            uniqueSources = Array.from(new Set(fallbackSources));
-            usedSourcesFallback = true;
-        }
-    }
+    const normalizedSources = groundingSources.map(source => ({
+        ...source,
+        uri: normalizeSourceUri(source.uri)
+    }));
+    const uniqueSources = getUniqueSources(normalizedSources, uploadedFileNames, sourceMaterial) || [];
 
     return {
         sources: uniqueSources,
         stats: {
             totalGrounding: groundingSources.length,
-            resolved: resolvedCount,
-            fallback: fallbackCount,
-            finalCount: uniqueSources.length,
-            usedSourcesFallback
+            finalCount: uniqueSources.length
         }
     };
 }
