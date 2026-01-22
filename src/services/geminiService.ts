@@ -9,7 +9,6 @@ interface GenerateSlidesRequestBody {
   sourceMaterial: string;
   numSlides: number;
   useWebSearch: boolean;
-  temperature: number;
   bulletsPerSlide: number;
   additionalInstructions?: string;
   uploadedFileNames?: string[];
@@ -21,7 +20,6 @@ interface GenerateImageRequestBody {
   imagePrompt: string;
   options: {
     aspectRatio?: '16:9' | '1:1';
-    temperature?: number;
   };
 }
 
@@ -126,7 +124,6 @@ export const generateSlidesFromDocument = async (
   sourceMaterial: string,
   numSlides: number,
   useWebSearch: boolean = false,
-  temperature: number = 0.7,
   bulletsPerSlide: number = 4,
   additionalInstructions: string = '',
   projectId: string,
@@ -157,7 +154,6 @@ export const generateSlidesFromDocument = async (
     numSlides,
     useWebSearch,
     additionalInstructions,
-    temperature,
     bulletsPerSlide,
     projectId,
     uploadedFileNames
@@ -180,7 +176,7 @@ export const generateSlidesFromDocument = async (
 export const generateImageFromPrompt = async (
   projectId: string,
   imagePrompt: string,
-  options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
+  options: { aspectRatio?: '16:9' | '1:1' } = {}
 ): Promise<{ blob: Blob; renderedPrompt: string; inputTokens: number; outputTokens: number }> => {
   const result = await authenticatedRequest<{ base64Data: string; mimeType: string, renderedPrompt?: string; inputTokens: number; outputTokens: number }>('/generate-image', {
     projectId,

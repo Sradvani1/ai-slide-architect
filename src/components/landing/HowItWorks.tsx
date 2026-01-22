@@ -10,7 +10,7 @@ export const HowItWorks: React.FC = () => {
         {
             number: '2',
             title: 'Customize',
-            description: 'Adjust grade level, subject, creativity, and slide count.',
+            description: 'Adjust grade level, subject, and slide count.',
         },
         {
             number: '3',

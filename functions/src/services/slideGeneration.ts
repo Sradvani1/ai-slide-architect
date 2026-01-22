@@ -4,7 +4,7 @@ import { getAiClient } from '../utils/geminiClient';
 import { buildResearchSystemPrompt, buildResearchUserPrompt, buildSlideDeckSystemPrompt, buildSlideDeckUserPrompt } from '@shared/promptBuilders';
 import { retryWithBackoff, extractFirstJsonArray } from '@shared/utils/retryLogic';
 import { validateSlideStructure } from '@shared/utils/validation';
-import { DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
+import { DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { Slide, ProjectData } from '@shared/types';
 import { GeminiError } from '@shared/errors';
 import { generateImagePrompts } from './imageGeneration';
@@ -83,13 +83,10 @@ async function performUnifiedResearch(
     useWebSearch: boolean,
     trackingContext: { userId: string; projectId: string },
     additionalInstructions?: string,
-    temperature?: number,
     uploadedFileNames?: string[]
 ): Promise<ResearchResult> {
     const model = MODEL_SLIDE_GENERATION;
-    const config: any = {
-        temperature: temperature || DEFAULT_TEMPERATURE,
-    };
+    const config: any = {};
 
     if (useWebSearch) {
         config.tools = [{ googleSearch: {} }];
@@ -170,7 +167,6 @@ async function performSlideGeneration(
     researchContent: string,
     trackingContext: { userId: string; projectId: string },
     additionalInstructions?: string,
-    temperature?: number,
     bulletsPerSlide?: number
 ): Promise<GenerationResult> {
     const systemPrompt = buildSlideDeckSystemPrompt();
@@ -186,7 +182,6 @@ async function performSlideGeneration(
 
     const model = MODEL_SLIDE_GENERATION;
     const config: any = {
-        temperature: temperature || DEFAULT_TEMPERATURE,
         responseMimeType: "application/json"
     };
 
@@ -377,7 +372,6 @@ export async function generateSlidesAndUpdateFirestore(
     useWebSearch: boolean,
     tracking: SlideGenerationTracking,
     additionalInstructions?: string,
-    temperature?: number,
     bulletsPerSlide?: number,
     uploadedFileNames?: string[]
 ): Promise<void> {
@@ -409,7 +403,6 @@ export async function generateSlidesAndUpdateFirestore(
             shouldUseWebSearch,
             baseTracking,
             additionalInstructions,
-            temperature,
             uploadedFileNames
         );
 
@@ -432,7 +425,6 @@ export async function generateSlidesAndUpdateFirestore(
                     researchResult.researchContent,
                     baseTracking,
                     additionalInstructions,
-                    temperature,
                     bulletsPerSlide
                 );
                 break;

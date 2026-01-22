@@ -14,7 +14,6 @@ interface SlideDeckProps {
     isLoading: boolean;
     error: string | null;
     onUpdateSlide: (index: number, patch: Partial<Slide>) => void;
-    creativityLevel: number;
     userId: string;
     projectId: string | null;
     generationProgress?: number;
@@ -176,7 +175,7 @@ const generateDocx = async (slides: Slide[], sources: string[] = []) => {
     return await Packer.toBlob(doc);
 };
 
-export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading, error, onUpdateSlide, creativityLevel, userId, projectId, generationProgress, onRetry }) => {
+export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading, error, onUpdateSlide, userId, projectId, generationProgress, onRetry }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingImages, setIsDownloadingImages] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
@@ -479,7 +478,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({ slides, sources, isLoading
                         slide={slide}
                         slideNumber={index + 1}
                         onUpdateSlide={(patch) => onUpdateSlide(index, patch)}
-                        creativityLevel={creativityLevel}
                         userId={userId}
                         projectId={projectId}
                     />

@@ -19,8 +19,6 @@ interface InputFormProps {
   setUseWebSearch: (use: boolean) => void;
   onSubmit: () => void;
   isLoading: boolean;
-  creativityLevel: number;
-  setCreativityLevel: (level: number) => void;
   bulletsPerSlide: number;
   setBulletsPerSlide: (num: number) => void;
   additionalInstructions: string;
@@ -77,8 +75,6 @@ export const InputForm: React.FC<InputFormProps> = ({
   setUseWebSearch,
   onSubmit,
   isLoading,
-  creativityLevel,
-  setCreativityLevel,
   bulletsPerSlide,
   setBulletsPerSlide,
   additionalInstructions,
@@ -215,29 +211,6 @@ export const InputForm: React.FC<InputFormProps> = ({
                 }`}
             />
           </button>
-        </div>
-
-        <div>
-          <div className="flex justify-between items-center mb-2">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Creativity
-            </label>
-          </div>
-          <input
-            type="range"
-            min="0.5"
-            max="0.9"
-            step="0.1"
-            value={creativityLevel}
-            onChange={(e) => setCreativityLevel(parseFloat(e.target.value))}
-            className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
-            disabled={isLoading}
-          />
-          <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-            <span className={creativityLevel === 0.5 ? "text-sky-400 font-bold" : ""}>Lower</span>
-            <span className={creativityLevel === 0.7 ? "text-sky-400 font-bold" : ""}>Balanced</span>
-            <span className={creativityLevel === 0.9 ? "text-sky-400 font-bold" : ""}>Higher</span>
-          </div>
         </div>
 
         <div>

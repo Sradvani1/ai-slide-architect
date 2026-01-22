@@ -42,7 +42,6 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             numSlides,
             useWebSearch,
             additionalInstructions,
-            temperature,
             bulletsPerSlide,
             uploadedFileNames,
             requestId
@@ -103,7 +102,6 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
                 projectId
             },
             additionalInstructions,
-            temperature,
             bulletsPerSlide,
             uploadedFileNames
         ).catch(error => {

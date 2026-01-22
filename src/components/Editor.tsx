@@ -7,7 +7,7 @@ import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
 import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
-import { DEFAULT_NUM_SLIDES, DEFAULT_TEMPERATURE, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
+import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
 
 interface EditorProps {
@@ -35,7 +35,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     }[]>([]);
     const [numSlides, setNumSlides] = useState<number>(DEFAULT_NUM_SLIDES);
     const [useWebSearch, setUseWebSearch] = useState<boolean>(true);
-    const [creativityLevel, setCreativityLevel] = useState<number>(DEFAULT_TEMPERATURE);
     const [bulletsPerSlide, setBulletsPerSlide] = useState<number>(DEFAULT_BULLETS_PER_SLIDE);
     const [additionalInstructions, setAdditionalInstructions] = useState<string>('');
     const [slides, setSlides] = useState<Slide[] | null>(null);
@@ -268,7 +267,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         sourceMaterial,
                         numSlides,
                         useWebSearch,
-                        creativityLevel,
                         bulletsPerSlide,
                         additionalInstructions,
                         newProjectId,
@@ -292,7 +290,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             setError("Failed to start generation. Please try again.");
             setIsLoading(false);
         }
-    }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, creativityLevel, bulletsPerSlide, additionalInstructions, user, navigate]);
+    }, [topic, gradeLevel, subject, uploadedFiles, numSlides, useWebSearch, bulletsPerSlide, additionalInstructions, user, navigate]);
 
     const handleRetry = async () => {
         if (!projectId || !user || isRetrying) return;
@@ -349,7 +347,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 sourceMaterial,
                 numSlides,
                 useWebSearch,
-                creativityLevel,
                 bulletsPerSlide,
                 projectData.additionalInstructions || "",
                 projectId,
@@ -467,8 +464,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         setUseWebSearch={setUseWebSearch}
                         onSubmit={handleGenerateSlides}
                         isLoading={isLoading}
-                        creativityLevel={creativityLevel}
-                        setCreativityLevel={setCreativityLevel}
                         bulletsPerSlide={bulletsPerSlide}
                         setBulletsPerSlide={setBulletsPerSlide}
                         additionalInstructions={additionalInstructions}
@@ -486,7 +481,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         isLoading={isLoading}
                         error={error}
                         onUpdateSlide={handleUpdateSlide}
-                        creativityLevel={creativityLevel}
                         userId={user.uid}
                         projectId={currentProjectId}
                         generationProgress={generationProgress}

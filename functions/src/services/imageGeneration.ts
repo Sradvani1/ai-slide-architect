@@ -16,7 +16,7 @@ export interface PromptGenerationResult {
 export async function generateImage(
     imagePrompt: string,
     trackingContext: { userId: string; projectId: string },
-    options: { aspectRatio?: '16:9' | '1:1', temperature?: number } = {}
+    options: { aspectRatio?: '16:9' | '1:1' } = {}
 ): Promise<{ base64Data: string; mimeType: string; renderedPrompt: string; inputTokens: number; outputTokens: number }> {
 
     const finalPrompt = `IMAGE CONTENT:
@@ -24,7 +24,6 @@ ${imagePrompt}
 
 ${STYLE_GUIDELINES}`;
     const aspectRatio = options.aspectRatio || '16:9';
-    const temperature = options.temperature || 0.7;
 
     const generateFn = async () => {
         try {
@@ -32,7 +31,6 @@ ${STYLE_GUIDELINES}`;
 
             const config: any = {
                 responseModalities: ['TEXT', 'IMAGE'],
-                temperature: temperature,
                 imageConfig: {
                     aspectRatio: aspectRatio,
                     imageSize: '1K'
@@ -111,7 +109,6 @@ export async function generateImagePrompts(
                 contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
                 config: {
                     systemInstruction: { parts: [{ text: systemInstructions }] },
-                    temperature: 0.7, // Fixed temperature for single prompt
                 }
             });
 

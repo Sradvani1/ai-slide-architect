@@ -9,7 +9,6 @@ interface SlideCardProps {
     slide: Slide;
     slideNumber: number;
     onUpdateSlide: (patch: Partial<Slide>) => void;
-    creativityLevel: number;
     userId: string;
     projectId: string | null;
 }
@@ -42,7 +41,7 @@ export const cleanText = (text: string): string => {
         .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
 };
 
-export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, creativityLevel, userId, projectId }) => {
+export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, userId, projectId }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const [isPromptExpanded, setIsPromptExpanded] = useState(false);
@@ -134,8 +133,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setIsGeneratingImage(true);
         try {
             const { blob, inputTokens, outputTokens } = await generateImageFromPrompt(projectId, imagePromptText, {
-                aspectRatio,
-                temperature: creativityLevel
+                aspectRatio
             });
 
             if (userId && projectId) {
