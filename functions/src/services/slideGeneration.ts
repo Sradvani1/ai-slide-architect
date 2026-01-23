@@ -12,6 +12,7 @@ import { recordUsage } from './usageEventsService';
 
 type ResearchResult = {
     researchContent: string;
+    rawResearchContent: string;
     sources: string[];
     searchEntryPoint?: any;
     webSearchQueries?: string[];
@@ -48,9 +49,8 @@ function extractGroundingData(groundingMetadata: any): {
         if (groundingMetadata.groundingChunks) {
             groundingMetadata.groundingChunks.forEach((chunk: any) => {
                 if (chunk.web?.uri) {
-                    const normalizedUri = normalizeSourceUri(chunk.web.uri);
                     sources.push({
-                        uri: normalizedUri,
+                        uri: chunk.web.uri,
                         title: chunk.web.title
                     });
                 }
@@ -61,18 +61,32 @@ function extractGroundingData(groundingMetadata: any): {
     return { sources, searchEntryPoint, webSearchQueries };
 }
 
-function normalizeSourceUri(uri: string): string {
-    const trimmed = uri.trim();
-    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
-        return trimmed;
+function applyGroundingCitations(
+    text: string,
+    groundingSupports: Array<{ segment?: { startIndex?: number; endIndex?: number }; groundingChunkIndices?: number[] }>
+): string {
+    if (!text || groundingSupports.length === 0) {
+        return text;
     }
-    if (trimmed.startsWith('vertexaisearch.cloud.google.com/')) {
-        return `https://${trimmed}`;
-    }
-    if (trimmed.startsWith('www.')) {
-        return `https://${trimmed}`;
-    }
-    return trimmed;
+
+    const supports = groundingSupports
+        .filter(support => typeof support.segment?.endIndex === 'number' && Array.isArray(support.groundingChunkIndices))
+        .sort((a, b) => (b.segment?.endIndex || 0) - (a.segment?.endIndex || 0));
+
+    let annotated = text;
+    supports.forEach(support => {
+        const endIndex = support.segment?.endIndex;
+        if (endIndex === undefined) return;
+
+        const indices = (support.groundingChunkIndices || []).filter(index => Number.isInteger(index) && index >= 0);
+        if (indices.length === 0) return;
+
+        const citationString = `${indices.map(index => `[${index + 1}]`).join(' ')} `;
+        const safeEndIndex = Math.min(endIndex, annotated.length);
+        annotated = `${annotated.slice(0, safeEndIndex)}${citationString}${annotated.slice(safeEndIndex)}`;
+    });
+
+    return annotated;
 }
 
 async function performUnifiedResearch(
@@ -131,6 +145,7 @@ async function performUnifiedResearch(
 
     const groundingMetadata = candidates?.[0]?.groundingMetadata;
     const { sources: groundingSources, searchEntryPoint, webSearchQueries } = extractGroundingData(groundingMetadata);
+    const groundingSupports = groundingMetadata?.groundingSupports || [];
 
     // Diagnostic: Log when web search was enabled but model didn't use it
     if (useWebSearch && groundingSources.length === 0) {
@@ -140,18 +155,17 @@ async function performUnifiedResearch(
         );
     }
 
-    const { sources: uniqueSources, stats } = await computeResolvedSources(
+    const orderedSources = getOrderedSources(
         groundingSources,
         uploadedFileNames,
         sourceMaterial
-    );
-    console.log(
-        `[performUnifiedResearch] source_resolution total=${stats.totalGrounding} final=${stats.finalCount}`
-    );
+    ) || [];
+    const annotatedResearchContent = applyGroundingCitations(researchContent, groundingSupports);
 
     return {
-        researchContent,
-        sources: uniqueSources,
+        researchContent: annotatedResearchContent,
+        rawResearchContent: researchContent,
+        sources: orderedSources,
         searchEntryPoint,
         webSearchQueries,
         inputTokens,
@@ -253,23 +267,6 @@ async function performSlideGeneration(
 
 
 /**
- * Validate URL (http/https only)
- */
-function isValidUrl(urlString: string): boolean {
-    try {
-        const url = new URL(urlString);
-        return url.protocol === 'http:' || url.protocol === 'https:';
-    } catch (e) {
-        return false;
-    }
-}
-
-type SourceResolutionStats = {
-    totalGrounding: number;
-    finalCount: number;
-};
-
-/**
  * Extract file names from source material string
  */
 function extractFileNamesFromSourceMaterial(sourceMaterial: string): string[] {
@@ -292,17 +289,17 @@ function extractFileNamesFromSourceMaterial(sourceMaterial: string): string[] {
 /**
  * Combine and deduplicate sources
  */
-function getUniqueSources(
+function getOrderedSources(
     groundingSources: Array<{ uri: string; title?: string }>,
     uploadedFileNames?: string[],
     sourceMaterial?: string
 ): string[] | undefined {
-    const allSources = new Set<string>();
+    const allSources: string[] = [];
 
-    // 1. Add valid grounding sources (Web)
+    // 1. Add grounding sources (Web) in original order
     groundingSources.forEach(s => {
-        if (s.uri && isValidUrl(s.uri)) {
-            allSources.add(s.uri);
+        if (s.uri) {
+            allSources.push(s.uri);
         }
     });
 
@@ -312,32 +309,11 @@ function getUniqueSources(
         : extractFileNamesFromSourceMaterial(sourceMaterial || "");
     fileNames.forEach(f => {
         if (f && f.trim()) {
-            allSources.add(`File: ${f.trim()}`);
+            allSources.push(`File: ${f.trim()}`);
         }
     });
 
-    const uniqueSources = Array.from(allSources);
-    return uniqueSources.length > 0 ? uniqueSources : undefined;
-}
-
-async function computeResolvedSources(
-    groundingSources: Array<{ uri: string; title?: string }>,
-    uploadedFileNames?: string[],
-    sourceMaterial?: string
-): Promise<{ sources: string[]; stats: SourceResolutionStats }> {
-    const normalizedSources = groundingSources.map(source => ({
-        ...source,
-        uri: normalizeSourceUri(source.uri)
-    }));
-    const uniqueSources = getUniqueSources(normalizedSources, uploadedFileNames, sourceMaterial) || [];
-
-    return {
-        sources: uniqueSources,
-        stats: {
-            totalGrounding: groundingSources.length,
-            finalCount: uniqueSources.length
-        }
-    };
+    return allSources.length > 0 ? allSources : undefined;
 }
 
 async function updateProjectWithRetry(
@@ -426,7 +402,7 @@ export async function generateSlidesAndUpdateFirestore(
                     gradeLevel,
                     subject,
                     numSlides,
-                    researchResult.researchContent,
+                    researchResult.rawResearchContent,
                     baseTracking,
                     additionalInstructions,
                     bulletsPerSlide

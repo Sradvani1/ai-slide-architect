@@ -123,11 +123,49 @@ const Loader: React.FC<{
     );
 };
 
+const normalizeLinkTarget = (value: string) => {
+    const trimmed = value.trim();
+    if (!trimmed) return trimmed;
+    if (trimmed.startsWith('http://') || trimmed.startsWith('https://')) {
+        return trimmed;
+    }
+    if (trimmed.startsWith('www.') || trimmed.startsWith('vertexaisearch.cloud.google.com/')) {
+        return `https://${trimmed}`;
+    }
+    return trimmed;
+};
+
 const buildSourceParagraphs = (sources: string[]) => {
     const urlRegex = /(https?:\/\/[^\s]+)/g;
-    return sources.map(source => {
+    return sources.map((source, index) => {
+        const trimmedSource = source.trim();
+        if (
+            trimmedSource.startsWith('www.') ||
+            trimmedSource.startsWith('vertexaisearch.cloud.google.com/')
+        ) {
+            const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
+            const prefix = `${index + 1}. `;
+            paragraphChildren.push(new TextRun(prefix));
+            paragraphChildren.push(new ExternalHyperlink({
+                children: [
+                    new TextRun({
+                        text: source,
+                        style: "Hyperlink",
+                    }),
+                ],
+                link: normalizeLinkTarget(source),
+            }));
+
+            return new Paragraph({
+                children: paragraphChildren,
+                spacing: { after: 100 },
+            });
+        }
+
         const parts = source.split(urlRegex);
         const paragraphChildren: (TextRun | ExternalHyperlink)[] = [];
+        const prefix = `${index + 1}. `;
+        paragraphChildren.push(new TextRun(prefix));
 
         parts.forEach(part => {
             if (part.match(urlRegex)) {
@@ -138,7 +176,7 @@ const buildSourceParagraphs = (sources: string[]) => {
                             style: "Hyperlink",
                         }),
                     ],
-                    link: part,
+                    link: normalizeLinkTarget(part),
                 }));
             } else if (part) {
                 paragraphChildren.push(new TextRun(part));
@@ -161,6 +199,28 @@ const buildParagraphsFromText = (text: string) => {
     return normalized.split('\n').map(line => new Paragraph({
         text: line.trim(),
         spacing: { after: 120 },
+    }));
+};
+
+const splitSources = (sources: string[]) => {
+    const webSources: string[] = [];
+    const fileSources: string[] = [];
+
+    sources.forEach(source => {
+        if (source.trim().startsWith('File:')) {
+            fileSources.push(source);
+        } else {
+            webSources.push(source);
+        }
+    });
+
+    return { webSources, fileSources };
+};
+
+const buildFileSourceParagraphs = (sources: string[]) => {
+    return sources.map(source => new Paragraph({
+        text: source,
+        spacing: { after: 80 },
     }));
 };
 
@@ -194,15 +254,7 @@ const generateDocx = async (slides: Slide[], sources: string[] = []) => {
                     return children;
                 }),
 
-                // Sources section at the end (if sources exist)
-                ...(sources && sources.length > 0 ? [
-                    new Paragraph({
-                        text: "Sources",
-                        heading: HeadingLevel.HEADING_1,
-                        spacing: { before: 400, after: 200 },
-                    }),
-                    ...buildSourceParagraphs(sources),
-                ] : []),
+                // Sources section removed from speaker notes export
             ]
         }],
     });
@@ -232,6 +284,8 @@ const generateResearchReportDocx = async ({
         { label: 'Subject', value: subject },
     ].filter(entry => entry.value);
 
+    const { webSources, fileSources } = splitSources(sources);
+
     const doc = new Document({
         sections: [{
             properties: {},
@@ -258,13 +312,21 @@ const generateResearchReportDocx = async ({
                     spacing: { before: 240, after: 120 },
                 }),
                 ...buildParagraphsFromText(researchContent),
-                ...(sources && sources.length > 0 ? [
+                ...(webSources.length > 0 ? [
                     new Paragraph({
                         text: "Sources",
                         heading: HeadingLevel.HEADING_2,
                         spacing: { before: 240, after: 120 },
                     }),
-                    ...buildSourceParagraphs(sources),
+                    ...buildSourceParagraphs(webSources),
+                ] : []),
+                ...(fileSources.length > 0 ? [
+                    new Paragraph({
+                        text: "Uploaded Files",
+                        heading: HeadingLevel.HEADING_2,
+                        spacing: { before: 240, after: 120 },
+                    }),
+                    ...buildFileSourceParagraphs(fileSources),
                 ] : []),
             ],
         }],
