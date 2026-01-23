@@ -69,6 +69,9 @@ function applyGroundingCitations(
         return text;
     }
 
+    const isWordChar = (value: string) => /[A-Za-z0-9]/.test(value);
+    const isBoundaryChar = (value: string) => /\s|[.,;:!?)]/.test(value);
+
     const supports = groundingSupports
         .filter(support => typeof support.segment?.endIndex === 'number' && Array.isArray(support.groundingChunkIndices))
         .sort((a, b) => (b.segment?.endIndex || 0) - (a.segment?.endIndex || 0));
@@ -82,7 +85,20 @@ function applyGroundingCitations(
         if (indices.length === 0) return;
 
         const citationString = `${indices.map(index => `[${index + 1}]`).join(' ')} `;
-        const safeEndIndex = Math.min(endIndex, annotated.length);
+        let safeEndIndex = Math.min(endIndex, annotated.length);
+        if (safeEndIndex > 0 && safeEndIndex < annotated.length) {
+            const prevChar = annotated[safeEndIndex - 1];
+            const nextChar = annotated[safeEndIndex];
+            if (isWordChar(prevChar) && isWordChar(nextChar)) {
+                let scanIndex = safeEndIndex;
+                while (scanIndex < annotated.length && !isBoundaryChar(annotated[scanIndex])) {
+                    scanIndex += 1;
+                }
+                if (scanIndex < annotated.length) {
+                    safeEndIndex = scanIndex;
+                }
+            }
+        }
         annotated = `${annotated.slice(0, safeEndIndex)}${citationString}${annotated.slice(safeEndIndex)}`;
     });
 
