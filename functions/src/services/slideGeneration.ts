@@ -71,6 +71,7 @@ function applyGroundingCitations(
 
     const isWordChar = (value: string) => /[A-Za-z0-9]/.test(value);
     const isBoundaryChar = (value: string) => /\s|[.,;:!?)]/.test(value);
+    const isSentenceTerminator = (value: string) => /[.!?]/.test(value);
 
     const supports = groundingSupports
         .filter(support => typeof support.segment?.endIndex === 'number' && Array.isArray(support.groundingChunkIndices))
@@ -87,15 +88,23 @@ function applyGroundingCitations(
         const citationString = `${indices.map(index => `[${index + 1}]`).join(' ')} `;
         let safeEndIndex = Math.min(endIndex, annotated.length);
         if (safeEndIndex > 0 && safeEndIndex < annotated.length) {
-            const prevChar = annotated[safeEndIndex - 1];
-            const nextChar = annotated[safeEndIndex];
-            if (isWordChar(prevChar) && isWordChar(nextChar)) {
-                let scanIndex = safeEndIndex;
-                while (scanIndex < annotated.length && !isBoundaryChar(annotated[scanIndex])) {
-                    scanIndex += 1;
-                }
-                if (scanIndex < annotated.length) {
-                    safeEndIndex = scanIndex;
+            let scanIndex = safeEndIndex;
+            while (scanIndex < annotated.length && !isSentenceTerminator(annotated[scanIndex])) {
+                scanIndex += 1;
+            }
+            if (scanIndex < annotated.length) {
+                safeEndIndex = scanIndex + 1;
+            } else {
+                const prevChar = annotated[safeEndIndex - 1];
+                const nextChar = annotated[safeEndIndex];
+                if (isWordChar(prevChar) && isWordChar(nextChar)) {
+                    let boundaryIndex = safeEndIndex;
+                    while (boundaryIndex < annotated.length && !isBoundaryChar(annotated[boundaryIndex])) {
+                        boundaryIndex += 1;
+                    }
+                    if (boundaryIndex < annotated.length) {
+                        safeEndIndex = boundaryIndex;
+                    }
                 }
             }
         }
