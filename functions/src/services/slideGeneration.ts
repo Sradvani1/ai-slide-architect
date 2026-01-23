@@ -524,6 +524,7 @@ export async function generateSlidesAndUpdateFirestore(
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);
         }
 }
+}
 
 
 /**
