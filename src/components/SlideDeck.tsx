@@ -20,12 +20,16 @@ interface SlideDeckProps {
     isLoading: boolean;
     error: string | null;
     onUpdateSlide: (index: number, patch: Partial<Slide>) => void;
-    userId: string;
-    projectId: string | null;
+    userId?: string;
+    projectId?: string | null;
     generationProgress?: number;
     generationPhase?: ProjectData['generationPhase'];
     generationMessage?: string;
     onRetry?: () => void;
+    onShare?: () => void;
+    shareStatus?: string | null;
+    shareDisabled?: boolean;
+    readOnly?: boolean;
 }
 
 const WelcomeMessage: React.FC = () => (
@@ -352,12 +356,17 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     generationPhase,
     generationMessage,
     onRetry,
+    onShare,
+    shareStatus,
+    shareDisabled = false,
+    readOnly = false,
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingReport, setIsDownloadingReport] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
 
     const handleExportPPTX = async () => {
+        if (readOnly) return;
         if (!slides) return;
 
         setIsExporting(true);
@@ -436,6 +445,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     };
 
     const handleDownloadResearchReport = async () => {
+        if (readOnly) return;
         if (!researchContent || !researchContent.trim()) {
             alert("No research report content is available for this project.");
             return;
@@ -474,6 +484,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     };
 
     const handleDownloadNotes = async () => {
+        if (readOnly) return;
         if (!slides) return;
 
         setIsDownloadingNotes(true);
@@ -544,20 +555,39 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
         return <WelcomeMessage />;
     }
 
+    const headerTitle = readOnly ? 'Shared Deck Preview' : 'Your Slide Deck';
+
     return (
         <div className="flex flex-col h-full animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pt-4 gap-4">
-                <h2 className="text-xl font-bold text-primary-text hidden sm:block">Your Slide Deck</h2>
+                <div className="flex flex-col gap-2">
+                    <h2 className="text-xl font-bold text-primary-text hidden sm:block">{headerTitle}</h2>
+                    {shareStatus && (
+                        <p className="text-xs text-secondary-text">{shareStatus}</p>
+                    )}
+                </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                    {onShare && (
+                        <button
+                            onClick={onShare}
+                            disabled={readOnly || shareDisabled}
+                            className="group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]"
+                            title={readOnly ? "Log in to edit and download" : (shareDisabled ? "Finish generating to share" : "Share link")}
+                        >
+                            <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
+                                <span className="font-semibold tracking-wide text-[13px] font-[600]">Share Link</span>
+                            </div>
+                        </button>
+                    )}
                     <button
                         onClick={handleDownloadResearchReport}
-                        disabled={isDownloadingReport || isExporting || !researchContent?.trim()}
+                        disabled={readOnly || isDownloadingReport || isExporting || !researchContent?.trim()}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
                             ${isDownloadingReport
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                                 : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                             }`}
-                        title={researchContent?.trim() ? "Download Research Report" : "Research report not available yet"}
+                        title={readOnly ? "Log in to edit and download" : (researchContent?.trim() ? "Download Research Report" : "Research report not available yet")}
                     >
                         <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-primary/20 transition-colors duration-300"></div>
@@ -577,13 +607,13 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
 
                     <button
                         onClick={handleDownloadNotes}
-                        disabled={isDownloadingNotes || isExporting || isDownloadingReport}
+                        disabled={readOnly || isDownloadingNotes || isExporting || isDownloadingReport}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
                             ${isDownloadingNotes
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                                 : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                             }`}
-                        title="Download Notes"
+                        title={readOnly ? "Log in to edit and download" : "Download Notes"}
                     >
                         <div className="absolute inset-0 bg-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-secondary/20 transition-colors duration-300"></div>
@@ -603,13 +633,13 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
 
                     <button
                         onClick={handleExportPPTX}
-                        disabled={isExporting || isDownloadingReport}
+                        disabled={readOnly || isExporting || isDownloadingReport}
                         className={`group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-wait
                             ${isExporting
                                 ? 'bg-white border-primary shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                                 : 'bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]'
                             }`}
-                        title="Download Slides"
+                        title={readOnly ? "Log in to edit and download" : "Download Slides"}
                     >
                         <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-accent/20 transition-colors duration-300"></div>
@@ -636,8 +666,9 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         slide={slide}
                         slideNumber={index + 1}
                         onUpdateSlide={(patch) => onUpdateSlide(index, patch)}
-                        userId={userId}
-                        projectId={projectId}
+                        userId={userId || ''}
+                        projectId={projectId ?? null}
+                        readOnly={readOnly}
                     />
                 ))}
             </div>

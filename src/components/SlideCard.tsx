@@ -11,12 +11,14 @@ interface SlideCardProps {
     onUpdateSlide: (patch: Partial<Slide>) => void;
     userId: string;
     projectId: string | null;
+    readOnly?: boolean;
 }
 
-const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
+const CopyButton: React.FC<{ textToCopy: string; disabled?: boolean }> = ({ textToCopy, disabled }) => {
     const [copied, setCopied] = useState(false);
 
     const handleCopy = () => {
+        if (disabled) return;
         navigator.clipboard.writeText(textToCopy);
         setCopied(true);
         setTimeout(() => setCopied(false), 2000);
@@ -25,7 +27,8 @@ const CopyButton: React.FC<{ textToCopy: string }> = ({ textToCopy }) => {
     return (
         <button
             onClick={handleCopy}
-            className="p-3 rounded-md text-secondary-text hover:bg-slate-100 hover:text-primary-text transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center"
+            disabled={disabled}
+            className={`p-3 rounded-md text-secondary-text hover:bg-slate-100 hover:text-primary-text transition-colors min-w-[44px] min-h-[44px] flex items-center justify-center ${disabled ? 'opacity-50 cursor-not-allowed' : ''}`}
         >
             {copied ? <CheckIcon /> : <CopyIcon />}
         </button>
@@ -41,11 +44,12 @@ export const cleanText = (text: string): string => {
         .replace(/^[\s\-\*]+/, '');      // Remove leading dashes, asterisks, and whitespace
 };
 
-export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, userId, projectId }) => {
+export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpdateSlide, userId, projectId, readOnly = false }) => {
     const [isGeneratingImage, setIsGeneratingImage] = useState(false);
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const [isPromptExpanded, setIsPromptExpanded] = useState(false);
     const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+    const isReadOnly = readOnly;
 
     // Source of Truth
     const imagePrompts = slide.imagePrompts || [];
@@ -119,6 +123,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             .substring(0, 100);
     };
     const handleGenerateImage = async () => {
+        if (isReadOnly) return;
         if (isGeneratingImageRef.current) return;
         if (!imagePromptText || !currentPromptId || !currentPrompt) {
             alert("No image prompt available for this slide.");
@@ -182,6 +187,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     };
 
     const handleGeneratePrompt = async () => {
+        if (isReadOnly) return;
         if (!projectId || isGeneratingPrompt) return;
         setIsGeneratingPrompt(true);
         try {
@@ -196,6 +202,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     };
 
     const handleRetryPromptGeneration = async () => {
+        if (isReadOnly) return;
         if (!projectId || isRetrying) return;
         setIsRetrying(true);
         try {
@@ -210,6 +217,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     };
 
     const handleSavePrompt = () => {
+        if (isReadOnly) return;
         if (!currentPromptId) return;
 
         const updatedPrompts = imagePrompts.map(p =>
@@ -222,6 +230,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
 
     const handleSaveContent = () => {
+        if (isReadOnly) return;
         const newContent = contentText.split('\n').filter(line => line.trim() !== '');
         onUpdateSlide({ content: newContent });
         setIsEditingContent(false);
@@ -231,6 +240,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         setContentText(slide.content.join('\n'));
         setIsEditingContent(false);
     };
+
+    useEffect(() => {
+        if (isReadOnly) {
+            setIsEditingContent(false);
+            setIsEditingPrompt(false);
+        }
+    }, [isReadOnly]);
 
     return (
         <div className="glass-card rounded-2xl overflow-hidden group border border-[#rgba(0,0,0,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -258,13 +274,15 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         <div className="flex justify-end space-x-2 mt-3">
                             <button
                                 onClick={handleCancelContentEdit}
+                                disabled={isReadOnly}
                                 className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text hover:bg-slate-100 rounded-md transition-colors"
                             >
                                 Cancel
                             </button>
                             <button
                                 onClick={handleSaveContent}
-                                className="px-3 py-1.5 text-xs font-bold bg-primary hover:bg-primary/90 text-white rounded-md shadow-lg shadow-primary/20 transition-all"
+                                disabled={isReadOnly}
+                                className={`px-3 py-1.5 text-xs font-bold bg-primary hover:bg-primary/90 text-white rounded-md shadow-lg shadow-primary/20 transition-all ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
                             >
                                 Save Changes
                             </button>
@@ -283,20 +301,25 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
                         <div className="flex flex-col gap-2 absolute top-0 right-0 opacity-0 group-hover:opacity-100 transition-all">
                             <button
-                                onClick={() => setIsEditingContent(true)}
-                                className="p-2 text-secondary-text hover:text-primary bg-surface shadow-sm rounded-lg border border-slate-100"
-                                title="Edit Content"
+                                onClick={() => {
+                                    if (isReadOnly) return;
+                                    setIsEditingContent(true);
+                                }}
+                                disabled={isReadOnly}
+                                className={`p-2 text-secondary-text hover:text-primary bg-surface shadow-sm rounded-lg border border-slate-100 ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                title={isReadOnly ? "Log in to edit and download" : "Edit Content"}
                             >
                                 <PencilIcon className="h-4 w-4" />
                             </button>
-                            <CopyButton textToCopy={contentToCopy} />
+                            <CopyButton textToCopy={contentToCopy} disabled={isReadOnly} />
                         </div>
                     </div>
                 )}
             </div>
 
-            <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
-                {slide.promptGenerationState === 'failed' ? (
+            {!isReadOnly && (
+                <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
+                    {slide.promptGenerationState === 'failed' ? (
                     <div className="flex flex-col items-center justify-center p-6 bg-red-50/50 rounded-xl border border-red-100 shadow-sm animate-fade-in">
                         <div className="flex flex-col items-center gap-2 mb-3">
                             <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Generation Failed</span>
@@ -304,7 +327,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         </div>
                         <button
                             onClick={handleRetryPromptGeneration}
-                            disabled={isRetrying}
+                            disabled={isRetrying || isReadOnly}
                             className={`px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
                         >
                             {isRetrying && (
@@ -317,35 +340,37 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         </button>
                     </div>
                 ) : imagePrompts.length === 0 ? (
-                    // New: Show generate button when no prompt exists
-                    <div className="flex flex-col items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm w-full">
-                        {showGenerating ? (
-                            // Show loading state if generation is in progress
-                            <div className="flex flex-col items-center gap-3">
-                                <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                                <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
-                                    Generating Visual Idea...
-                                </span>
-                            </div>
-                        ) : (
-                            <button
-                                onClick={handleGeneratePrompt}
-                                disabled={isGeneratingPrompt}
-                                className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
-                            >
-                                {isGeneratingPrompt && (
-                                    <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    isReadOnly ? null : (
+                        // New: Show generate button when no prompt exists
+                        <div className="flex flex-col items-center justify-center p-8 bg-white/50 rounded-xl border border-slate-100 shadow-sm w-full">
+                            {showGenerating ? (
+                                // Show loading state if generation is in progress
+                                <div className="flex flex-col items-center gap-3">
+                                    <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                )}
-                                {isGeneratingPrompt ? 'Generating...' : 'Generate Visual Idea'}
-                            </button>
-                        )}
-                    </div>
+                                    <span className="text-sm font-bold text-secondary-text uppercase tracking-widest">
+                                        Generating Visual Idea...
+                                    </span>
+                                </div>
+                            ) : (
+                                <button
+                                    onClick={handleGeneratePrompt}
+                                    disabled={isGeneratingPrompt || isReadOnly}
+                                    className="px-6 py-2.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-sm font-bold shadow-md shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                                >
+                                    {isGeneratingPrompt && (
+                                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    )}
+                                    {isGeneratingPrompt ? 'Generating...' : 'Generate Visual Idea'}
+                                </button>
+                            )}
+                        </div>
+                    )
                 ) : (
                     <>
                         <div className="flex items-start gap-3 w-full">
@@ -354,61 +379,72 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             </div>
 
                             <div className="flex-grow min-w-0">
-                                {/* Control Header */}
-                                <div className="flex items-center justify-between mb-2">
-                                    <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Idea</span>
-                                </div>
-
-                                {isEditingPrompt ? (
-                                    <div className="animate-fade-in bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                                        <textarea
-                                            value={editedPrompt}
-                                            onChange={(e) => setEditedPrompt(e.target.value)}
-                                            className="w-full min-h-[100px] text-sm text-primary-text mb-3 p-2 border border-slate-200 rounded outline-none focus:border-primary/50"
-                                            placeholder="Describe the image you want to generate..."
-                                        />
-                                        <div className="flex justify-end gap-2">
-                                            <button
-                                                onClick={() => setIsEditingPrompt(false)}
-                                                className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text"
-                                            >
-                                                Cancel
-                                            </button>
-                                            <button
-                                                onClick={handleSavePrompt}
-                                                className="px-3 py-1.5 text-xs font-bold bg-primary text-white rounded shadow-sm hover:bg-primary/90"
-                                            >
-                                                Save Idea
-                                            </button>
+                                {!isReadOnly && (
+                                    <>
+                                        {/* Control Header */}
+                                        <div className="flex items-center justify-between mb-2">
+                                            <span className="text-[11px] font-bold uppercase tracking-wider text-[#627C81]">Visual Idea</span>
                                         </div>
-                                    </div>
-                                ) : (
-                                    <div className="relative group/prompt flex gap-3">
-                                        <div
-                                            className={`flex-grow bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-all cursor-pointer ${!isPromptExpanded ? 'max-h-[80px] overflow-hidden' : ''}`}
-                                            onClick={() => setIsPromptExpanded(!isPromptExpanded)}
-                                        >
-                                            <div className="prose prose-sm max-w-none text-secondary-text text-sm">
-                                                <p className="whitespace-pre-wrap leading-relaxed">{imagePromptText}</p>
+
+                                        {isEditingPrompt ? (
+                                            <div className="animate-fade-in bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                                                <textarea
+                                                    value={editedPrompt}
+                                                    onChange={(e) => setEditedPrompt(e.target.value)}
+                                                    className="w-full min-h-[100px] text-sm text-primary-text mb-3 p-2 border border-slate-200 rounded outline-none focus:border-primary/50"
+                                                    placeholder="Describe the image you want to generate..."
+                                                />
+                                                <div className="flex justify-end gap-2">
+                                                    <button
+                                                        onClick={() => setIsEditingPrompt(false)}
+                                                        disabled={isReadOnly}
+                                                        className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text"
+                                                    >
+                                                        Cancel
+                                                    </button>
+                                                    <button
+                                                        onClick={handleSavePrompt}
+                                                        disabled={isReadOnly}
+                                                        className={`px-3 py-1.5 text-xs font-bold bg-primary text-white rounded shadow-sm hover:bg-primary/90 ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                    >
+                                                        Save Idea
+                                                    </button>
+                                                </div>
                                             </div>
-                                        </div>
+                                        ) : (
+                                            <div className="relative group/prompt flex gap-3">
+                                                <div
+                                                    className={`flex-grow bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-all cursor-pointer ${!isPromptExpanded ? 'max-h-[80px] overflow-hidden' : ''}`}
+                                                    onClick={() => setIsPromptExpanded(!isPromptExpanded)}
+                                                >
+                                                    <div className="prose prose-sm max-w-none text-secondary-text text-sm">
+                                                        <p className="whitespace-pre-wrap leading-relaxed">{imagePromptText}</p>
+                                                    </div>
+                                                </div>
 
-                                        <div className="flex flex-col gap-2 opacity-0 group-hover/prompt:opacity-100 transition-all">
-                                            <button
-                                                onClick={(e) => { e.stopPropagation(); setIsEditingPrompt(true); }}
-                                                className="p-2 text-secondary-text hover:text-primary bg-white shadow-sm rounded-lg border border-slate-100"
-                                                title="Edit Visual Idea"
-                                            >
-                                                <PencilIcon className="h-4 w-4" />
-                                            </button>
-                                            <CopyButton textToCopy={imagePromptText} />
-                                        </div>
-                                    </div>
+                                                <div className="flex flex-col gap-2 opacity-0 group-hover/prompt:opacity-100 transition-all">
+                                                    <button
+                                                        onClick={(e) => {
+                                                            e.stopPropagation();
+                                                            if (isReadOnly) return;
+                                                            setIsEditingPrompt(true);
+                                                        }}
+                                                        disabled={isReadOnly}
+                                                        className={`p-2 text-secondary-text hover:text-primary bg-white shadow-sm rounded-lg border border-slate-100 ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                                        title={isReadOnly ? "Log in to edit and download" : "Edit Visual Idea"}
+                                                    >
+                                                        <PencilIcon className="h-4 w-4" />
+                                                    </button>
+                                                    <CopyButton textToCopy={imagePromptText} disabled={isReadOnly} />
+                                                </div>
+                                            </div>
+                                        )}
+                                    </>
                                 )}
 
                                 {/* Recent Images Strip */}
                                 {visibleImages.length > 0 && (
-                                    <div className="mt-3 flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
+                                    <div className={`${isReadOnly ? '' : 'mt-3'} flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200`}>
                                         {visibleImages.map((img) => (
                                             <a
                                                 key={img.id}
@@ -427,56 +463,63 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                             </div>
                         </div>
 
-                        <div className="flex justify-end items-center pt-2 w-full gap-2 border-t border-slate-100/50 mt-1">
-                            {/* Aspect Ratio Selector */}
-                            <div className="flex items-center space-x-1 mr-auto bg-slate-100/50 p-1 rounded-lg">
+                        {!isReadOnly && (
+                            <div className="flex justify-end items-center pt-2 w-full gap-2 border-t border-slate-100/50 mt-1">
+                                {/* Aspect Ratio Selector */}
+                                <div className="flex items-center space-x-1 mr-auto bg-slate-100/50 p-1 rounded-lg">
+                                    <button
+                                        onClick={() => {
+                                            if (isReadOnly) return;
+                                            setAspectRatio('16:9');
+                                            onUpdateSlide({ aspectRatio: '16:9' });
+                                        }}
+                                        disabled={isReadOnly}
+                                        className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '16:9'
+                                            ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                            : 'text-slate-500 hover:text-slate-700'
+                                            } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        16:9
+                                    </button>
+                                    <button
+                                        onClick={() => {
+                                            if (isReadOnly) return;
+                                            setAspectRatio('1:1');
+                                            onUpdateSlide({ aspectRatio: '1:1' });
+                                        }}
+                                        disabled={isReadOnly}
+                                        className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '1:1'
+                                            ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                            : 'text-slate-500 hover:text-slate-700'
+                                            } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                    >
+                                        1:1
+                                    </button>
+                                </div>
+
                                 <button
-                                    onClick={() => {
-                                        setAspectRatio('16:9');
-                                        onUpdateSlide({ aspectRatio: '16:9' });
-                                    }}
-                                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '16:9'
-                                        ? 'bg-white text-primary shadow-sm border border-slate-200'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                        }`}
+                                    onClick={handleGenerateImage}
+                                    disabled={isGeneratingImage || !imagePromptText || isReadOnly}
+                                    className="flex items-center space-x-2 px-3 py-1.5 bg-[#F5F5F5] hover:bg-slate-200 text-[#134252] rounded-lg text-xs font-semibold transition-all border border-border-light shadow-sm disabled:opacity-50 disabled:cursor-not-allowed h-[36px]"
                                 >
-                                    16:9
-                                </button>
-                                <button
-                                    onClick={() => {
-                                        setAspectRatio('1:1');
-                                        onUpdateSlide({ aspectRatio: '1:1' });
-                                    }}
-                                    className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '1:1'
-                                        ? 'bg-white text-primary shadow-sm border border-slate-200'
-                                        : 'text-slate-500 hover:text-slate-700'
-                                        }`}
-                                >
-                                    1:1
+                                    {isGeneratingImage ? (
+                                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                        </svg>
+                                    ) : (
+                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                        </svg>
+                                    )}
+                                    <span>{isGeneratingImage ? 'Generating...' : 'Generate Image'}</span>
                                 </button>
                             </div>
-
-                            <button
-                                onClick={handleGenerateImage}
-                                disabled={isGeneratingImage || !imagePromptText}
-                                className="flex items-center space-x-2 px-3 py-1.5 bg-[#F5F5F5] hover:bg-slate-200 text-[#134252] rounded-lg text-xs font-semibold transition-all border border-border-light shadow-sm disabled:opacity-50 h-[36px]"
-                            >
-                                {isGeneratingImage ? (
-                                    <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                    </svg>
-                                ) : (
-                                    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                        <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                    </svg>
-                                )}
-                                <span>{isGeneratingImage ? 'Generating...' : 'Generate Image'}</span>
-                            </button>
-                        </div>
+                        )}
                     </>
-                )}
-            </footer>
+                    )}
+                </footer>
+            )}
         </div >
     );
 };

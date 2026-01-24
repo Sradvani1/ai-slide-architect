@@ -4,6 +4,7 @@ import { LandingPage } from './components/LandingPage';
 import { Dashboard } from './components/Dashboard';
 import { Editor } from './components/Editor';
 import { FAQ } from './components/landing/FAQ';
+import { SharePreview } from './components/SharePreview';
 import { auth, db } from './firebaseConfig';
 import { User, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -70,6 +71,7 @@ function App() {
       <Router>
         <Routes>
           <Route path="/faq" element={<FAQ />} />
+          <Route path="/share/:token" element={<SharePreview user={user} />} />
 
           {!user ? (
             <>

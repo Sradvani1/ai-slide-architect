@@ -6,6 +6,7 @@ import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
+import { createShareLink } from '../services/shareService';
 import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
@@ -58,6 +59,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [generationPhase, setGenerationPhase] = useState<ProjectData['generationPhase']>(undefined);
     const [generationMessage, setGenerationMessage] = useState<string | undefined>(undefined);
     const [isRetrying, setIsRetrying] = useState<boolean>(false);
+    const [shareStatus, setShareStatus] = useState<string | null>(null);
+    const [projectStatus, setProjectStatus] = useState<ProjectData['status']>(undefined);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -86,6 +89,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setSources(project.sources || []);
                     setResearchContent(project.researchContent || '');
                     setCurrentProjectId(project.id!);
+                    setProjectStatus(project.status);
 
                     // Load files if they exist
                     if (project.files && project.files.length > 0) {
@@ -120,6 +124,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setUploadedFiles([]);
                 setResearchContent('');
                 setError(null);
+                setProjectStatus(undefined);
                 setIsLoading(false);
             }
         };
@@ -149,6 +154,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             setProjectTitle(projectData.title || '');
             setProjectTopic(projectData.topic || '');
             setResearchContent(projectData.researchContent || '');
+            setProjectStatus(projectData.status);
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
@@ -260,6 +266,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 });
 
                 setCurrentProjectId(newProjectId);
+                setProjectStatus('generating');
 
                 // 2. Upload files first (if any)
                 const uploadedProjectFiles: ProjectFile[] = [];
@@ -402,6 +409,24 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
     };
 
+    const handleShareLink = useCallback(async () => {
+        if (!currentProjectId) {
+            setShareStatus('Save your deck first before sharing.');
+            return;
+        }
+
+        try {
+            const { shareUrl } = await createShareLink(currentProjectId);
+            await navigator.clipboard.writeText(shareUrl);
+            setShareStatus('Share link copied to clipboard.');
+            window.setTimeout(() => setShareStatus(null), 4000);
+        } catch (error: any) {
+            console.error('Failed to create share link:', error);
+            setShareStatus(error?.message || 'Failed to create share link.');
+            window.setTimeout(() => setShareStatus(null), 4000);
+        }
+    }, [currentProjectId]);
+
     const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
         setSlides(prevSlides => {
             if (!prevSlides) return prevSlides;
@@ -524,6 +549,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         generationPhase={generationPhase}
                         generationMessage={generationMessage}
                         onRetry={handleRetry}
+                        onShare={handleShareLink}
+                        shareStatus={shareStatus}
+                        shareDisabled={projectStatus === 'generating'}
                     />
                 </div>
             </main>

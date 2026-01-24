@@ -18,9 +18,10 @@ declare global {
 interface AuthProps {
     isModal?: boolean;
     onClose?: () => void;
+    continueUrl?: string;
 }
 
-export function Auth({ isModal = false, onClose }: AuthProps) {
+export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
     const [isEmailSending, setIsEmailSending] = useState(false);
     const [email, setEmail] = useState('');
     const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
@@ -28,7 +29,7 @@ export function Auth({ isModal = false, onClose }: AuthProps) {
     const googleButtonWrapperRef = useRef<HTMLDivElement | null>(null);
 
     const GOOGLE_CLIENT_ID = import.meta.env.VITE_GOOGLE_CLIENT_ID as string | undefined;
-    const EMAIL_LINK_CONTINUE_URL = 'https://www.slidesedu.org';
+    const EMAIL_LINK_CONTINUE_URL = continueUrl || 'https://www.slidesedu.org';
     const EMAIL_STORAGE_KEY = 'emailForSignIn';
 
     useEffect(() => {

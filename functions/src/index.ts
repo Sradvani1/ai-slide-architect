@@ -18,6 +18,7 @@ import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
 import { generateImage } from './services/imageGeneration';
 import { extractTextFromImage } from './services/imageTextExtraction';
+import { createShareLink, claimShareLink, getSharePreview } from './services/shareService';
 import { Slide, ProjectData } from '@shared/types';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
@@ -335,6 +336,77 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
     } catch (error: any) {
         console.error("Generate Prompt Error:", error);
         res.status(500).json({ error: "Failed to initiate prompt generation" });
+    }
+});
+
+/**
+ * 9. Create a multi-use share link for a project.
+ */
+app.post('/share/create', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { projectId } = req.body;
+        if (!projectId) {
+            res.status(400).json({ error: 'Missing required field: projectId' });
+            return;
+        }
+        if (!req.user) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const result = await createShareLink(req.user.uid, projectId);
+        res.json(result);
+    } catch (error: any) {
+        console.error('Create Share Link Error:', error);
+        const message = error?.message || 'Failed to create share link';
+        const status = message.includes('generating') ? 409 : (message.includes('not found') ? 404 : 500);
+        res.status(status).json({ error: message });
+    }
+});
+
+/**
+ * 10. Claim a share link and create a copy for the current user.
+ */
+app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { token } = req.body;
+        if (!token) {
+            res.status(400).json({ error: 'Missing required field: token' });
+            return;
+        }
+        if (!req.user) {
+            res.status(401).json({ error: 'Unauthorized' });
+            return;
+        }
+
+        const result = await claimShareLink(token, req.user.uid);
+        res.json(result);
+    } catch (error: any) {
+        console.error('Claim Share Link Error:', error);
+        const message = error?.message || 'Failed to claim share link';
+        const status = message.includes('generating') ? 409 : (message.includes('not found') ? 404 : 500);
+        res.status(status).json({ error: message });
+    }
+});
+
+/**
+ * 11. Fetch share preview data (no auth required).
+ */
+app.get('/share/preview', async (req: express.Request, res: express.Response) => {
+    try {
+        const token = typeof req.query.token === 'string' ? req.query.token : '';
+        if (!token) {
+            res.status(400).json({ error: 'Missing required query param: token' });
+            return;
+        }
+
+        const result = await getSharePreview(token);
+        res.json(result);
+    } catch (error: any) {
+        console.error('Share Preview Error:', error);
+        const message = error?.message || 'Failed to load share preview';
+        const status = message.includes('not found') ? 404 : 500;
+        res.status(status).json({ error: message });
     }
 });
 

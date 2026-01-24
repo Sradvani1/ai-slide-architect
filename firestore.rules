@@ -60,5 +60,14 @@ service cloud.firestore {
       allow write: if false; // Only admin/backend can write
     }
 
+    // Share Links (server-managed)
+    match /shares/{token} {
+      allow read, write: if false;
+
+      match /claims/{userId} {
+        allow read, write: if false;
+      }
+    }
+
   }
 }
