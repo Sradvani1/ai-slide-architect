@@ -1,5 +1,6 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
+import { onDocumentCreated } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
@@ -388,19 +389,17 @@ app.get('/share/preview', async (req: express.Request, res: express.Response) =>
 /**
  * 11. Create a persistent share link when a project is created.
  */
-export const onProjectCreate = functions.firestore
-    .document('users/{userId}/projects/{projectId}')
-    .onCreate(async (snapshot, context) => {
-        const { userId, projectId } = context.params;
-        const projectData = snapshot.data() as ProjectData & { shareToken?: string };
-        if (projectData.shareToken) return;
+export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{projectId}', async (event) => {
+    const { userId, projectId } = event.params;
+    const projectData = event.data?.data() as (ProjectData & { shareToken?: string }) | undefined;
+    if (!projectData || projectData.shareToken) return;
 
-        try {
-            await createShareLink(userId, projectId);
-        } catch (error) {
-            console.error('Share link creation on project create failed:', error);
-        }
-    });
+    try {
+        await createShareLink(userId, projectId);
+    } catch (error) {
+        console.error('Share link creation on project create failed:', error);
+    }
+});
 
 
 

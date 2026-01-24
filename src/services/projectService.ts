@@ -153,6 +153,8 @@ export interface ProjectData {
     generationError?: string;
     generationStartedAt?: Timestamp;
     generationCompletedAt?: Timestamp;
+    shareToken?: string;
+    shareCreatedAt?: Timestamp;
 }
 
 
