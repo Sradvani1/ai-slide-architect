@@ -11,18 +11,17 @@ Construct the description as a cohesive narrative in this order:
 1. [Subject]: The central physical element.
 2. [Action]: The active process, movement, or visual state.
 3. [Setting]: The immediate environment.
-4. [Labels]: Any necessary visible text.
 </task>
 
 <constraints>
 1. Audience: Ensure the complexity is age-appropriate for the <grade_level> grade.
 2. Visual Clarity: Describe only visible objects and processes, do not use abstract metaphors.
-3. Text and Labels: Include text labels for key elements when they enhance understanding of the concepts from <key_points>.
+3. Text and Labels: Include text labels for key elements only when needed to understand <key_points>.
 4. Exclusions: Strictly exclude descriptions of artistic style, perspective, lighting effects, camera angles, or shading.
 </constraints>
 
 <output_format>
-Return strictly the description text. No markdown, no field labels.
+Return a single paragraph description text. No markdown, no field labels.
 </output_format>`.trim();
 }
 

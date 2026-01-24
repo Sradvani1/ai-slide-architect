@@ -38,7 +38,7 @@ const WelcomeMessage: React.FC = () => (
         </div>
         <h2 className="text-3xl font-bold text-primary-text mb-4 tracking-tight">Ready to Create?</h2>
         <p className="text-lg text-secondary-text max-w-lg leading-relaxed">
-            Fill in the details on the left, upload your source materials, and let our AI architect the perfect slide deck for you.
+            Add your details to start building your slides with grounded research and speaker notes.
         </p>
     </div>
 );
