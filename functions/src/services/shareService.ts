@@ -14,23 +14,15 @@ const getOwnerDisplayName = (ownerData?: { displayName?: string | null; email?: 
     return email.split('@')[0] || 'A teacher';
 };
 
-const sanitizeSlideForPreview = (slide: Slide): Slide => {
-    const {
-        speakerNotes,
-        promptGenerationState,
-        promptGenerationError,
-        promptRequestId,
-        updatedAt,
-        ...rest
-    } = slide as Slide & {
-        speakerNotes?: string;
-        promptGenerationState?: string;
-        promptGenerationError?: string;
-        promptRequestId?: string;
-        updatedAt?: unknown;
-    };
-    return rest;
-};
+const sanitizeSlideForPreview = (slide: Slide): Slide => ({
+    id: slide.id,
+    sortOrder: slide.sortOrder,
+    title: slide.title,
+    content: slide.content,
+    speakerNotes: '',
+    layout: slide.layout,
+    aspectRatio: slide.aspectRatio
+});
 
 const fetchProjectWithSlides = async (ownerId: string, projectId: string) => {
     const projectRef = db.collection('users').doc(ownerId).collection('projects').doc(projectId);
