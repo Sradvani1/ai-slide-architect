@@ -5,7 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { Editor } from './components/Editor';
 import { FAQ } from './components/landing/FAQ';
 import { auth, db } from './firebaseConfig';
-import { User } from 'firebase/auth';
+import { User, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
@@ -15,6 +15,28 @@ function App() {
   const [isAuthLoading, setIsAuthLoading] = useState(true);
 
   useEffect(() => {
+    const completeEmailLinkSignIn = async () => {
+      if (!isSignInWithEmailLink(auth, window.location.href)) {
+        return;
+      }
+
+      const storedEmail = window.localStorage.getItem('emailForSignIn');
+      const email = storedEmail || window.prompt('Confirm your email to finish signing in') || '';
+
+      if (!email) {
+        return;
+      }
+
+      try {
+        await signInWithEmailLink(auth, email, window.location.href);
+        window.localStorage.removeItem('emailForSignIn');
+      } catch (error) {
+        console.error('Email link sign-in failed:', error);
+      }
+    };
+
+    completeEmailLinkSignIn();
+
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
       if (user) {
         const userRef = doc(db, 'users', user.uid);
