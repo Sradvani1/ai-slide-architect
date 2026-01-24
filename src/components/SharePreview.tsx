@@ -28,7 +28,6 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
     const [preview, setPreview] = useState<SharePreviewState | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
-    const [isExpired, setIsExpired] = useState(false);
     const [isClaiming, setIsClaiming] = useState(false);
     const [shouldClaim, setShouldClaim] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
@@ -46,7 +45,6 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
 
             setIsLoading(true);
             setError(null);
-            setIsExpired(false);
 
             try {
                 const result = await fetchSharePreview(shareToken);
@@ -57,7 +55,6 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                 if (isMounted) {
                     const message = err?.message || 'Failed to load shared deck.';
                     setError(message);
-                    setIsExpired(message.toLowerCase().includes('expired'));
                 }
             } finally {
                 if (isMounted) {
@@ -85,11 +82,6 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
             setShowAuthModal(true);
             return;
         }
-        if (isExpired) {
-            setError('This share link has expired. Ask the sender to create a new link.');
-            return;
-        }
-
         setIsClaiming(true);
         setError(null);
         try {
@@ -99,7 +91,6 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
         } catch (err: any) {
             const message = err?.message || 'Failed to claim this deck.';
             setError(message);
-            setIsExpired(message.toLowerCase().includes('expired'));
         } finally {
             setIsClaiming(false);
         }
@@ -160,41 +151,21 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
             </div>
 
             <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
-                {isExpired ? (
-                    <div className="flex flex-col items-center justify-center h-[50vh] text-center p-8 bg-amber-50/80 text-amber-900 rounded-2xl border border-amber-200">
-                        <div className="w-14 h-14 bg-amber-100 rounded-full flex items-center justify-center mb-4">
-                            <svg xmlns="http://www.w3.org/2000/svg" className="h-7 w-7 text-amber-600" viewBox="0 0 20 20" fill="currentColor">
-                                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l6.518 11.59c.75 1.334-.213 2.99-1.742 2.99H3.48c-1.53 0-2.492-1.656-1.743-2.99L8.257 3.1zM11 13a1 1 0 10-2 0 1 1 0 002 0zm-1-8a1 1 0 00-1 1v3a1 1 0 102 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
-                            </svg>
-                        </div>
-                        <h2 className="text-2xl font-bold mb-2">This share link has expired</h2>
-                        <p className="text-sm text-amber-800 mb-4">
-                            Ask the sender to create a new share link.
-                        </p>
-                        <button
-                            onClick={() => navigate('/')}
-                            className="btn-primary px-4 py-2 text-sm"
-                        >
-                            Back to home
-                        </button>
-                    </div>
-                ) : (
-                    <SlideDeck
-                        slides={preview?.slides || null}
-                        sources={[]}
-                        researchContent=""
-                        projectTitle={preview?.project.title}
-                        projectTopic={preview?.project.topic}
-                        projectGradeLevel={preview?.project.gradeLevel}
-                        projectSubject={preview?.project.subject}
-                        isLoading={isLoading}
-                        error={error}
-                        onUpdateSlide={() => undefined}
-                        userId=""
-                        projectId={null}
-                        readOnly={true}
-                    />
-                )}
+                <SlideDeck
+                    slides={preview?.slides || null}
+                    sources={[]}
+                    researchContent=""
+                    projectTitle={preview?.project.title}
+                    projectTopic={preview?.project.topic}
+                    projectGradeLevel={preview?.project.gradeLevel}
+                    projectSubject={preview?.project.subject}
+                    isLoading={isLoading}
+                    error={error}
+                    onUpdateSlide={() => undefined}
+                    userId=""
+                    projectId={null}
+                    readOnly={true}
+                />
             </div>
 
             {showAuthModal && (

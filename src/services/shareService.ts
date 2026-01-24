@@ -51,12 +51,6 @@ const authenticatedRequest = async <T>(endpoint: string, body: Record<string, un
     return response.json();
 };
 
-export const createShareLink = async (projectId: string) => {
-    const result = await authenticatedRequest<{ token: string }>('/share/create', { projectId });
-    const shareUrl = `${window.location.origin}/share/${result.token}`;
-    return { token: result.token, shareUrl };
-};
-
 export const claimShareLink = async (token: string) => {
     return authenticatedRequest<{ projectId: string; alreadyClaimed: boolean }>('/share/claim', { token });
 };
@@ -72,3 +66,5 @@ export const fetchSharePreview = async (token: string): Promise<SharePreviewResp
 
     return response.json();
 };
+
+export const buildShareUrl = (token: string) => `${window.location.origin}/share/${token}`;

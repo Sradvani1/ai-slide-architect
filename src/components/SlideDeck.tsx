@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
-import { PptxIcon, DocumentTextIcon } from './icons';
 import { generateImageFromPrompt } from '../services/geminiService';
 import type { Slide, ProjectData } from '../types';
 
@@ -27,7 +26,9 @@ interface SlideDeckProps {
     generationMessage?: string;
     onRetry?: () => void;
     onShare?: () => void;
-    shareStatus?: string | null;
+    shareUrl?: string | null;
+    shareCopied?: boolean;
+    onCopyShare?: () => void;
     shareDisabled?: boolean;
     readOnly?: boolean;
 }
@@ -357,7 +358,9 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     generationMessage,
     onRetry,
     onShare,
-    shareStatus,
+    shareUrl,
+    shareCopied = false,
+    onCopyShare,
     shareDisabled = false,
     readOnly = false,
 }) => {
@@ -555,27 +558,20 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
         return <WelcomeMessage />;
     }
 
-    const headerTitle = readOnly ? 'Shared Deck Preview' : 'Your Slide Deck';
-
     return (
         <div className="flex flex-col h-full animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pt-4 gap-4">
-                <div className="flex flex-col gap-2">
-                    <h2 className="text-xl font-bold text-primary-text hidden sm:block">{headerTitle}</h2>
-                    {shareStatus && (
-                        <p className="text-xs text-secondary-text">{shareStatus}</p>
-                    )}
-                </div>
                 <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
                     {onShare && (
                         <button
                             onClick={onShare}
                             disabled={readOnly || shareDisabled}
-                            className="group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed bg-white border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]"
-                            title={readOnly ? "Log in to edit and download" : (shareDisabled ? "Finish generating to share" : "Share link")}
+                            className="group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
+                                bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]"
+                            title={readOnly ? "Log in to edit and download" : (shareDisabled ? "Finish generating to share" : "Share")}
                         >
                             <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
-                                <span className="font-semibold tracking-wide text-[13px] font-[600]">Share Link</span>
+                                <span className="font-semibold tracking-wide text-[13px] font-[600]">Share</span>
                             </div>
                         </button>
                     )}
@@ -593,14 +589,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-primary/20 transition-colors duration-300"></div>
 
                         <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
-                            {isDownloadingReport ? (
-                                <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                <DocumentTextIcon className="w-5 h-5 text-primary group-hover:scale-110 transition-transform duration-300" />
-                            )}
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Research Report</span>
                         </div>
                     </button>
@@ -619,14 +607,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-secondary/20 transition-colors duration-300"></div>
 
                         <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-secondary transition-colors">
-                            {isDownloadingNotes ? (
-                                <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                <DocumentTextIcon className="w-5 h-5 text-secondary group-hover:scale-110 transition-transform duration-300" />
-                            )}
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Notes</span>
                         </div>
                     </button>
@@ -645,19 +625,32 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-accent/20 transition-colors duration-300"></div>
 
                         <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-accent transition-colors">
-                            {isExporting ? (
-                                <svg className="animate-spin h-5 w-5 text-current" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            ) : (
-                                <PptxIcon className="w-5 h-5 text-accent group-hover:scale-110 transition-transform duration-300" />
-                            )}
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Slides</span>
                         </div>
                     </button>
                 </div>
             </div>
+
+            {shareUrl && (
+                <div className="mb-6 rounded-2xl border border-slate-200 bg-white/80 shadow-sm p-4">
+                    <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                        <input
+                            type="text"
+                            value={shareUrl}
+                            readOnly
+                            className="w-full md:w-[420px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            aria-label="Share link"
+                        />
+                        <button
+                            onClick={onCopyShare}
+                            disabled={!onCopyShare}
+                            className="btn-primary px-4 py-2 text-xs font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
+                        >
+                            {shareCopied ? 'Copied' : 'Copy'}
+                        </button>
+                    </div>
+                </div>
+            )}
 
             <div className="grid grid-cols-1 gap-8 pb-12">
                 {slides.map((slide, index) => (

@@ -4,7 +4,6 @@ import * as crypto from 'crypto';
 import type { Slide, ProjectData } from '@shared/types';
 
 const db = admin.firestore();
-const SHARE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
 
 const getOwnerDisplayName = (ownerData?: { displayName?: string | null; email?: string | null }) => {
     const name = ownerData?.displayName?.trim();
@@ -37,10 +36,23 @@ const fetchProjectWithSlides = async (ownerId: string, projectId: string) => {
 };
 
 export const createShareLink = async (ownerId: string, projectId: string) => {
-    const { projectData } = await fetchProjectWithSlides(ownerId, projectId);
+    const { projectData, projectRef } = await fetchProjectWithSlides(ownerId, projectId);
 
-    if (projectData.status === 'generating') {
-        throw new Error('Project is still generating');
+    const existingToken = (projectData as ProjectData & { shareToken?: string }).shareToken;
+    if (existingToken) {
+        const shareRef = db.collection('shares').doc(existingToken);
+        const shareSnap = await shareRef.get();
+        if (!shareSnap.exists) {
+            await shareRef.set({
+                token: existingToken,
+                ownerId,
+                projectId,
+                createdAt: FieldValue.serverTimestamp(),
+                lastClaimedAt: null,
+                claimCount: 0
+            });
+        }
+        return { token: existingToken };
     }
 
     const token = crypto.randomUUID();
@@ -52,19 +64,15 @@ export const createShareLink = async (ownerId: string, projectId: string) => {
         projectId,
         createdAt: FieldValue.serverTimestamp(),
         lastClaimedAt: null,
-        claimCount: 0,
-        expiresAt: admin.firestore.Timestamp.fromMillis(Date.now() + SHARE_TTL_MS)
+        claimCount: 0
+    });
+
+    await projectRef.update({
+        shareToken: token,
+        shareCreatedAt: FieldValue.serverTimestamp()
     });
 
     return { token };
-};
-
-const assertShareNotExpired = (shareData: { expiresAt?: FirebaseFirestore.Timestamp | null }) => {
-    const expiresAt = shareData?.expiresAt;
-    if (!expiresAt) return;
-    if (expiresAt.toMillis() <= Date.now()) {
-        throw new Error('Share link expired');
-    }
 };
 
 export const getSharePreview = async (token: string) => {
@@ -73,8 +81,7 @@ export const getSharePreview = async (token: string) => {
     if (!shareSnap.exists) {
         throw new Error('Share link not found');
     }
-    const shareData = shareSnap.data() as { ownerId: string; projectId: string; expiresAt?: FirebaseFirestore.Timestamp | null };
-    assertShareNotExpired(shareData);
+    const shareData = shareSnap.data() as { ownerId: string; projectId: string };
 
     const [{ projectData, slides }, ownerSnap] = await Promise.all([
         fetchProjectWithSlides(shareData.ownerId, shareData.projectId),
@@ -156,8 +163,7 @@ export const claimShareLink = async (token: string, claimantId: string) => {
     if (!shareSnap.exists) {
         throw new Error('Share link not found');
     }
-    const shareData = shareSnap.data() as { ownerId: string; projectId: string; expiresAt?: FirebaseFirestore.Timestamp | null };
-    assertShareNotExpired(shareData);
+    const shareData = shareSnap.data() as { ownerId: string; projectId: string };
 
     const claimRef = shareRef.collection('claims').doc(claimantId);
     const claimSnap = await claimRef.get();

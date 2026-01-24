@@ -340,32 +340,7 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
 });
 
 /**
- * 9. Create a multi-use share link for a project.
- */
-app.post('/share/create', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
-    try {
-        const { projectId } = req.body;
-        if (!projectId) {
-            res.status(400).json({ error: 'Missing required field: projectId' });
-            return;
-        }
-        if (!req.user) {
-            res.status(401).json({ error: 'Unauthorized' });
-            return;
-        }
-
-        const result = await createShareLink(req.user.uid, projectId);
-        res.json(result);
-    } catch (error: any) {
-        console.error('Create Share Link Error:', error);
-        const message = error?.message || 'Failed to create share link';
-        const status = message.includes('generating') ? 409 : (message.includes('not found') ? 404 : 500);
-        res.status(status).json({ error: message });
-    }
-});
-
-/**
- * 10. Claim a share link and create a copy for the current user.
+ * 9. Claim a share link and create a copy for the current user.
  */
 app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
@@ -390,7 +365,7 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
 });
 
 /**
- * 11. Fetch share preview data (no auth required).
+ * 10. Fetch share preview data (no auth required).
  */
 app.get('/share/preview', async (req: express.Request, res: express.Response) => {
     try {
@@ -409,6 +384,23 @@ app.get('/share/preview', async (req: express.Request, res: express.Response) =>
         res.status(status).json({ error: message });
     }
 });
+
+/**
+ * 11. Create a persistent share link when a project is created.
+ */
+export const onProjectCreate = functions.firestore
+    .document('users/{userId}/projects/{projectId}')
+    .onCreate(async (snapshot, context) => {
+        const { userId, projectId } = context.params;
+        const projectData = snapshot.data() as ProjectData & { shareToken?: string };
+        if (projectData.shareToken) return;
+
+        try {
+            await createShareLink(userId, projectId);
+        } catch (error) {
+            console.error('Share link creation on project create failed:', error);
+        }
+    });
 
 
 

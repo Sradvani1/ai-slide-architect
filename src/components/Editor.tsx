@@ -6,7 +6,7 @@ import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
-import { createShareLink } from '../services/shareService';
+import { buildShareUrl } from '../services/shareService';
 import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import type { Slide, ProjectFile } from '../types';
@@ -59,8 +59,11 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [generationPhase, setGenerationPhase] = useState<ProjectData['generationPhase']>(undefined);
     const [generationMessage, setGenerationMessage] = useState<string | undefined>(undefined);
     const [isRetrying, setIsRetrying] = useState<boolean>(false);
-    const [shareStatus, setShareStatus] = useState<string | null>(null);
+    const [shareUrl, setShareUrl] = useState<string | null>(null);
+    const [shareCopied, setShareCopied] = useState(false);
     const [projectStatus, setProjectStatus] = useState<ProjectData['status']>(undefined);
+    const [shareToken, setShareToken] = useState<string | null>(null);
+    const [showSharePanel, setShowSharePanel] = useState(false);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -90,6 +93,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setResearchContent(project.researchContent || '');
                     setCurrentProjectId(project.id!);
                     setProjectStatus(project.status);
+                    setShareToken(project.shareToken || null);
 
                     // Load files if they exist
                     if (project.files && project.files.length > 0) {
@@ -125,6 +129,10 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setResearchContent('');
                 setError(null);
                 setProjectStatus(undefined);
+                setShareUrl(null);
+                setShareCopied(false);
+                setShareToken(null);
+                setShowSharePanel(false);
                 setIsLoading(false);
             }
         };
@@ -155,6 +163,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             setProjectTopic(projectData.topic || '');
             setResearchContent(projectData.researchContent || '');
             setProjectStatus(projectData.status);
+            setShareToken(projectData.shareToken || null);
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
@@ -193,7 +202,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             isMounted = false;
             unsubscribe();
         };
-    }, [projectId, user, navigate]);
+    }, [projectId, user, navigate, currentProjectId]);
 
     // Firestore listener for real-time updates to slides subcollection
     useEffect(() => {
@@ -409,23 +418,31 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
     };
 
-    const handleShareLink = useCallback(async () => {
-        if (!currentProjectId) {
-            setShareStatus('Save your deck first before sharing.');
+    useEffect(() => {
+        if (!shareToken) {
+            setShareUrl(null);
+            setShareCopied(false);
             return;
         }
+        setShareUrl(buildShareUrl(shareToken));
+    }, [shareToken]);
 
+    const handleShareLink = useCallback(() => {
+        if (!shareToken) return;
+        setShowSharePanel(true);
+    }, [shareToken]);
+
+    const handleCopyShareLink = useCallback(async () => {
+        if (!shareUrl) return;
         try {
-            const { shareUrl } = await createShareLink(currentProjectId);
             await navigator.clipboard.writeText(shareUrl);
-            setShareStatus('Share link copied to clipboard.');
-            window.setTimeout(() => setShareStatus(null), 4000);
-        } catch (error: any) {
-            console.error('Failed to create share link:', error);
-            setShareStatus(error?.message || 'Failed to create share link.');
-            window.setTimeout(() => setShareStatus(null), 4000);
+            setShareCopied(true);
+        } catch (clipboardError) {
+            console.warn('Clipboard write blocked, falling back to manual copy.', clipboardError);
+            window.prompt('Copy this share link:', shareUrl);
+            setShareCopied(false);
         }
-    }, [currentProjectId]);
+    }, [shareUrl]);
 
     const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
         setSlides(prevSlides => {
@@ -550,8 +567,10 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         generationMessage={generationMessage}
                         onRetry={handleRetry}
                         onShare={handleShareLink}
-                        shareStatus={shareStatus}
-                        shareDisabled={projectStatus === 'generating'}
+                        shareUrl={showSharePanel ? shareUrl : null}
+                        shareCopied={shareCopied}
+                        onCopyShare={handleCopyShareLink}
+                        shareDisabled={projectStatus === 'generating' || !shareToken}
                     />
                 </div>
             </main>

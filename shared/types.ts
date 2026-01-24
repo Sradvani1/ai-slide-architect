@@ -111,4 +111,6 @@ export interface ProjectData {
     generationStartedAt?: any;     // Firestore Timestamp
     generationCompletedAt?: any;   // Firestore Timestamp
     generationRequestId?: string;
+    shareToken?: string;
+    shareCreatedAt?: any;          // Firestore Timestamp
 }

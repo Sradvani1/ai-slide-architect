@@ -42,6 +42,12 @@ export const DocumentTextIcon: React.FC<{ className?: string }> = ({ className }
     </svg>
 );
 
+export const ShareIcon: React.FC<{ className?: string }> = ({ className }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M12 5v10m0-10l-4 4m4-4l4 4m-7 6h6a3 3 0 003-3v-2a3 3 0 00-3-3h-1" />
+    </svg>
+);
+
 export const ChevronLeftIcon: React.FC<{ className?: string }> = ({ className }) => (
     <svg xmlns="http://www.w3.org/2000/svg" className={`h-5 w-5 ${className}`} fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M15 19l-7-7 7-7" />
