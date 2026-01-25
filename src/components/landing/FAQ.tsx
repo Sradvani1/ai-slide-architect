@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { Auth } from '../Auth';
+import { Modal } from '../Modal';
 
 interface FAQItemProps {
     question: string;
@@ -19,13 +20,13 @@ const FAQItem: React.FC<FAQItemProps> = ({ question, answer }) => {
             >
                 <h3 className="text-lg font-semibold text-primary-text pr-8">{question}</h3>
                 <span className={`transform transition-transform duration-300 text-primary ${isOpen ? 'rotate-180' : ''}`}>
-                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <svg xmlns="http://www.w3.org/2000/svg" className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor" aria-hidden="true">
                         <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
                     </svg>
                 </span>
             </button>
             <div
-                className={`transition-all duration-300 ease-in-out ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
+                className={`transition-[max-height,opacity] duration-300 ease-in-out ${isOpen ? 'max-h-96 opacity-100' : 'max-h-0 opacity-0'
                     } overflow-hidden`}
             >
                 <div className="px-6 pb-6 text-secondary-text leading-relaxed">
@@ -101,7 +102,7 @@ export const FAQ: React.FC = () => {
         <div className="min-h-screen bg-background font-sans text-primary-text">
             <Header onSignIn={handleSignIn} />
 
-            <main className="max-w-4xl mx-auto px-4 py-16">
+            <main id="main-content" className="max-w-4xl mx-auto px-4 py-16">
                 <div className="text-center mb-16">
                     <h1 className="text-4xl md:text-5xl font-bold mb-6 tracking-tight text-primary-text">
                         Frequently Asked Questions
@@ -140,20 +141,16 @@ export const FAQ: React.FC = () => {
 
             <Footer />
 
-            {/* Auth Modal Reuse */}
-            {showAuthModal && (
-                <div
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 backdrop-blur-sm"
-                    onClick={() => setShowAuthModal(false)}
-                >
-                    <div
-                        className="relative max-w-[500px] w-full"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Auth isModal={true} onClose={() => setShowAuthModal(false)} />
-                    </div>
-                </div>
-            )}
+            <Modal
+                open={showAuthModal}
+                onClose={() => setShowAuthModal(false)}
+                closeButton={false}
+                ariaLabelledby="auth-dialog-title"
+                backdropClassName="backdrop-blur-sm"
+                panelClassName="max-w-[500px] p-0"
+            >
+                <Auth isModal={true} onClose={() => setShowAuthModal(false)} />
+            </Modal>
         </div>
     );
 };

@@ -471,6 +471,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             <div className="fixed top-4 left-4 z-[60] md:hidden flex items-center gap-2">
                 <button
                     onClick={() => setIsSidebarOpen(true)}
+                    aria-label="Open settings"
                     className="flex items-center justify-center p-2.5 bg-primary text-white rounded-xl shadow-lg shadow-primary/20 border border-white/20 active:scale-95 transition-all"
                     title="Open Settings"
                 >
@@ -488,6 +489,15 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 <div
                     className="fixed inset-0 bg-slate-900/40 backdrop-blur-sm z-[70] md:hidden animate-fade-in"
                     onClick={() => setIsSidebarOpen(false)}
+                    onKeyDown={(event) => {
+                        if (event.key === 'Enter' || event.key === ' ') {
+                            event.preventDefault();
+                            setIsSidebarOpen(false);
+                        }
+                    }}
+                    role="button"
+                    tabIndex={0}
+                    aria-label="Close settings panel"
                 />
             )}
 
@@ -512,6 +522,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
                     <button
                         onClick={() => setIsSidebarOpen(false)}
+                        aria-label="Close settings"
                         className="md:hidden p-2 text-secondary-text hover:bg-slate-100 rounded-lg transition-colors"
                     >
                         <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2.5} stroke="currentColor" className="w-5 h-5">
@@ -547,7 +558,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             </aside>
 
             {/* Main Content */}
-            <main className="flex-1 overflow-y-auto w-full relative scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent h-full">
+            <main id="main-content" className="flex-1 overflow-y-auto w-full relative scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent h-full">
                 <div className="container mx-auto px-4 py-8 md:p-8 max-w-7xl pt-20 md:pt-8">
                     <SlideDeck
                         slides={slides}

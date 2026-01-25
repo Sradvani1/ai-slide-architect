@@ -2,17 +2,18 @@
 
 ## Scope
 
-This PR establishes the foundation for accessibility and design improvements: hooks for focus trapping and scroll locking, shared Modal and ConfirmDialog components, global styles (skip link, prefers-reduced-motion, font stack), and App-level skip link and auth loading improvements.
+This PR establishes the foundation for accessibility and design improvements: hooks for focus trapping and scroll locking, shared Modal and ConfirmDialog components, global styles (skip link, prefers-reduced-motion, font stack), and App-level skip link and auth loading improvements. It also aligns modal behavior with the **current Auth modal implementation** used in Landing, FAQ, and Share Preview.
 
 ## Acceptance Criteria (Relevant to PR1)
 
-- **Skip link:** Visible on keyboard focus; lands on the correct `#main-content` on every route.
+- **Skip link:** Visible on keyboard focus; lands on the correct `#main-content` on every route. **Decision:** each route’s primary `<main>` gets `id="main-content"` (Landing, FAQ, Dashboard, Editor, SharePreview).
 - **Modals:** Focus trapped inside; ESC closes; clicking backdrop closes; focus returns to the element that opened the modal. **Scroll lock:** When Modal or ConfirmDialog is open, the page behind (body) must not scroll. Store `body.style.overflow` before setting `hidden` and restore it on close so pre-existing styles or other overlays are not wiped. Only one overlay is expected at a time.
+- **Auth modal alignment:** The Auth component keeps its internal close button when used as a modal. The shared `Modal` should disable its own close button for Auth to avoid duplicate controls.
 - **Focus visibility:** All interactive elements show a visible focus indicator when navigated to via keyboard (Tab, etc.); the existing `:focus-visible` rule in `index.css` defines success.
 
 ## No Visual Regression
 
-Spacing, typography, and layout must remain visually consistent with the current UI. After this PR, do a quick visual pass to ensure the skip link appears correctly on focus and that Modal/ConfirmDialog match the current modal styling.
+Spacing, typography, and layout must remain visually consistent with the current UI (including the Auth modal’s card styling and the FAQ modal’s `backdrop-blur`). After this PR, do a quick visual pass to ensure the skip link appears correctly on focus and that Modal/ConfirmDialog match the current modal styling.
 
 ## Verification: Test Plan (PR1)
 
@@ -26,14 +27,15 @@ Spacing, typography, and layout must remain visually consistent with the current
 
 **Keyboard-only walkthrough (PR1 subset)**
 
-1. Tab from load: first focusable is Skip link; activating it moves focus to `#main-content`.
-2. Open Auth modal (Sign In): focus moves into dialog; Tab cycles only Close and "Sign in with Google"; Shift+Tab ditto; ESC closes and focus returns to Sign In.
+1. Tab from load: first focusable is Skip link; activating it moves focus to `#main-content` in the current route’s `<main>`.
+2. Open Auth modal (Sign In): focus moves into dialog; Tab cycles through Close, Google sign-in, email input, and email submit; Shift+Tab reverse; ESC closes and focus returns to Sign In.
 3. **Scroll lock:** With Auth modal open, try mouse wheel or trackpad scroll; the background must not move.
+4. Share Preview: click “Log in to edit and download” → Auth modal opens; closing modal clears the “should claim” state (no auto-claim after close).
 
 **Screen reader smoke test (PR1 subset)**
 
 1. **Dialog:** When Auth modal opens, dialog role and title (or `aria-labelledby`) are announced.
-2. **Buttons:** "Close modal" and "Sign in with Google" have sensible announcements.
+2. **Buttons:** "Close modal", "Sign in with Google", and "Continue with Email" have sensible announcements.
 3. **Loading:** Auth loading screen: "Loading…" (or equivalent) in an `aria-live` region.
 
 ---
@@ -54,6 +56,7 @@ Spacing, typography, and layout must remain visually consistent with the current
 - **Focusable selector:** `button:not([disabled]), a[href], input:not([disabled]), select:not([disabled]), textarea:not([disabled]), [tabindex]:not([tabindex="-1"])`. Exclude `[disabled]` so disabled controls are never the first focusable. **Implementation:** use this string with `container.querySelectorAll(...)`; copy it exactly—a mismatched or missing bracket can silently break focus trapping.
 - **If no focusable elements exist** (e.g. empty or loading dialog): focus the container instead of throwing; the container must have `tabIndex={-1}` so it can receive focus. Callers (Modal, ConfirmDialog) ensure the inner `div` has `tabIndex={-1}` when it may be empty.
 - On cleanup: remove listener, restore stored `activeElement` focus.
+- **Best practice (client-event-listeners):** Ensure the keydown listener is registered only while active and is always cleaned up to avoid multiple global listeners.
 
 **Sub-step 1a:** Implement `useFocusTrap` and verify in isolation (e.g. a small test div with two buttons) that Tab cycles and focus restores.
 
@@ -65,6 +68,7 @@ Spacing, typography, and layout must remain visually consistent with the current
 - **Behavior:** `useEffect(() => { if (!isOpen) return; const prev = document.body.style.overflow; document.body.style.overflow = 'hidden'; return () => { document.body.style.overflow = prev; }; }, [isOpen]);`. The cleanup restores any pre-existing `body` overflow and avoids fighting other overlays.
 - **Note:** Only one overlay (Modal or ConfirmDialog) is expected at a time. If nested modals are added later, consider a stack of stored values; for now, a single hook is enough. Modal and ConfirmDialog both call `useScrollLock(open)`. Implement `useScrollLock` before Modal (1c).
 - **Mount only when open:** Render Modal/ConfirmDialog only when `open` is true (e.g. `{showAuthModal ? <Modal ...> : null}` or `{deleteConfirm && <ConfirmDialog open={true} ... />}`). That way `useScrollLock` and `useFocusTrap` run only while the dialog is on-screen; effects do not run for an offscreen, closed dialog.
+- **Best practice (rendering-conditional-render):** Prefer ternary (`condition ? <Modal ... /> : null`) over `&&` for conditional rendering of overlays.
 
 ### 2. Global Styles and Config
 
@@ -125,6 +129,7 @@ Use the skip link as `<a href="#main-content" className="skip-link">`. **(A)** U
   - `useScrollLock(open)` — store/restore `body.style.overflow` (see §1.1b).
   - **Modal's own `useEffect`:** when `open`, add `keydown` for `Escape` → `onClose`; cleanup on unmount or when `open` becomes false. Close button and backdrop `onClick` call `onClose`.
 - **Styling:** `max-w-md`, `p-4`; close button `absolute -top-10 right-0` (or top-right inside) to match current.
+- **Auth modal usage:** When wrapping `Auth` in `Modal`, set `closeButton={false}` and allow the Auth component to render its existing close control. Preserve the current card styling and `backdrop-blur` where used (FAQ).
 
 **Sub-step 1c:** Implement `Modal`, wire it on Landing (and optionally FAQ) as a smoke test, then run keyboard and screen-reader checks for this step.
 
@@ -147,7 +152,7 @@ Use the skip link as `<a href="#main-content" className="skip-link">`. **(A)** U
 
 #### 5.1 [src/App.tsx](src/App.tsx)
 
-- **Skip link:** Inside `Router`, before `Routes`, add `<a href="#main-content" className="skip-link">Skip to main content</a>`. The `.skip-link` and `.skip-link:focus` rules are in §2.1 (decision B).
+- **Skip link:** Inside `Router`, before `Routes`, add `<a href="#main-content" className="skip-link">Skip to main content</a>`. The `.skip-link` and `.skip-link:focus` rules are in §2.1 (decision B). Each route’s main container should be `<main id="main-content">...</main>` so the skip link lands correctly (Landing, FAQ, Dashboard, Editor, SharePreview).
 
 - **Auth loading:** In the `isAuthLoading` block, add an `aria-live="polite"` region with "Loading…" for screen readers (e.g. a visually hidden span or a small caption next to the spinner).
 
@@ -178,6 +183,7 @@ Use the skip link as `<a href="#main-content" className="skip-link">`. **(A)** U
 - **`useScrollLock`:** Only one overlay (Modal or ConfirmDialog) is expected at a time. Nested modals would require a stack of stored `body.style.overflow` values; for now, the single store/restore in `useScrollLock` is sufficient.
 - **`useFocusTrap` and `Modal`:** `useFocusTrap` handles only Tab cycling and focus save/restore; ESC and backdrop are handled in `Modal`/`ConfirmDialog` via their own `useEffect`. Must run only when the modal is open and when the inner content is mounted; use `innerRef` and `isActive=open`. Ensure `onClose` is stable or the effect deps are correct to avoid stale closures.
 - **`prefers-reduced-motion`:** The global override is broad; if any animation is required for correctness, consider a more targeted override. The current review recommends the global rule.
+- **Web Interface Guidelines:** Fetch from GitHub failed during review; re-run the guidelines check before implementation and ensure any UI-specific rules are addressed.
 
 ---
 

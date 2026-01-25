@@ -61,7 +61,15 @@ function App() {
   if (isAuthLoading) {
     return (
       <div className="min-h-screen bg-slate-950 flex items-center justify-center">
-        <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
+        <main id="main-content">
+          <div className="animate-spin rounded-full h-12 w-12 border-b-2 border-primary"></div>
+          <span className="sr-only" aria-live="polite">
+            Loading…
+          </span>
+        </main>
       </div>
     );
   }
@@ -69,6 +77,9 @@ function App() {
   return (
     <ErrorBoundary resetKeys={[user?.uid]}>
       <Router>
+        <a href="#main-content" className="skip-link">
+          Skip to main content
+        </a>
         <Routes>
           <Route path="/faq" element={<FAQ />} />
           <Route path="/share/:token" element={<SharePreview user={user} />} />

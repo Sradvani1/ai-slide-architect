@@ -129,12 +129,15 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                         className="absolute top-4 right-4 rounded-full p-3 text-[#A7A9A9] hover:text-[#F5F5F5] hover:bg-white/5 transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#32B8C6] focus-visible:ring-offset-2 focus-visible:ring-offset-[#262828]"
                         aria-label="Close modal"
                     >
-                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24" aria-hidden="true">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                         </svg>
                     </button>
                 )}
-                <h1 className="text-2xl sm:text-3xl font-semibold text-center mb-4 sm:mb-6 text-[#32B8C6]">
+                <h1
+                    id={isModal ? 'auth-dialog-title' : undefined}
+                    className="text-2xl sm:text-3xl font-semibold text-center mb-4 sm:mb-6 text-[#32B8C6]"
+                >
                     Welcome Back
                 </h1>
                 <p className="text-[#A7A9A9] text-center mb-6 sm:mb-8">
@@ -155,14 +158,15 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                 <div className="flex flex-col gap-3 sm:gap-4">
                     <div
                         ref={googleButtonWrapperRef}
-                        className="w-full max-w-[320px] mx-auto min-h-[44px]"
+                        className="relative w-full max-w-[320px] mx-auto h-[44px]"
                     >
-                        {!isGoogleReady && (
-                            <div className="h-[44px] w-full rounded-full border border-[#3A3C3C] bg-[#262828] animate-pulse" />
-                        )}
+                        <div
+                            aria-hidden="true"
+                            className={`absolute inset-0 rounded-full border border-[#3A3C3C] bg-[#262828] transition-opacity ${isGoogleReady ? 'opacity-0' : 'opacity-100 animate-pulse'}`}
+                        />
                         <div
                             ref={googleButtonRef}
-                            className={`w-full ${isGoogleReady ? 'block' : 'hidden'}`}
+                            className={`absolute inset-0 w-full transition-opacity ${isGoogleReady ? 'opacity-100' : 'opacity-0'}`}
                         />
                     </div>
 
@@ -178,10 +182,13 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                         </label>
                         <input
                             id="auth-email"
+                            name="email"
                             type="email"
                             value={email}
                             onChange={(event) => setEmail(event.target.value)}
-                            placeholder="name@example.com"
+                            placeholder="name@example.com…"
+                            autoComplete="email"
+                            spellCheck={false}
                             className="w-full rounded border border-[#3A3C3C] bg-[#262828] px-3 py-2 text-[#F5F5F5] placeholder:text-[#A7A9A9] focus:border-[#32B8C6] focus:outline-none focus:ring-2 focus:ring-[#32B8C6]/30"
                             required
                         />
@@ -190,7 +197,7 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                             className="w-full bg-[#32B8C6] hover:bg-[#2CA3B0] text-[#1F2121] font-semibold py-2 rounded transition focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#32B8C6] focus-visible:ring-offset-2 focus-visible:ring-offset-[#262828] disabled:opacity-50 disabled:cursor-not-allowed"
                             disabled={isEmailSending}
                         >
-                            {isEmailSending ? 'Sending link...' : 'Continue with Email'}
+                            {isEmailSending ? 'Sending link…' : 'Continue with Email'}
                         </button>
                     </form>
                 </div>

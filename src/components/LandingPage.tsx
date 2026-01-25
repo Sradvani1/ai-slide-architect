@@ -5,6 +5,7 @@ import { HowItWorks } from './landing/HowItWorks';
 import { UseCases } from './landing/UseCases';
 import { Footer } from './landing/Footer';
 import { Auth } from './Auth';
+import { Modal } from './Modal';
 import { Header } from './landing/Header';
 
 export const LandingPage: React.FC = () => {
@@ -22,7 +23,7 @@ export const LandingPage: React.FC = () => {
         <div className="min-h-screen bg-background">
             <Header onSignIn={handleGetStarted} />
 
-            <main>
+            <main id="main-content">
                 <Hero onGetStarted={handleGetStarted} />
                 <Features />
                 <HowItWorks />
@@ -31,19 +32,15 @@ export const LandingPage: React.FC = () => {
 
             <Footer />
 
-            {showAuthModal && (
-                <div
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-                    onClick={handleCloseModal}
-                >
-                    <div
-                        className="relative max-w-[500px] w-full"
-                        onClick={(e) => e.stopPropagation()}
-                    >
-                        <Auth isModal={true} onClose={handleCloseModal} />
-                    </div>
-                </div>
-            )}
+            <Modal
+                open={showAuthModal}
+                onClose={handleCloseModal}
+                closeButton={false}
+                ariaLabelledby="auth-dialog-title"
+                panelClassName="max-w-[500px] p-0"
+            >
+                <Auth isModal={true} onClose={handleCloseModal} />
+            </Modal>
         </div>
     );
 };

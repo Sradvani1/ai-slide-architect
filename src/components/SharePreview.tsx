@@ -3,6 +3,7 @@ import { useNavigate, useParams } from 'react-router-dom';
 import type { User } from 'firebase/auth';
 import { SlideDeck } from './SlideDeck';
 import { Auth } from './Auth';
+import { Modal } from './Modal';
 import { claimShareLink, fetchSharePreview } from '../services/shareService';
 import type { Slide } from '../types';
 
@@ -143,14 +144,14 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                             className="btn-primary px-5 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
                             disabled={isClaiming}
                         >
-                            {isClaiming ? 'Preparing your copy...' : ctaLabel}
+                            {isClaiming ? 'Preparing your copy…' : ctaLabel}
                         </button>
                         <p className="text-xs text-secondary-text">{helperText}</p>
                     </div>
                 </div>
             </div>
 
-            <div className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
+            <main id="main-content" className="max-w-6xl mx-auto px-4 sm:px-6 py-6">
                 <SlideDeck
                     slides={preview?.slides || null}
                     sources={[]}
@@ -166,31 +167,27 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                     projectId={null}
                     readOnly={true}
                 />
-            </div>
+            </main>
 
-            {showAuthModal && (
-                <div
-                    className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4"
-                    onClick={() => {
+            <Modal
+                open={showAuthModal}
+                onClose={() => {
+                    setShowAuthModal(false);
+                    setShouldClaim(false);
+                }}
+                closeButton={false}
+                ariaLabelledby="auth-dialog-title"
+                panelClassName="max-w-[500px] p-0"
+            >
+                <Auth
+                    isModal={true}
+                    onClose={() => {
                         setShowAuthModal(false);
                         setShouldClaim(false);
                     }}
-                >
-                    <div
-                        className="relative max-w-[500px] w-full"
-                        onClick={(event) => event.stopPropagation()}
-                    >
-                        <Auth
-                            isModal={true}
-                            onClose={() => {
-                                setShowAuthModal(false);
-                                setShouldClaim(false);
-                            }}
-                            continueUrl={window.location.href}
-                        />
-                    </div>
-                </div>
-            )}
+                    continueUrl={window.location.href}
+                />
+            </Modal>
         </div>
     );
 };
