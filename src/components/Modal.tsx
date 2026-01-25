@@ -7,6 +7,7 @@ interface ModalProps {
   onClose: () => void;
   ariaLabelledby?: string;
   closeButton?: boolean;
+  keepMounted?: boolean;
   children: React.ReactNode;
   backdropClassName?: string;
   panelClassName?: string;
@@ -17,6 +18,7 @@ export function Modal({
   onClose,
   ariaLabelledby = 'auth-dialog-title',
   closeButton = true,
+  keepMounted = false,
   children,
   backdropClassName = '',
   panelClassName = ''
@@ -39,28 +41,33 @@ export function Modal({
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [open, onClose]);
 
-  if (!open) return null;
+  if (!open && !keepMounted) return null;
+
+  const isHidden = !open && keepMounted;
 
   return (
     <div
-      className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${backdropClassName}`}
-      onClick={onClose}
+      className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${isHidden ? 'invisible pointer-events-none' : ''} ${backdropClassName}`}
+      onClick={open ? onClose : undefined}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
           event.preventDefault();
-          onClose();
+          if (open) {
+            onClose();
+          }
         }
       }}
-      role="button"
-      tabIndex={0}
-      aria-label="Close dialog"
+      role={open ? 'button' : undefined}
+      tabIndex={open ? 0 : -1}
+      aria-label={open ? 'Close dialog' : undefined}
+      aria-hidden={isHidden ? 'true' : undefined}
       data-focus-trap-exclude
     >
       <div
         ref={panelRef}
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby={ariaLabelledby}
+        role={open ? 'dialog' : undefined}
+        aria-modal={open ? 'true' : undefined}
+        aria-labelledby={open ? ariaLabelledby : undefined}
         tabIndex={-1}
         className={`relative w-full max-w-md p-4 ${panelClassName}`}
         onClick={(event) => event.stopPropagation()}

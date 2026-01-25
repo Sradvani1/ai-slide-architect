@@ -36,6 +36,7 @@ export const LandingPage: React.FC = () => {
                 open={showAuthModal}
                 onClose={handleCloseModal}
                 closeButton={false}
+                keepMounted={true}
                 ariaLabelledby="auth-dialog-title"
                 panelClassName="max-w-[500px] p-0"
             >

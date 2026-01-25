@@ -86,7 +86,11 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                 shape: 'pill',
                 text: 'signin_with'
             });
-            setIsGoogleReady(true);
+            requestAnimationFrame(() => {
+                requestAnimationFrame(() => {
+                    setIsGoogleReady(true);
+                });
+            });
         }, 250);
 
         return () => {
@@ -160,13 +164,16 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                         ref={googleButtonWrapperRef}
                         className="relative w-full max-w-[320px] mx-auto h-[44px]"
                     >
-                        <div
-                            aria-hidden="true"
-                            className={`absolute inset-0 rounded-full border border-[#3A3C3C] bg-[#262828] transition-opacity ${isGoogleReady ? 'opacity-0' : 'opacity-100 animate-pulse'}`}
-                        />
+                        {!isGoogleReady && (
+                            <div
+                                aria-hidden="true"
+                                className="absolute inset-0 rounded-full border border-[#3A3C3C] bg-[#262828]"
+                            />
+                        )}
                         <div
                             ref={googleButtonRef}
-                            className={`absolute inset-0 w-full transition-opacity ${isGoogleReady ? 'opacity-100' : 'opacity-0'}`}
+                            className="absolute inset-0 w-full"
+                            style={{ visibility: isGoogleReady ? 'visible' : 'hidden' }}
                         />
                     </div>
 

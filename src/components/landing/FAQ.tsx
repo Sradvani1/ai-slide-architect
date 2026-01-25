@@ -145,6 +145,7 @@ export const FAQ: React.FC = () => {
                 open={showAuthModal}
                 onClose={() => setShowAuthModal(false)}
                 closeButton={false}
+                keepMounted={true}
                 ariaLabelledby="auth-dialog-title"
                 backdropClassName="backdrop-blur-sm"
                 panelClassName="max-w-[500px] p-0"
