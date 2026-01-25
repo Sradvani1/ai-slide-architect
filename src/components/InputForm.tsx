@@ -113,7 +113,7 @@ export const InputForm: React.FC<InputFormProps> = ({
             className="flex items-center text-xs font-semibold uppercase tracking-wider text-slate-400 mb-1 hover:text-primary transition-colors focus:outline-none"
           >
             <span className="mr-1">Description</span>
-            <span className="text-[10px] text-slate-500 bg-slate-800/50 px-1.5 py-0.5 rounded mr-2">Optional</span>
+            <span className="text-[10px] text-[#134252] bg-[#F5F5F5] px-1.5 py-0.5 rounded mr-2 border border-border-light">Optional</span>
             <svg
               className={`w-3 h-3 transition-transform duration-200 ${isDescriptionOpen ? 'transform rotate-180' : ''}`}
               fill="none"
@@ -231,10 +231,10 @@ export const InputForm: React.FC<InputFormProps> = ({
             disabled={isLoading}
           />
           <div className="flex justify-between text-xs text-slate-400 mt-2 px-1">
-            <span className={bulletsPerSlide === 3 ? "text-sky-400 font-bold" : ""}>3</span>
-            <span className={bulletsPerSlide === 4 ? "text-sky-400 font-bold" : ""}>4</span>
-            <span className={bulletsPerSlide === 5 ? "text-sky-400 font-bold" : ""}>5</span>
-            <span className={bulletsPerSlide === 6 ? "text-sky-400 font-bold" : ""}>6</span>
+            <span className={bulletsPerSlide === 3 ? "text-sky-400 font-semibold" : ""}>3</span>
+            <span className={bulletsPerSlide === 4 ? "text-sky-400 font-semibold" : ""}>4</span>
+            <span className={bulletsPerSlide === 5 ? "text-sky-400 font-semibold" : ""}>5</span>
+            <span className={bulletsPerSlide === 6 ? "text-sky-400 font-semibold" : ""}>6</span>
           </div>
         </div>
 
@@ -249,18 +249,18 @@ export const InputForm: React.FC<InputFormProps> = ({
             type="range"
             id="numSlides"
             value={numSlides}
-            onChange={(e) => setNumSlides(Math.max(1, parseInt(e.target.value, 10)))}
-            min="0"
-            max="20"
+            onChange={(e) => setNumSlides(Math.min(10, Math.max(2, parseInt(e.target.value, 10))))}
+            min="2"
+            max="10"
             className="w-full h-2 bg-slate-600 rounded-lg appearance-none cursor-pointer accent-sky-500"
             disabled={isLoading}
           />
           <div className="relative h-4 mt-2 text-xs text-slate-400">
-            {[1, 5, 10, 15, 20].map((val) => (
+            {[2, 4, 6, 8, 10].map((val) => (
               <span
                 key={val}
-                className={`absolute transform -translate-x-1/2 ${numSlides === val ? "text-sky-400 font-bold" : ""}`}
-                style={{ left: `calc(${(val / 20) * 100}% + ${8 - (val / 20) * 16}px)` }}
+                className={`absolute transform -translate-x-1/2 ${numSlides === val ? "text-sky-400 font-semibold" : ""}`}
+                style={{ left: `calc(${((val - 2) / 8) * 100}% + ${8 - ((val - 2) / 8) * 16}px)` }}
               >
                 {val}
               </span>
