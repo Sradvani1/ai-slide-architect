@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { ArrowDownTrayIcon, ClipboardDocumentIcon, DocumentTextIcon, ShareIcon } from '@heroicons/react/24/outline';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { generateImageFromPrompt } from '../services/geminiService';
@@ -367,6 +368,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingReport, setIsDownloadingReport] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
+    const [isShareVisible, setIsShareVisible] = useState(false);
 
     const handleExportPPTX = async () => {
         if (readOnly) return;
@@ -486,6 +488,15 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
         }
     };
 
+    const handleShareToggle = () => {
+        if (!onShare) return;
+        const shouldShow = !isShareVisible;
+        setIsShareVisible(shouldShow);
+        if (shouldShow && !shareUrl) {
+            onShare();
+        }
+    };
+
     const handleDownloadNotes = async () => {
         if (readOnly) return;
         if (!slides) return;
@@ -561,16 +572,17 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     return (
         <div className="flex flex-col h-full animate-fade-in">
             <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pt-4 gap-4">
-                <div className="flex flex-wrap items-center gap-2 w-full sm:w-auto">
+                <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:ml-auto">
                     {onShare && (
                         <button
-                            onClick={onShare}
+                            onClick={handleShareToggle}
                             disabled={readOnly || shareDisabled}
                             className="group relative flex items-center space-x-1.5 px-3 py-1.5 rounded-[6px] border transition-all disabled:opacity-50 disabled:cursor-not-allowed
                                 bg-[#F5F5F5] border-border-light hover:border-primary hover:shadow-[0_1px_3px_rgba(33,128,234,0.1)]"
                             title={readOnly ? "Log in to edit and download" : (shareDisabled ? "Finish generating to share" : "Share")}
                         >
-                            <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
+                            <div className="relative z-10 flex items-center space-x-2 text-primary transition-colors">
+                                <ShareIcon className="h-4 w-4" aria-hidden="true" />
                                 <span className="font-semibold tracking-wide text-[13px] font-[600]">Share</span>
                             </div>
                         </button>
@@ -586,10 +598,10 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         title={readOnly ? "Log in to edit and download" : (researchContent?.trim() ? "Download Research Report" : "Research report not available yet")}
                     >
                         <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-primary/20 transition-colors duration-300"></div>
 
-                        <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-primary transition-colors">
-                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Research Report</span>
+                        <div className="relative z-10 flex items-center space-x-2 text-primary transition-colors">
+                            <DocumentTextIcon className="h-4 w-4" aria-hidden="true" />
+                            <span className="font-semibold tracking-wide text-[13px] font-[600]">Research</span>
                         </div>
                     </button>
 
@@ -603,10 +615,10 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                             }`}
                         title={readOnly ? "Log in to edit and download" : "Download Notes"}
                     >
-                        <div className="absolute inset-0 bg-secondary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-secondary/20 transition-colors duration-300"></div>
+                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-                        <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-secondary transition-colors">
+                        <div className="relative z-10 flex items-center space-x-2 text-primary transition-colors">
+                            <ClipboardDocumentIcon className="h-4 w-4" aria-hidden="true" />
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Notes</span>
                         </div>
                     </button>
@@ -621,24 +633,24 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                             }`}
                         title={readOnly ? "Log in to edit and download" : "Download Slides"}
                     >
-                        <div className="absolute inset-0 bg-accent/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
-                        <div className="absolute inset-0 border border-transparent rounded-lg group-hover:border-accent/20 transition-colors duration-300"></div>
+                        <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
-                        <div className="relative z-10 flex items-center space-x-2 text-secondary-text group-hover:text-accent transition-colors">
+                        <div className="relative z-10 flex items-center space-x-2 text-primary transition-colors">
+                            <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Slides</span>
                         </div>
                     </button>
                 </div>
             </div>
 
-            {shareUrl && (
+            {shareUrl && isShareVisible && (
                 <div className="mb-6 rounded-2xl border border-slate-200 bg-white/80 shadow-sm p-4">
                     <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
                         <input
                             type="text"
                             value={shareUrl}
                             readOnly
-                            className="w-full md:w-[420px] rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
+                            className="w-full md:flex-1 rounded-lg border border-slate-200 bg-slate-50 px-3 py-2 text-xs text-slate-700 focus:outline-none focus:ring-2 focus:ring-primary/20"
                             aria-label="Share link"
                         />
                         <button

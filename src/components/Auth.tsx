@@ -25,6 +25,7 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
     const [isEmailSending, setIsEmailSending] = useState(false);
     const [email, setEmail] = useState('');
     const [message, setMessage] = useState<{ type: 'error' | 'success', text: string } | null>(null);
+    const [isGoogleReady, setIsGoogleReady] = useState(false);
     const googleButtonRef = useRef<HTMLDivElement | null>(null);
     const googleButtonWrapperRef = useRef<HTMLDivElement | null>(null);
 
@@ -85,6 +86,7 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                 shape: 'pill',
                 text: 'signin_with'
             });
+            setIsGoogleReady(true);
         }, 250);
 
         return () => {
@@ -151,8 +153,17 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                 )}
 
                 <div className="flex flex-col gap-3 sm:gap-4">
-                    <div ref={googleButtonWrapperRef} className="w-full max-w-[320px] mx-auto min-h-[44px]">
-                        <div ref={googleButtonRef} className="w-full" />
+                    <div
+                        ref={googleButtonWrapperRef}
+                        className="w-full max-w-[320px] mx-auto min-h-[44px]"
+                    >
+                        {!isGoogleReady && (
+                            <div className="h-[44px] w-full rounded-full border border-[#3A3C3C] bg-[#262828] animate-pulse" />
+                        )}
+                        <div
+                            ref={googleButtonRef}
+                            className={`w-full ${isGoogleReady ? 'block' : 'hidden'}`}
+                        />
                     </div>
 
                     <div className="flex items-center gap-3 text-[#A7A9A9] text-sm">
