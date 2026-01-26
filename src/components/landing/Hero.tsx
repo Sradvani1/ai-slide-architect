@@ -11,7 +11,7 @@ export const Hero: React.FC<HeroProps> = ({ onGetStarted }) => {
                 Create Classroom Slides in Seconds
             </h1>
             <p className="text-lg md:text-xl text-secondary-text max-w-2xl mx-auto mb-10 leading-relaxed">
-                Turn any topic or document into a lesson-ready presentation with notes and images.
+                Turn any topic or document into a slide presentation with grounded research, notes and images.
             </p>
             <button
                 onClick={onGetStarted}

@@ -8,7 +8,7 @@ export const Footer: React.FC = () => {
                 <div className="flex flex-col md:flex-row justify-between items-center gap-4">
                     <div className="text-center md:text-left">
                         <p className="text-sm text-secondary-text font-medium">
-                            SlidesEdu - Built for educators, grades 6-12
+                            SlidesEdu - Built for teachers and students of all grade levels.
                         </p>
                         <p className="text-xs text-secondary-text mt-1">
                             © {new Date().getFullYear()} SlidesEdu. All rights reserved.

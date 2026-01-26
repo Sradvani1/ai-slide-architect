@@ -15,7 +15,7 @@ export const HowItWorks: React.FC = () => {
         {
             number: '3',
             title: 'Download',
-            description: 'Get your finished deck with speaker notes in seconds.',
+            description: 'Get your finished deck with speaker notes and images in seconds.',
         },
     ];
 
