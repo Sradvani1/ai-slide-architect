@@ -44,10 +44,14 @@ export function Modal({
   if (!open && !keepMounted) return null;
 
   const isHidden = !open && keepMounted;
+  const hiddenStyle = isHidden
+    ? { visibility: 'hidden' as const, opacity: 0, pointerEvents: 'none' as const }
+    : undefined;
 
   return (
     <div
-      className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${isHidden ? 'invisible pointer-events-none' : ''} ${backdropClassName}`}
+      className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${backdropClassName}`}
+      style={hiddenStyle}
       onClick={open ? onClose : undefined}
       onKeyDown={(event) => {
         if (event.key === 'Enter' || event.key === ' ') {
