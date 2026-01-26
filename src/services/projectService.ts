@@ -85,7 +85,8 @@ export const uploadImageToStorage = async (
             promptId,
             aspectRatio,
             inputTokens,
-            outputTokens
+            outputTokens,
+            source: 'generated'
         };
     } catch (error) {
         console.error("Error uploading image:", error);

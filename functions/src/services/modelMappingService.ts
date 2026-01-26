@@ -6,6 +6,7 @@ const OPERATION_MAP: Record<string, { modelKey: string; operationType: Operation
     'slide-research': { modelKey: MODEL_SLIDE_GENERATION, operationType: 'text' },
     'slide-generation': { modelKey: MODEL_SLIDE_GENERATION, operationType: 'text' },
     'image-prompt': { modelKey: MODEL_SLIDE_GENERATION, operationType: 'text' },
+    'image-search-terms': { modelKey: MODEL_SLIDE_GENERATION, operationType: 'text' },
     'text-extraction': { modelKey: MODEL_SLIDE_GENERATION, operationType: 'text' },
     'image-generation': { modelKey: MODEL_IMAGE_GENERATION, operationType: 'image' }
 };

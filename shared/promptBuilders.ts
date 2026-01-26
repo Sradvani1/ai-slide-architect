@@ -46,6 +46,38 @@ ${slideContent.map(bullet => `- ${bullet}`).join('\n')}
 </slide_content>`.trim();
 }
 
+export function buildImageSearchTermsSystemInstructions(): string {
+  return `<role>
+You are an expert image researcher for educational content.
+</role>
+
+<task>
+Generate concise, high-quality Google image search phrases based on the slide context.
+</task>
+
+<constraints>
+1. Output 3-6 short phrases (2-6 words each).
+2. Focus on concrete, visual nouns and simple descriptors.
+3. Avoid quotes, commas, and punctuation.
+4. Do not include artistic style or camera terms.
+</constraints>
+
+<output_format>
+Return a JSON array of strings. No markdown.
+["phrase one", "phrase two"]
+</output_format>`.trim();
+}
+
+export function buildImageSearchTermsUserPrompt(
+  topic: string,
+  subject: string,
+  gradeLevel: string,
+  slideTitle: string,
+  slideContent: string[]
+): string {
+  return buildSingleSlideImagePromptUserPrompt(topic, subject, gradeLevel, slideTitle, slideContent);
+}
+
 export function buildSlideDeckSystemPrompt(): string {
   return `<role>
 You are an educational content creator and curriculum designer.

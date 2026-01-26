@@ -13,11 +13,13 @@ admin.initializeApp();
 
 // Define the secret for admin user ID
 const adminUserIdSecret = defineSecret('ADMIN_USER_ID');
+const braveApiKeySecret = defineSecret('BRAVE_API_KEY');
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
 import { generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
-import { generateImage } from './services/imageGeneration';
+import { generateImage, generateImageSearchTerms } from './services/imageGeneration';
+import { searchBraveImages } from './services/imageSearch';
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { createShareLink, claimShareLink, getSharePreview } from './services/shareService';
 import { Slide, ProjectData } from '@shared/types';
@@ -341,7 +343,88 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
 });
 
 /**
- * 9. Claim a share link and create a copy for the current user.
+ * 9. Search images for a specific slide (one-time).
+ */
+app.post('/search-images', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { projectId, slideId } = req.body;
+
+        if (!projectId || !slideId) {
+            res.status(400).json({ error: "Missing required fields: projectId, slideId" });
+            return;
+        }
+
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found or unauthorized" });
+            return;
+        }
+
+        const slideRef = projectRef.collection('slides').doc(slideId);
+        const slideDoc = await slideRef.get();
+
+        if (!slideDoc.exists) {
+            res.status(404).json({ error: "Slide not found" });
+            return;
+        }
+
+        const slideData = slideDoc.data() as Slide;
+        const projectData = projectDoc.data() as ProjectData;
+
+        const existingSearchImages = (slideData.generatedImages || []).filter(img => img.source === 'search');
+        if (existingSearchImages.length > 0) {
+            res.status(400).json({ error: "Search already completed for this slide." });
+            return;
+        }
+
+        const searchTermsResult = await generateImageSearchTerms(
+            projectData.topic,
+            projectData.subject,
+            projectData.gradeLevel,
+            slideData.title,
+            slideData.content || [],
+            { userId, projectId }
+        );
+        const effectiveTerms = searchTermsResult.terms.length > 0
+            ? searchTermsResult.terms
+            : [slideData.title].filter(Boolean);
+
+        const apiKey = braveApiKeySecret.value();
+        if (!apiKey) {
+            res.status(500).json({ error: "Image search is not configured." });
+            return;
+        }
+
+        const searchResults = await searchBraveImages(effectiveTerms, apiKey, 50);
+
+        const mergedImages = [...(slideData.generatedImages || []), ...searchResults];
+
+        await slideRef.update({
+            generatedImages: mergedImages,
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        res.json({
+            searchTerms: effectiveTerms,
+            results: searchResults
+        });
+    } catch (error: any) {
+        console.error("Search Images Error:", error);
+        res.status(500).json({ error: error.message || "Image search failed" });
+    }
+});
+
+/**
+ * 10. Claim a share link and create a copy for the current user.
  */
 app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
     try {
@@ -366,7 +449,7 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
 });
 
 /**
- * 10. Fetch share preview data (no auth required).
+ * 11. Fetch share preview data (no auth required).
  */
 app.get('/share/preview', async (req: express.Request, res: express.Response) => {
     try {
@@ -387,7 +470,7 @@ app.get('/share/preview', async (req: express.Request, res: express.Response) =>
 });
 
 /**
- * 11. Create a persistent share link when a project is created.
+ * 12. Create a persistent share link when a project is created.
  */
 export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{projectId}', async (event) => {
     const { userId, projectId } = event.params;
@@ -409,7 +492,7 @@ export const api = functions.https.onRequest(
     {
         timeoutSeconds: 300,
         memory: '1GiB',
-        secrets: [adminUserIdSecret, apiKey]
+        secrets: [adminUserIdSecret, apiKey, braveApiKeySecret]
     },
     app
 );

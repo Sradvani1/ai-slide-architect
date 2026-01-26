@@ -4,12 +4,16 @@
 export interface GeneratedImage {
     id: string;
     url: string;
-    storagePath: string;
+    storagePath?: string;
     createdAt: number;
     aspectRatio?: '16:9' | '1:1';
     inputTokens?: number;
     outputTokens?: number;
-    promptId: string; // Maps image to specific prompt
+    promptId?: string; // Maps image to specific prompt
+    source?: 'generated' | 'search';
+    thumbnailUrl?: string;
+    sourcePageUrl?: string;
+    provider?: 'google_cse' | 'brave';
 }
 
 /**

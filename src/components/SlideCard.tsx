@@ -1,7 +1,7 @@
-import React, { useState, useEffect, useRef } from 'react';
-import type { Slide, ImageGenError } from '../types';
+import React, { useState, useEffect, useRef, useMemo } from 'react';
+import type { Slide } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon, PencilIcon } from './icons';
-import { generateImageFromPrompt, generatePrompt } from '../services/geminiService';
+import { generateImageFromPrompt, generatePrompt, searchImages } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
 
@@ -65,11 +65,13 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const [isEditingPrompt, setIsEditingPrompt] = useState(false);
     const [isPromptExpanded, setIsPromptExpanded] = useState(false);
     const [isGeneratingPrompt, setIsGeneratingPrompt] = useState(false);
+    const [isSearching, setIsSearching] = useState(false);
+    const [imageMode, setImageMode] = useState<'generate' | 'search'>('search');
     const isReadOnly = readOnly;
 
     // Source of Truth
     const imagePrompts = slide.imagePrompts || [];
-    const generatedImages = slide.generatedImages || [];
+    const allImages = slide.generatedImages || [];
 
     // Determine current prompt
     const currentPromptId = slide.currentPromptId && imagePrompts.some(p => p.id === slide.currentPromptId)
@@ -80,8 +82,18 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
     const [editedPrompt, setEditedPrompt] = useState(imagePromptText);
 
-    // Filter images for current prompt OR orphaned images
-    const visibleImages = generatedImages.filter(img => !img.promptId || img.promptId === currentPromptId);
+    const [failedSearchImageIds, setFailedSearchImageIds] = useState<Set<string>>(new Set());
+
+    const { generatedImagesForSlide, searchImagesForSlide } = useMemo(() => {
+        const generated = allImages.filter(img => img.source !== 'search');
+        const search = allImages.filter(img => img.source === 'search');
+        return {
+            generatedImagesForSlide: generated,
+            searchImagesForSlide: search.slice(0, 50),
+        };
+    }, [allImages, currentPromptId]);
+
+    const hasSearchResults = searchImagesForSlide.length > 0;
 
     // Sync editedPrompt when current prompt changes
     useEffect(() => {
@@ -127,9 +139,6 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
         }
     }, [slide.promptGenerationState]);
 
-    const showGenerating = isGeneratingPrompt;
-
-
     const sanitizeFilename = (filename: string): string => {
         return filename
             .replace(/[<>:"/\\|?*]/g, '-')
@@ -172,7 +181,7 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 );
 
                 onUpdateSlide({
-                    generatedImages: [...generatedImages, generatedImage],
+                    generatedImages: [...allImages, generatedImage],
                     backgroundImage: generatedImage.url
                 });
 
@@ -200,6 +209,35 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             setIsGeneratingImage(false);
             isGeneratingImageRef.current = false;
         }
+    };
+
+    const handleSearchImages = async () => {
+        if (isReadOnly || isSearching || !projectId) return;
+        if (hasSearchResults) {
+            alert('Search already completed for this slide.');
+            return;
+        }
+        setFailedSearchImageIds(new Set());
+        setIsSearching(true);
+        try {
+            await searchImages(projectId, slide.id);
+        } catch (error: any) {
+            console.error('Error searching images:', error);
+            const message = error?.response?.data?.error || 'Failed to search images. Please try again.';
+            alert(message);
+        } finally {
+            setIsSearching(false);
+        }
+    };
+
+    const handleSearchImageError = (imageId: string) => {
+        setFailedSearchImageIds(prev => {
+            const next = new Set(prev);
+            next.add(imageId);
+            return next;
+        });
+        const updatedImages = allImages.filter(img => img.id !== imageId);
+        onUpdateSlide({ generatedImages: updatedImages });
     };
 
     const handleGeneratePrompt = async () => {
@@ -263,6 +301,32 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             setIsEditingPrompt(false);
         }
     }, [isReadOnly]);
+
+    const handlePrimaryAction = () => {
+        if (imageMode === 'search') {
+            handleSearchImages();
+            return;
+        }
+
+        if (imagePrompts.length === 0) {
+            handleGeneratePrompt();
+            return;
+        }
+
+        handleGenerateImage();
+    };
+
+    const actionLabel = imageMode === 'search'
+        ? (isSearching ? 'Searching...' : hasSearchResults ? 'Search Complete' : 'Search Images')
+        : imagePrompts.length === 0
+            ? (isGeneratingPrompt ? 'Generating...' : 'Generate Visual Idea')
+            : (isGeneratingImage ? 'Generating...' : 'Generate Image');
+
+    const isPrimaryActionDisabled = imageMode === 'search'
+        ? isSearching || hasSearchResults || !projectId
+        : imagePrompts.length === 0
+            ? isGeneratingPrompt || !projectId
+            : isGeneratingImage || !imagePromptText;
 
     return (
         <div className="glass-card rounded-2xl overflow-hidden group border border-[#rgba(0,0,0,0.08)] shadow-[0_1px_3px_rgba(0,0,0,0.08)]">
@@ -339,200 +403,211 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
             {!isReadOnly && (
                 <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
-                    {slide.promptGenerationState === 'failed' ? (
-                    <div className="flex flex-col items-center justify-center p-6 bg-red-50/50 rounded-xl border border-red-100 shadow-sm animate-fade-in">
-                        <div className="flex flex-col items-center gap-2 mb-3">
-                            <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Generation Failed</span>
-                            <p className="text-xs text-red-500 max-w-[200px] text-center">{slide.promptGenerationError || 'Unknown error occurred'}</p>
-                        </div>
-                        <button
-                            onClick={handleRetryPromptGeneration}
-                            disabled={isRetrying || isReadOnly}
-                            className={`px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2`}
-                        >
-                            {isRetrying && (
-                                <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                </svg>
-                            )}
-                            {isRetrying ? 'Retrying...' : 'Retry Generation'}
-                        </button>
-                    </div>
-                ) : imagePrompts.length === 0 ? (
-                    isReadOnly ? null : (
-                        // New: Show generate button when no prompt exists
-                        <div className={`flex flex-col p-6 bg-white/50 rounded-xl border border-slate-100 shadow-sm w-full ${showGenerating ? 'items-center justify-center' : 'items-center justify-center'}`}>
-                            {showGenerating ? (
-                                // Show loading state if generation is in progress
-                                <div className="flex flex-col items-center gap-3">
-                                    <svg className="animate-spin h-5 w-5 text-primary" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                    {slide.promptGenerationState === 'failed' && (
+                        <div className="flex flex-col items-center justify-center p-6 bg-red-50/50 rounded-xl border border-red-100 shadow-sm animate-fade-in">
+                            <div className="flex flex-col items-center gap-2 mb-3">
+                                <span className="text-xs font-bold text-red-600 uppercase tracking-widest">Generation Failed</span>
+                                <p className="text-xs text-red-500 max-w-[200px] text-center">{slide.promptGenerationError || 'Unknown error occurred'}</p>
+                            </div>
+                            <button
+                                onClick={handleRetryPromptGeneration}
+                                disabled={isRetrying}
+                                className="px-4 py-2 bg-red-600 hover:bg-red-700 text-white rounded-lg text-xs font-bold shadow-md shadow-red-200 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                            >
+                                {isRetrying && (
+                                    <svg className="animate-spin h-3 w-3 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                                     </svg>
-                                    <span className="text-sm font-semibold text-secondary-text uppercase tracking-widest">
-                                        Generating Visual Idea...
-                                    </span>
-                                </div>
-                            ) : (
-                                <button
-                                    onClick={handleGeneratePrompt}
-                                    disabled={isGeneratingPrompt || isReadOnly}
-                                    className="flex items-center space-x-2 px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-[13px] font-semibold shadow-md shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed h-[36px]"
-                                >
-                                    {isGeneratingPrompt && (
-                                        <svg className="animate-spin h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                    )}
-                                    {isGeneratingPrompt ? 'Generating...' : 'Generate Visual Idea'}
-                                </button>
-                            )}
+                                )}
+                                {isRetrying ? 'Retrying...' : 'Retry Generation'}
+                            </button>
                         </div>
-                    )
-                ) : (
-                    <>
+                    )}
+
+                    {imagePrompts.length > 0 && (
                         <div className="flex items-start w-full">
                             <div className="flex-grow min-w-0">
-                                {!isReadOnly && (
-                                    <>
-                                        {/* Control Header */}
-                                        <div className="flex items-center justify-between mb-2">
-                                            <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full">Visual Idea</span>
-                                            {!isEditingPrompt && (
-                                                <div className="flex items-center gap-2">
-                                                    <IconActionButton
-                                                        onClick={() => {
-                                                            if (isReadOnly) return;
-                                                            setIsEditingPrompt(true);
-                                                        }}
-                                                        disabled={isReadOnly}
-                                                        title={isReadOnly ? "Log in to edit and download" : "Edit Visual Idea"}
-                                                    >
-                                                        <PencilIcon className="h-3 w-3" />
-                                                    </IconActionButton>
-                                                    <CopyButton textToCopy={imagePromptText} disabled={isReadOnly} />
-                                                </div>
-                                            )}
-                                        </div>
-
-                                        {isEditingPrompt ? (
-                                            <div className="animate-fade-in bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
-                                                <textarea
-                                                    value={editedPrompt}
-                                                    onChange={(e) => setEditedPrompt(e.target.value)}
-                                                    className="w-full min-h-[100px] text-sm text-primary-text mb-3 p-2 border border-slate-200 rounded outline-none focus:border-primary/50"
-                                                    placeholder="Describe the image you want to generate..."
-                                                />
-                                                <div className="flex justify-end gap-2">
-                                                    <button
-                                                        onClick={() => setIsEditingPrompt(false)}
-                                                        disabled={isReadOnly}
-                                                        className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text"
-                                                    >
-                                                        Cancel
-                                                    </button>
-                                                    <button
-                                                        onClick={handleSavePrompt}
-                                                        disabled={isReadOnly}
-                                                        className={`px-3 py-1.5 text-xs font-bold bg-primary text-white rounded shadow-sm hover:bg-primary/90 ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
-                                                    >
-                                                        Save Idea
-                                                    </button>
-                                                </div>
-                                            </div>
-                                        ) : (
-                                            <div className="relative flex">
-                                                <div
-                                                    className={`flex-grow bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-all cursor-pointer ${!isPromptExpanded ? 'max-h-[80px] overflow-hidden' : ''}`}
-                                                    onClick={() => setIsPromptExpanded(!isPromptExpanded)}
-                                                >
-                                                    <div className="prose prose-sm max-w-none text-secondary-text text-sm">
-                                                        <p className="whitespace-pre-wrap leading-relaxed">{imagePromptText}</p>
-                                                    </div>
-                                                </div>
-                                            </div>
-                                        )}
-                                    </>
-                                )}
-
-                                {/* Recent Images Strip */}
-                                {visibleImages.length > 0 && (
-                                    <div className={`${isReadOnly ? '' : 'mt-3'} flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200`}>
-                                        {visibleImages.map((img) => (
-                                            <a
-                                                key={img.id}
-                                                href={img.url}
-                                                target="_blank"
-                                                rel="noopener noreferrer"
-                                                className="flex-shrink-0 relative group/img w-16 h-16 rounded border border-slate-200 overflow-hidden bg-white hover:border-primary transition-colors"
-                                                title={`Generated ${new Date(img.createdAt).toLocaleTimeString()}`}
+                                <div className="flex items-center justify-between mb-2">
+                                    <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full">Visual Idea</span>
+                                    {!isEditingPrompt && (
+                                        <div className="flex items-center gap-2">
+                                            <IconActionButton
+                                                onClick={() => setIsEditingPrompt(true)}
+                                                title="Edit Visual Idea"
                                             >
-                                                <img src={img.url} alt="Generated" className="w-full h-full object-cover" />
-                                                <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors" />
-                                            </a>
-                                        ))}
+                                                <PencilIcon className="h-3 w-3" />
+                                            </IconActionButton>
+                                            <CopyButton textToCopy={imagePromptText} />
+                                        </div>
+                                    )}
+                                </div>
+
+                                {isEditingPrompt ? (
+                                    <div className="animate-fade-in bg-white p-3 rounded-lg border border-slate-200 shadow-sm">
+                                        <textarea
+                                            value={editedPrompt}
+                                            onChange={(e) => setEditedPrompt(e.target.value)}
+                                            className="w-full min-h-[100px] text-sm text-primary-text mb-3 p-2 border border-slate-200 rounded outline-none focus:border-primary/50"
+                                            placeholder="Describe the image you want to generate..."
+                                        />
+                                        <div className="flex justify-end gap-2">
+                                            <button
+                                                onClick={() => setIsEditingPrompt(false)}
+                                                className="px-3 py-1.5 text-xs font-medium text-secondary-text hover:text-primary-text"
+                                            >
+                                                Cancel
+                                            </button>
+                                            <button
+                                                onClick={handleSavePrompt}
+                                                className="px-3 py-1.5 text-xs font-bold bg-primary text-white rounded shadow-sm hover:bg-primary/90"
+                                            >
+                                                Save Idea
+                                            </button>
+                                        </div>
+                                    </div>
+                                ) : (
+                                    <div className="relative flex">
+                                        <div
+                                            className={`flex-grow bg-white rounded-lg border border-slate-200 p-3 shadow-sm hover:border-primary/30 transition-all cursor-pointer ${!isPromptExpanded ? 'max-h-[80px] overflow-hidden' : ''}`}
+                                            onClick={() => setIsPromptExpanded(!isPromptExpanded)}
+                                        >
+                                            <div className="prose prose-sm max-w-none text-secondary-text text-sm">
+                                                <p className="whitespace-pre-wrap leading-relaxed">{imagePromptText}</p>
+                                            </div>
+                                        </div>
                                     </div>
                                 )}
                             </div>
                         </div>
+                    )}
 
-                        {!isReadOnly && (
-                            <div className="flex justify-end items-center pt-2 w-full gap-2 border-t border-slate-100/50 mt-1">
-                                {/* Aspect Ratio Selector */}
-                                <div className="flex items-center space-x-1 mr-auto bg-slate-100/50 p-1 rounded-lg">
+                    {searchImagesForSlide.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
+                            {searchImagesForSlide.filter(img => !failedSearchImageIds.has(img.id)).map((img) => {
+                                const isSearchImage = img.source === 'search';
+                                const href = img.url;
+                                const imageSrc = img.url;
+                                const title = isSearchImage ? 'Search result' : `Generated ${new Date(img.createdAt).toLocaleTimeString()}`;
+                                return (
+                                    <a
+                                        key={img.id}
+                                        href={href}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        className="flex-shrink-0 relative group/img w-16 h-16 rounded border border-slate-200 overflow-hidden bg-white hover:border-primary transition-colors"
+                                        title={title}
+                                    >
+                                        <img
+                                            src={imageSrc}
+                                            alt={isSearchImage ? 'Search result' : 'Generated'}
+                                            className="w-full h-full object-cover"
+                                            onError={() => {
+                                                if (isSearchImage) {
+                                                    handleSearchImageError(img.id);
+                                                }
+                                            }}
+                                        />
+                                        <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors" />
+                                    </a>
+                                );
+                            })}
+                        </div>
+                    )}
+
+                    {generatedImagesForSlide.length > 0 && (
+                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
+                            {generatedImagesForSlide.map((img) => (
+                                <a
+                                    key={img.id}
+                                    href={img.url}
+                                    target="_blank"
+                                    rel="noopener noreferrer"
+                                    className="flex-shrink-0 relative group/img w-16 h-16 rounded border border-slate-200 overflow-hidden bg-white hover:border-primary transition-colors"
+                                    title={`Generated ${new Date(img.createdAt).toLocaleTimeString()}`}
+                                >
+                                    <img
+                                        src={img.url}
+                                        alt="Generated"
+                                        className="w-full h-full object-cover"
+                                    />
+                                    <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors" />
+                                </a>
+                            ))}
+                        </div>
+                    )}
+
+                    <div className="flex justify-end items-center pt-2 w-full gap-2 border-t border-slate-100/50 mt-1">
+                        <div className="flex items-center gap-2 mr-auto">
+                            <div className="flex items-center bg-slate-100/50 p-1 rounded-lg">
+                                <button
+                                    onClick={() => setImageMode('search')}
+                                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${imageMode === 'search'
+                                        ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                >
+                                    Search
+                                </button>
+                                <button
+                                    onClick={() => setImageMode('generate')}
+                                    className={`px-2.5 py-1 text-[11px] font-bold rounded-md transition-all ${imageMode === 'generate'
+                                        ? 'bg-white text-primary shadow-sm border border-slate-200'
+                                        : 'text-slate-500 hover:text-slate-700'
+                                        }`}
+                                >
+                                    Generate
+                                </button>
+                            </div>
+
+                            {imageMode === 'generate' && imagePrompts.length > 0 && (
+                                <div className="flex items-center space-x-1 bg-slate-100/50 p-1 rounded-lg">
                                     <button
                                         onClick={() => {
-                                            if (isReadOnly) return;
                                             setAspectRatio('16:9');
                                             onUpdateSlide({ aspectRatio: '16:9' });
                                         }}
-                                        disabled={isReadOnly}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '16:9'
                                             ? 'bg-white text-primary shadow-sm border border-slate-200'
                                             : 'text-slate-500 hover:text-slate-700'
-                                            } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            }`}
                                     >
                                         16:9
                                     </button>
                                     <button
                                         onClick={() => {
-                                            if (isReadOnly) return;
                                             setAspectRatio('1:1');
                                             onUpdateSlide({ aspectRatio: '1:1' });
                                         }}
-                                        disabled={isReadOnly}
                                         className={`px-2 py-1 text-[10px] font-bold rounded-md transition-all ${aspectRatio === '1:1'
                                             ? 'bg-white text-primary shadow-sm border border-slate-200'
                                             : 'text-slate-500 hover:text-slate-700'
-                                            } ${isReadOnly ? 'opacity-50 cursor-not-allowed' : ''}`}
+                                            }`}
                                     >
                                         1:1
                                     </button>
                                 </div>
+                            )}
+                        </div>
 
-                                <button
-                                    onClick={handleGenerateImage}
-                                    disabled={isGeneratingImage || !imagePromptText || isReadOnly}
-                                    className="flex items-center space-x-2 px-3 py-1.5 bg-primary hover:bg-primary/90 text-white rounded-lg text-[13px] font-semibold shadow-md shadow-primary/20 transition-all active:scale-95 disabled:opacity-50 disabled:cursor-not-allowed h-[36px]"
-                                >
-                                    {isGeneratingImage ? (
-                                        <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                                        </svg>
-                                    ) : (
-                                        <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
-                                            <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
-                                        </svg>
-                                    )}
-                                    <span>{isGeneratingImage ? 'Generating...' : 'Generate Image'}</span>
-                                </button>
-                            </div>
-                        )}
-                    </>
-                    )}
+                        <button
+                            onClick={handlePrimaryAction}
+                            disabled={isPrimaryActionDisabled}
+                            className="flex items-center space-x-2 px-3 py-1.5 bg-[#F5F5F5] hover:bg-slate-200 text-[#134252] rounded-lg text-xs font-semibold transition-all border border-border-light shadow-sm disabled:opacity-50 h-[36px]"
+                        >
+                            {(isGeneratingImage || isGeneratingPrompt || isSearching) ? (
+                                <svg className="animate-spin h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                                </svg>
+                            ) : (
+                                <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" />
+                                </svg>
+                            )}
+                            <span>{actionLabel}</span>
+                        </button>
+                    </div>
                 </footer>
             )}
         </div >

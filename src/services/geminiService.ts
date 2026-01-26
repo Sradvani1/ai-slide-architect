@@ -36,11 +36,17 @@ interface GeneratePromptRequestBody {
   regenerate?: boolean;
 }
 
+interface SearchImagesRequestBody {
+  projectId: string;
+  slideId: string;
+}
+
 type GeminiRequestBody =
   | GenerateSlidesRequestBody
   | GenerateImageRequestBody
   | ExtractTextRequestBody
-  | GeneratePromptRequestBody;
+  | GeneratePromptRequestBody
+  | SearchImagesRequestBody;
 
 export { GeminiError, ImageGenError };
 
@@ -241,6 +247,16 @@ export const generatePrompt = async (
     projectId,
     slideId,
     regenerate
+  });
+};
+
+export const searchImages = async (
+  projectId: string,
+  slideId: string
+): Promise<{ searchTerms: string[]; results: Array<{ id: string; url: string }> }> => {
+  return authenticatedRequest<{ searchTerms: string[]; results: Array<{ id: string; url: string }> }>('/search-images', {
+    projectId,
+    slideId
   });
 };
 

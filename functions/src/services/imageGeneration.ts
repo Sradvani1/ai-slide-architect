@@ -4,13 +4,24 @@ import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION, STYLE_GUIDELINES } from
 import { retryWithBackoff, retryPromptGeneration } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
 import { recordUsage } from './usageEventsService';
-import { buildSingleSlideImagePromptSystemInstructions, buildSingleSlideImagePromptUserPrompt } from '@shared/promptBuilders';
+import {
+    buildSingleSlideImagePromptSystemInstructions,
+    buildSingleSlideImagePromptUserPrompt,
+    buildImageSearchTermsSystemInstructions,
+    buildImageSearchTermsUserPrompt
+} from '@shared/promptBuilders';
 
 export interface PromptGenerationResult {
     prompts: Array<{ id: string; text: string; inputTokens: number; outputTokens: number }>;
     failed: number;
     totalInputTokens: number;
     totalOutputTokens: number;
+}
+
+export interface SearchTermGenerationResult {
+    terms: string[];
+    inputTokens: number;
+    outputTokens: number;
 }
 
 export async function generateImage(
@@ -166,4 +177,71 @@ export async function generateImagePrompts(
             totalOutputTokens: 0
         };
     }
+}
+
+export async function generateImageSearchTerms(
+    topic: string,
+    subject: string,
+    gradeLevel: string,
+    slideTitle: string,
+    slideContent: string[],
+    trackingContext: { userId: string; projectId: string }
+): Promise<SearchTermGenerationResult> {
+    const systemInstructions = buildImageSearchTermsSystemInstructions();
+    const userPrompt = buildImageSearchTermsUserPrompt(topic, subject, gradeLevel, slideTitle, slideContent);
+
+    const generateFn = async () => {
+        const result = await getAiClient().models.generateContent({
+            model: MODEL_SLIDE_GENERATION,
+            contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+            config: {
+                systemInstruction: { parts: [{ text: systemInstructions }] }
+            }
+        });
+
+        const text = result.candidates?.[0]?.content?.parts?.[0]?.text;
+        if (!text) {
+            throw new Error("Empty response from AI model");
+        }
+
+        let terms: string[] = [];
+        try {
+            const parsed = JSON.parse(text.trim());
+            if (Array.isArray(parsed)) {
+                terms = parsed.filter(item => typeof item === 'string');
+            }
+        } catch {
+            terms = text
+                .replace(/```[a-z]*\n?/gi, '')
+                .replace(/```/g, '')
+                .split(/\r?\n/)
+                .map(line => line.replace(/^[\-\*\d\.\)\s]+/, '').trim())
+                .filter(Boolean);
+        }
+
+        const normalized = terms
+            .map(term => term.replace(/["']/g, '').trim())
+            .filter(Boolean);
+
+        const uniqueTerms = Array.from(new Set(normalized)).slice(0, 6);
+
+        const inputTokens = result.usageMetadata?.promptTokenCount || 0;
+        const outputTokens = result.usageMetadata?.candidatesTokenCount || 0;
+
+        await recordUsage({
+            userId: trackingContext.userId,
+            projectId: trackingContext.projectId,
+            operationKey: 'image-search-terms',
+            inputTokens,
+            outputTokens
+        });
+
+        return {
+            terms: uniqueTerms,
+            inputTokens,
+            outputTokens
+        };
+    };
+
+    return retryPromptGeneration(generateFn);
 }
