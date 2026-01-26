@@ -39,6 +39,11 @@ const PLACEHOLDER_PAIRS = [
 ];
 
 const GRADE_LEVELS = [
+  "1st",
+  "2nd",
+  "3rd",
+  "4th",
+  "5th",
   "6th",
   "7th",
   "8th",
@@ -49,13 +54,14 @@ const GRADE_LEVELS = [
 ];
 
 const SUBJECTS = [
-  "Language Arts",
+  "English Language Arts",
+  "Health",
+  "History-Social Science",
   "Mathematics",
+  "Physical Education",
   "Science",
-  "Social Studies",
-  "World Languages",
-  "Arts",
-  "Physical Education"
+  "Visual & Performing Arts",
+  "World Languages"
 ];
 
 export const InputForm: React.FC<InputFormProps> = ({
