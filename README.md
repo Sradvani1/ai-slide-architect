@@ -1,45 +1,56 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://github.com/user-attachments/assets/0aa67016-6eaf-458a-adb2-6e31a0763ed6" />
-</div>
-
 # AI Slide Architect
 
-AI Slide Architect is a powerful, AI-driven application designed to streamline the creation of presentation slides. By leveraging the capabilities of Google's Gemini API, it transforms topics or uploaded documents into fully structured, visually appealing presentations complete with speaker notes and image prompts.
+AI Slide Architect is an AI-driven application for creating classroom-ready slide decks. It turns a topic or uploaded documents into structured presentations with grounded research, speaker notes, and optional visuals, while keeping projects synced in the cloud.
 
 ## 🚀 Features
 
--   **AI-Powered Generation**: Instantly generate slide decks from a simple topic or by analyzing uploaded documents (PDF, DOCX, TXT).
+-   **AI-Powered Decks**: Generate slides from a topic or uploaded references (PDF, DOCX, TXT, images with OCR).
+-   **Grounded Research**: Optional Google Search grounding and a dedicated research report export.
+-   **Async Generation + Progress**: Background slide generation with real-time phases and retry on failure.
+-   **Customizable Inputs**: Grade level, subject, slide count (2–10), bullets per slide (3–6), and optional instructions.
+-   **Image Workflow**:
+    -   Generate a visual idea per slide, edit it, and create images.
+    -   Search for real images via Brave image search.
+    -   Store generated images with the project.
 -   **Secure Authentication**:
-    -   **Google Sign-In**: Simple and secure login using your Google account.
-    -   **Cloud Storage**: Your projects are automatically saved to the cloud (Firestore) and linked to your account.
-    -   **Auto-Save**: Never lose your work with built-in auto-saving functionality.
--   **Customizable Context**: Tailor content by specifying the target **Grade Level** and **Subject** to ensure relevance and appropriate complexity.
--   **Smart Content Creation**:
-    -   Automatic generation of slide titles, bullet points, and speaker notes.
-    -   Intelligent image prompts designed to create relevant visuals for each slide.
--   **Interactive Editing**:
-    -   Edit slide content directly within the application.
-    -   Refine and regenerate image prompts to get the perfect visual.
-    -   "Recreate Prompt" feature to generate fresh image ideas based on slide context.
--   **Export Options**:
-    -   **PowerPoint (.pptx)**: Download the full presentation with formatted slides.
-    -   **Speaker Notes (.docx)**: Export a dedicated document containing detailed speaker notes and sources.
-    -   **Research Report (.docx)**: Download the project research report with metadata and sources.
--   **Modern UI**: A sleek, responsive interface built with React and Tailwind CSS (via standard CSS) for a premium user experience.
+    -   Google Sign-In with Firestore-backed projects and auto-save.
+    -   Firebase Storage for uploads and generated image assets.
+-   **Sharing & Collaboration**: Share links with preview mode and one-click “make a copy” flow.
+-   **Exports**:
+    -   **PowerPoint (.pptx)** for full slides.
+    -   **Speaker Notes (.docx)** (notes only).
+    -   **Research Report (.docx)** with project metadata and sources.
+-   **Modern UI**: Responsive, accessible interface built with React and Tailwind-inspired utility classes.
 
 ## 🛠️ Tech Stack
 
--   **Frontend**: [React](https://react.dev/)
--   **Build Tool**: [Vite](https://vitejs.dev/)
--   **AI Model**: [Google Gemini](https://deepmind.google/technologies/gemini/) (via `@google/genai`)
--   **Backend & Auth**: [Firebase](https://firebase.google.com/)
-    -   **Authentication**: Google Sign-In
-    -   **Firestore**: Real-time database for user and project storage
+-   **Frontend**: [React](https://react.dev/), [Vite](https://vitejs.dev/)
+-   **Backend**: [Firebase Functions](https://firebase.google.com/docs/functions) (v2, Express API)
+-   **Data & Storage**: Firestore + Firebase Storage
+-   **Auth**: Firebase Google Sign-In
+-   **AI**: [Google Gemini](https://deepmind.google/technologies/gemini/) via `@google/genai`
+-   **Image Search**: [Brave Search API](https://api.search.brave.com/)
 -   **Document Handling**:
-    -   `pptxgenjs`: For generating PowerPoint files.
-    -   `docx`: For creating Word documents.
-    -   `pdfjs-dist` & `mammoth`: For parsing uploaded PDFs and Word docs.
--   **Styling**: CSS / Tailwind-inspired utility classes.
+    -   `pptxgenjs` for PowerPoint
+    -   `docx` for Word exports
+    -   `pdfjs-dist` + `mammoth` for PDF/DOCX parsing
+-   **Styling**: CSS / Tailwind-inspired utility classes
+
+## 🔌 API Endpoints
+
+Base URL:
+- Local emulator: `http://localhost:5001/<project-id>/us-central1/api`
+- Production: set `VITE_PRODUCTION_API_URL` to your Cloud Run URL
+
+Endpoints:
+- `POST /generate-slides` (auth) → async slide generation, returns 202 Accepted
+- `POST /generate-image` (auth) → generates an image from the current prompt
+- `POST /generate-prompt` (auth) → create or regenerate a slide’s visual idea
+- `POST /search-images` (auth) → Brave image search for a slide
+- `POST /extract-text` (auth) → OCR for uploaded images
+- `POST /share/claim` (auth) → claim a shared deck and create a copy
+- `GET /share/preview` (public) → read-only share preview
+- `POST /admin/initialize-pricing` (admin) → initialize pricing data
 
 ## 🏁 Getting Started
 
@@ -47,12 +58,15 @@ Follow these steps to run the application locally.
 
 ### Prerequisites
 
--   **Node.js** (v18 or higher recommended)
+-   **Node.js** (v18+ for web, Node 20 for Functions)
 -   **npm** or **yarn**
 -   A **Google Gemini API Key** (Get one [here](https://aistudio.google.com/app/apikey))
 -   A **Firebase Project** (Create one [here](https://console.firebase.google.com/)) with:
-    -   **Authentication** enabled (Google Provider).
-    -   **Firestore Database** enabled.
+    -   **Authentication** enabled (Google Provider)
+    -   **Firestore Database** enabled
+    -   **Firebase Storage** enabled
+    -   **Firebase Functions** enabled
+-   (Optional) **Brave Search API Key** for image search
 
 ### Installation
 
@@ -67,13 +81,10 @@ Follow these steps to run the application locally.
     npm install
     ```
 
-3.  **Configure Environment Variables:**
-    Create a `.env.local` file in the root directory and add your API keys:
+3.  **Configure Environment Variables (Frontend):**
+    Create a `.env.local` file in the root directory:
 
     ```env
-    # Google Gemini AI
-    GEMINI_API_KEY=your_gemini_api_key
-
     # Firebase Configuration
     VITE_FIREBASE_API_KEY=your_firebase_api_key
     VITE_FIREBASE_AUTH_DOMAIN=your_project.firebaseapp.com
@@ -82,33 +93,69 @@ Follow these steps to run the application locally.
     VITE_FIREBASE_MESSAGING_SENDER_ID=your_sender_id
     VITE_FIREBASE_APP_ID=your_app_id
     VITE_FIREBASE_MEASUREMENT_ID=your_measurement_id
+
+    # Optional API routing overrides
+    VITE_FUNCTIONS_URL=http://localhost:5001/<project-id>/us-central1/api
+    VITE_USE_PROD_API=false
+    VITE_PRODUCTION_API_URL=https://<your-cloud-run-url>
     ```
 
-4.  **Run the Development Server:**
+4.  **Configure Secrets (Firebase Functions):**
+    These are required for deployed Functions and for any environment that runs the Functions backend.
+
     ```bash
-    npm run dev
+    firebase functions:secrets:set GEMINI_API_KEY
+    firebase functions:secrets:set BRAVE_API_KEY
+    firebase functions:secrets:set ADMIN_USER_ID
     ```
+
+5.  **Run the Development Server:**
+    - Frontend only:
+      ```bash
+      npm run dev
+      ```
+    - Frontend + Functions emulator:
+      ```bash
+      npm run dev:emu
+      ```
+
     The app should now be running at `http://localhost:5173`.
 
-## 📦 Deployment on Vercel
+### Admin Scripts (Optional)
 
-This project is optimized for deployment on [Vercel](https://vercel.com/).
+Some scripts (like `npm run init-pricing`) use Firebase Admin SDK and require a service account:
 
-1.  **Push to GitHub**: Ensure your project is pushed to a GitHub repository.
-2.  **Import to Vercel**:
-    -   Go to your Vercel dashboard and click **"Add New..."** -> **"Project"**.
-    -   Select your `ai-slide-architect` repository.
-3.  **Configure Project**:
-    -   **Framework Preset**: Vercel should automatically detect **Vite**.
-    -   **Root Directory**: `./` (default)
-    -   **Build Command**: `npm run build` (default)
-    -   **Output Directory**: `dist` (default)
-4.  **Environment Variables**:
-    -   Expand the **"Environment Variables"** section.
-    -   Add `GEMINI_API_KEY` and all `VITE_FIREBASE_...` variables from your `.env.local` file.
-5.  **Deploy**: Click **"Deploy"**.
+1. Create a service account and JSON key in Google Cloud.
+2. Set `GOOGLE_APPLICATION_CREDENTIALS` to the key file path (recommended outside this repo).
+3. Run:
+   ```bash
+   npm run init-pricing
+   ```
 
-Your application will be live in a few moments!
+Full setup steps are in `scripts/SETUP-SERVICE-ACCOUNT.md`.
+
+## 📦 Deployment
+
+This repo deploys the frontend separately from the backend Functions.
+
+### Frontend (Vercel)
+
+1.  **Push to GitHub** and import the repo into Vercel.
+2.  **Framework Preset**: Vite
+3.  **Build Command**: `npm run build`
+4.  **Output Directory**: `dist`
+5.  **Environment Variables**: add the `VITE_FIREBASE_...` values (and optional `VITE_*` API overrides).
+
+### Backend (Firebase Functions)
+
+1.  Configure Function secrets (`GEMINI_API_KEY`, optional `BRAVE_API_KEY`, optional `ADMIN_USER_ID`).
+2.  Deploy:
+    ```bash
+    cd functions
+    npm run deploy
+    ```
+
+Your frontend will call the Functions API URL you configure via `VITE_PRODUCTION_API_URL`.
 
 ## 📄 License
 
