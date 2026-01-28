@@ -56,7 +56,6 @@ const Loader: React.FC<{
     phase?: ProjectData['generationPhase'];
     startedAtMs?: number;
 }> = ({ progress, message, phase, startedAtMs }) => {
-    const SLOW_HINT_MS = 20000;
     const phaseLabels: Partial<Record<GenerationPhase, string>> = {
         research: 'Researching content',
         drafting: 'Drafting slides',
@@ -68,24 +67,15 @@ const Loader: React.FC<{
     const getStatusMessage = () => {
         if (progress === undefined) return 'Preparing your presentation';
         if (phase === 'research') {
-            if (progress < 10) return 'Collecting your inputs';
+            if (progress < 10) return 'Starting your deck';
             if (progress < 50) return 'Researching your topic';
-            return 'Research results received';
         }
         if (progress < 50) return 'Researching your topic';
-        if (progress < 85) return 'Drafting slide content';
-        if (progress < 94) return 'Saving slides to your project';
-        if (progress < 100) return 'Finalizing your project';
+        if (progress < 90) return 'Drafting slide content';
+        if (progress < 100) return 'Finalizing your slide deck';
         return 'Almost done';
     };
     const statusMessage = message || (phase ? (phaseLabels[phase] || getStatusMessage()) : getStatusMessage());
-    const showSlowHint = Boolean(
-        startedAtMs &&
-        phase === 'research' &&
-        typeof progress === 'number' &&
-        progress < 50 &&
-        Date.now() - startedAtMs > SLOW_HINT_MS
-    );
 
     return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 animate-fade-in">
@@ -138,11 +128,6 @@ const Loader: React.FC<{
                 {progress !== undefined && (
                     <p className="text-[10px] font-bold text-slate-400 mt-3 uppercase tracking-[0.1em]">
                         {progress}% Completed
-                    </p>
-                )}
-                {showSlowHint && (
-                    <p className="text-xs text-slate-400 mt-4">
-                        This is taking a bit longer than usual. We’re still working on it.
                     </p>
                 )}
             </div>
@@ -393,7 +378,22 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     const [isShareVisible, setIsShareVisible] = useState(false);
     const [displayProgress, setDisplayProgress] = useState<number | undefined>(generationProgress);
     const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
-    const PROGRESS_STEP_INTERVAL_MS = 2000;
+    const PROGRESS_STEP_INTERVAL_MS = 1500;
+
+    const getProgressCap = (
+        message: string | undefined,
+        phase: ProjectData['generationPhase'],
+        progress: number
+    ) => {
+        if (phase === 'completed' || phase === 'failed') return progress;
+        if (message === 'Researching your topic') return Math.max(progress, 49);
+        if (message === 'Drafting slide content') return Math.max(progress, 89);
+        if (message === 'Finalizing your slide deck') return Math.max(progress, 99);
+        if (phase === 'research' && progress < 50) return Math.max(progress, 49);
+        if (phase === 'drafting' && progress < 90) return Math.max(progress, 89);
+        if (phase === 'finalizing' && progress < 100) return Math.max(progress, 99);
+        return progress;
+    };
 
     const clearProgressInterval = () => {
         if (progressIntervalRef.current) {
@@ -411,29 +411,30 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
             return;
         }
 
-        setDisplayProgress(prev => {
-            if (typeof prev !== 'number') return target;
-            if (target <= prev) return target;
-            return prev;
-        });
+        setDisplayProgress(target);
 
         clearProgressInterval();
+
+        const cap = getProgressCap(generationMessage, generationPhase, target);
+        if (cap <= target) {
+            return;
+        }
 
         progressIntervalRef.current = setInterval(() => {
             setDisplayProgress(prev => {
                 if (typeof prev !== 'number') return target;
-                if (prev >= target) {
+                if (prev >= cap) {
                     clearProgressInterval();
-                    return target;
+                    return cap;
                 }
-                return Math.min(target, prev + 1);
+                return Math.min(cap, prev + 1);
             });
         }, PROGRESS_STEP_INTERVAL_MS);
 
         return () => {
             clearProgressInterval();
         };
-    }, [generationProgress, isLoading]);
+    }, [generationProgress, generationMessage, generationPhase, isLoading]);
 
     const handleExportPPTX = async () => {
         if (readOnly) return;

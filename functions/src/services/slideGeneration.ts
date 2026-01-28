@@ -400,13 +400,6 @@ export async function generateSlidesAndUpdateFirestore(
         await updateProjectWithRetry(projectRef, {
             generationProgress: 10,
             generationPhase: 'research',
-            generationMessage: 'Collecting your inputs',
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        await updateProjectWithRetry(projectRef, {
-            generationProgress: 25,
-            generationPhase: 'research',
             generationMessage: 'Researching your topic',
             updatedAt: FieldValue.serverTimestamp()
         });
@@ -425,18 +418,10 @@ export async function generateSlidesAndUpdateFirestore(
 
         await updateProjectWithRetry(projectRef, {
             generationProgress: 50,
-            generationPhase: 'research',
-            generationMessage: 'Research results received',
-            sources: researchResult.sources || [],
-            researchContent: researchResult.researchContent,
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        // Transition to drafting
-        await updateProjectWithRetry(projectRef, {
-            generationProgress: 55,
             generationPhase: 'drafting',
             generationMessage: 'Drafting slide content',
+            sources: researchResult.sources || [],
+            researchContent: researchResult.researchContent,
             updatedAt: FieldValue.serverTimestamp()
         });
 
@@ -467,27 +452,6 @@ export async function generateSlidesAndUpdateFirestore(
         if (!generationResult) {
             throw new GeminiError("Generation failed after retries", 'API_ERROR', false);
         }
-
-        await updateProjectWithRetry(projectRef, {
-            generationProgress: 75,
-            generationPhase: 'drafting',
-            generationMessage: 'Checking slide structure',
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        await updateProjectWithRetry(projectRef, {
-            generationProgress: 85,
-            generationPhase: 'persisting',
-            generationMessage: 'Preparing slides to save',
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        await projectRef.update({
-            generationProgress: 90,
-            generationPhase: 'persisting',
-            generationMessage: 'Saving slides to your project',
-            updatedAt: FieldValue.serverTimestamp()
-        });
 
         // Write slides to subcollection
         const slidesCollectionRef = projectRef.collection('slides');
@@ -524,16 +488,9 @@ export async function generateSlidesAndUpdateFirestore(
         // #endregion
 
         await updateProjectWithRetry(projectRef, {
-            generationProgress: 94,
-            generationPhase: 'persisting',
-            generationMessage: 'Slides saved',
-            updatedAt: FieldValue.serverTimestamp()
-        });
-
-        await updateProjectWithRetry(projectRef, {
-            generationProgress: 97,
+            generationProgress: 90,
             generationPhase: 'finalizing',
-            generationMessage: 'Finalizing your project',
+            generationMessage: 'Finalizing your slide deck',
             updatedAt: FieldValue.serverTimestamp()
         });
 
