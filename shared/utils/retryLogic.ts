@@ -126,6 +126,7 @@ export async function retryWithBackoff<T>(fn: () => Promise<T>, retries = MAX_RE
             status === 408 ||
             errorMessage.includes('429') ||
             errorMessage.includes('503') ||
+            errorMessage.includes('fetch failed') ||
             errorMessage.includes('network') ||
             errorMessage.includes('timeout') ||
             errorMessage.includes('econnreset');

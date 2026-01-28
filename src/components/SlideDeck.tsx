@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useRef, useState } from 'react';
 import { ArrowDownTrayIcon, ClipboardDocumentIcon, DocumentTextIcon, ShareIcon } from '@heroicons/react/24/outline';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
@@ -25,6 +25,7 @@ interface SlideDeckProps {
     generationProgress?: number;
     generationPhase?: ProjectData['generationPhase'];
     generationMessage?: string;
+    generationStartedAtMs?: number;
     onRetry?: () => void;
     onShare?: () => void;
     shareUrl?: string | null;
@@ -53,7 +54,9 @@ const Loader: React.FC<{
     progress?: number;
     message?: string;
     phase?: ProjectData['generationPhase'];
-}> = ({ progress, message, phase }) => {
+    startedAtMs?: number;
+}> = ({ progress, message, phase, startedAtMs }) => {
+    const SLOW_HINT_MS = 20000;
     const phaseLabels: Partial<Record<GenerationPhase, string>> = {
         research: 'Researching content',
         drafting: 'Drafting slides',
@@ -64,12 +67,25 @@ const Loader: React.FC<{
     };
     const getStatusMessage = () => {
         if (progress === undefined) return 'Preparing your presentation';
-        if (progress < 25) return 'Researching content';
-        if (progress < 75) return 'Writing slides';
-        if (progress < 100) return 'Finalizing presentation';
+        if (phase === 'research') {
+            if (progress < 10) return 'Collecting your inputs';
+            if (progress < 50) return 'Researching your topic';
+            return 'Research results received';
+        }
+        if (progress < 50) return 'Researching your topic';
+        if (progress < 85) return 'Drafting slide content';
+        if (progress < 94) return 'Saving slides to your project';
+        if (progress < 100) return 'Finalizing your project';
         return 'Almost done';
     };
     const statusMessage = message || (phase ? (phaseLabels[phase] || getStatusMessage()) : getStatusMessage());
+    const showSlowHint = Boolean(
+        startedAtMs &&
+        phase === 'research' &&
+        typeof progress === 'number' &&
+        progress < 50 &&
+        Date.now() - startedAtMs > SLOW_HINT_MS
+    );
 
     return (
         <div className="flex flex-col items-center justify-center h-[60vh] text-center px-4 animate-fade-in">
@@ -122,6 +138,11 @@ const Loader: React.FC<{
                 {progress !== undefined && (
                     <p className="text-[10px] font-bold text-slate-400 mt-3 uppercase tracking-[0.1em]">
                         {progress}% Completed
+                    </p>
+                )}
+                {showSlowHint && (
+                    <p className="text-xs text-slate-400 mt-4">
+                        This is taking a bit longer than usual. We’re still working on it.
                     </p>
                 )}
             </div>
@@ -357,6 +378,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     generationProgress,
     generationPhase,
     generationMessage,
+    generationStartedAtMs,
     onRetry,
     onShare,
     shareUrl,
@@ -369,6 +391,49 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     const [isDownloadingReport, setIsDownloadingReport] = useState(false);
     const [isDownloadingNotes, setIsDownloadingNotes] = useState(false);
     const [isShareVisible, setIsShareVisible] = useState(false);
+    const [displayProgress, setDisplayProgress] = useState<number | undefined>(generationProgress);
+    const progressIntervalRef = useRef<ReturnType<typeof setInterval> | null>(null);
+    const PROGRESS_STEP_INTERVAL_MS = 2000;
+
+    const clearProgressInterval = () => {
+        if (progressIntervalRef.current) {
+            clearInterval(progressIntervalRef.current);
+            progressIntervalRef.current = null;
+        }
+    };
+
+    useEffect(() => {
+        const target = typeof generationProgress === 'number' ? generationProgress : undefined;
+
+        if (!isLoading || target === undefined) {
+            clearProgressInterval();
+            setDisplayProgress(target);
+            return;
+        }
+
+        setDisplayProgress(prev => {
+            if (typeof prev !== 'number') return target;
+            if (target <= prev) return target;
+            return prev;
+        });
+
+        clearProgressInterval();
+
+        progressIntervalRef.current = setInterval(() => {
+            setDisplayProgress(prev => {
+                if (typeof prev !== 'number') return target;
+                if (prev >= target) {
+                    clearProgressInterval();
+                    return target;
+                }
+                return Math.min(target, prev + 1);
+            });
+        }, PROGRESS_STEP_INTERVAL_MS);
+
+        return () => {
+            clearProgressInterval();
+        };
+    }, [generationProgress, isLoading]);
 
     const handleExportPPTX = async () => {
         if (readOnly) return;
@@ -528,9 +593,10 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     if (isLoading) {
         return (
             <Loader
-                progress={generationProgress}
+                progress={displayProgress}
                 message={generationMessage}
                 phase={generationPhase}
+                startedAtMs={generationStartedAtMs}
             />
         );
     }

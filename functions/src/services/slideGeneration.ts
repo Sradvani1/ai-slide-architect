@@ -392,8 +392,22 @@ export async function generateSlidesAndUpdateFirestore(
             status: 'generating',
             generationProgress: 0,
             generationPhase: 'research',
-            generationMessage: 'Researching content',
+            generationMessage: 'Starting your deck',
             generationStartedAt: FieldValue.serverTimestamp(),
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        await updateProjectWithRetry(projectRef, {
+            generationProgress: 10,
+            generationPhase: 'research',
+            generationMessage: 'Collecting your inputs',
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        await updateProjectWithRetry(projectRef, {
+            generationProgress: 25,
+            generationPhase: 'research',
+            generationMessage: 'Researching your topic',
             updatedAt: FieldValue.serverTimestamp()
         });
 
@@ -409,13 +423,20 @@ export async function generateSlidesAndUpdateFirestore(
             uploadedFileNames
         );
 
-        // Save research before Step 2 (resumable if generation fails)
         await updateProjectWithRetry(projectRef, {
-            generationProgress: 25,
-            generationPhase: 'drafting',
-            generationMessage: 'Drafting slides',
+            generationProgress: 50,
+            generationPhase: 'research',
+            generationMessage: 'Research results received',
             sources: researchResult.sources || [],
             researchContent: researchResult.researchContent,
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        // Transition to drafting
+        await updateProjectWithRetry(projectRef, {
+            generationProgress: 55,
+            generationPhase: 'drafting',
+            generationMessage: 'Drafting slide content',
             updatedAt: FieldValue.serverTimestamp()
         });
 
@@ -447,11 +468,24 @@ export async function generateSlidesAndUpdateFirestore(
             throw new GeminiError("Generation failed after retries", 'API_ERROR', false);
         }
 
-        // Update: Generation complete, writing to Firestore (75%)
-        await projectRef.update({
+        await updateProjectWithRetry(projectRef, {
             generationProgress: 75,
+            generationPhase: 'drafting',
+            generationMessage: 'Checking slide structure',
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        await updateProjectWithRetry(projectRef, {
+            generationProgress: 85,
             generationPhase: 'persisting',
-            generationMessage: 'Saving slides',
+            generationMessage: 'Preparing slides to save',
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        await projectRef.update({
+            generationProgress: 90,
+            generationPhase: 'persisting',
+            generationMessage: 'Saving slides to your project',
             updatedAt: FieldValue.serverTimestamp()
         });
 
@@ -490,9 +524,16 @@ export async function generateSlidesAndUpdateFirestore(
         // #endregion
 
         await updateProjectWithRetry(projectRef, {
-            generationProgress: 90,
+            generationProgress: 94,
+            generationPhase: 'persisting',
+            generationMessage: 'Slides saved',
+            updatedAt: FieldValue.serverTimestamp()
+        });
+
+        await updateProjectWithRetry(projectRef, {
+            generationProgress: 97,
             generationPhase: 'finalizing',
-            generationMessage: 'Finalizing presentation',
+            generationMessage: 'Finalizing your project',
             updatedAt: FieldValue.serverTimestamp()
         });
 
@@ -516,7 +557,7 @@ export async function generateSlidesAndUpdateFirestore(
             status: 'completed',
             generationProgress: 100,
             generationPhase: 'completed',
-            generationMessage: 'Presentation ready',
+            generationMessage: 'Your deck is ready',
             sources: sourcesToWrite,
             researchContent: researchResult.researchContent,
             generationCompletedAt: FieldValue.serverTimestamp(),

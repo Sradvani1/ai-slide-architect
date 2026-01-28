@@ -58,6 +58,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [generationProgress, setGenerationProgress] = useState<number | undefined>(undefined);
     const [generationPhase, setGenerationPhase] = useState<ProjectData['generationPhase']>(undefined);
     const [generationMessage, setGenerationMessage] = useState<string | undefined>(undefined);
+    const [generationStartedAtMs, setGenerationStartedAtMs] = useState<number | undefined>(undefined);
     const [isRetrying, setIsRetrying] = useState<boolean>(false);
     const [shareUrl, setShareUrl] = useState<string | null>(null);
     const [shareCopied, setShareCopied] = useState(false);
@@ -94,6 +95,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setCurrentProjectId(project.id!);
                     setProjectStatus(project.status);
                     setShareToken(project.shareToken || null);
+                    setGenerationStartedAtMs(toMillis(project.generationStartedAt));
 
                     // Load files if they exist
                     if (project.files && project.files.length > 0) {
@@ -180,11 +182,13 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setGenerationProgress(projectData.generationProgress);
                 setGenerationPhase(projectData.generationPhase);
                 setGenerationMessage(projectData.generationMessage);
+                setGenerationStartedAtMs(toMillis(projectData.generationStartedAt));
             } else if (projectData.status === 'completed') {
                 setIsLoading(false);
                 setGenerationProgress(100);
                 setGenerationPhase(projectData.generationPhase || 'completed');
                 setGenerationMessage(projectData.generationMessage || 'Presentation ready');
+                setGenerationStartedAtMs(undefined);
                 if (projectData.sources) {
                     setSources(projectData.sources);
                 }
@@ -193,6 +197,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setError(projectData.generationError || "Generation failed. Please try again.");
                 setGenerationPhase('failed');
                 setGenerationMessage(projectData.generationMessage || "Generation failed");
+                setGenerationStartedAtMs(undefined);
             }
         }, (error: unknown) => {
             console.error("Firestore listener error:", error);
@@ -576,6 +581,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         generationProgress={generationProgress}
                         generationPhase={generationPhase}
                         generationMessage={generationMessage}
+                        generationStartedAtMs={generationStartedAtMs}
                         onRetry={handleRetry}
                         onShare={handleShareLink}
                         shareUrl={showSharePanel ? shareUrl : null}
