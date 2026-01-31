@@ -1,4 +1,5 @@
 import React, { useEffect, useRef } from 'react';
+import { createPortal } from 'react-dom';
 import { useFocusTrap } from '../hooks/useFocusTrap';
 import { useScrollLock } from '../hooks/useScrollLock';
 
@@ -48,7 +49,7 @@ export function Modal({
     ? { visibility: 'hidden' as const, opacity: 0, pointerEvents: 'none' as const }
     : undefined;
 
-  return (
+  const modalContent = (
     <div
       className={`fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4 ${backdropClassName}`}
       style={hiddenStyle}
@@ -98,4 +99,10 @@ export function Modal({
       </div>
     </div>
   );
+
+  if (typeof document === 'undefined') {
+    return modalContent;
+  }
+
+  return createPortal(modalContent, document.body);
 }

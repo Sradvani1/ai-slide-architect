@@ -4,6 +4,8 @@ import { CopyIcon, CheckIcon, ImageIcon, PencilIcon } from './icons';
 import { generateImageFromPrompt, generatePrompt, searchImages } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
+import { ImageViewerModal } from './ImageViewerModal';
+import { downloadImagesAsZip } from '../utils/imageDownload';
 
 interface SlideCardProps {
     slide: Slide;
@@ -68,6 +70,11 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     const [isSearching, setIsSearching] = useState(false);
     const [imageMode, setImageMode] = useState<'generate' | 'search'>('search');
     const isReadOnly = readOnly;
+    const [modalOpen, setModalOpen] = useState(false);
+    const [modalImageIndex, setModalImageIndex] = useState(0);
+    const [selectionMode, setSelectionMode] = useState(false);
+    const [selectedImageIds, setSelectedImageIds] = useState<Set<string>>(new Set());
+    const [isDownloading, setIsDownloading] = useState(false);
 
     // Source of Truth
     const imagePrompts = slide.imagePrompts || [];
@@ -94,6 +101,12 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
     }, [allImages, currentPromptId]);
 
     const hasSearchResults = searchImagesForSlide.length > 0;
+    const visibleSearchImages = useMemo(() => {
+        return searchImagesForSlide.filter(img => !failedSearchImageIds.has(img.id));
+    }, [searchImagesForSlide, failedSearchImageIds]);
+    const selectedImages = useMemo(() => {
+        return visibleSearchImages.filter(img => selectedImageIds.has(img.id));
+    }, [visibleSearchImages, selectedImageIds]);
 
     // Sync editedPrompt when current prompt changes
     useEffect(() => {
@@ -236,8 +249,22 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             next.add(imageId);
             return next;
         });
+        setSelectedImageIds(prev => {
+            if (!prev.has(imageId)) return prev;
+            const next = new Set(prev);
+            next.delete(imageId);
+            return next;
+        });
         const updatedImages = allImages.filter(img => img.id !== imageId);
         onUpdateSlide({ generatedImages: updatedImages });
+    };
+
+    const handleSearchThumbnailError = (imageId: string) => {
+        setFailedSearchImageIds(prev => {
+            const next = new Set(prev);
+            next.add(imageId);
+            return next;
+        });
     };
 
     const handleGeneratePrompt = async () => {
@@ -301,6 +328,65 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             setIsEditingPrompt(false);
         }
     }, [isReadOnly]);
+
+    useEffect(() => {
+        if (!selectionMode) return;
+        if (visibleSearchImages.length === 0) {
+            setSelectionMode(false);
+            setSelectedImageIds(new Set());
+            return;
+        }
+        const visibleIds = new Set(visibleSearchImages.map(img => img.id));
+        setSelectedImageIds(prev => {
+            const next = new Set([...prev].filter(id => visibleIds.has(id)));
+            return next;
+        });
+    }, [selectionMode, visibleSearchImages]);
+
+    const handleImageClick = (index: number) => {
+        if (selectionMode) return;
+        setModalImageIndex(index);
+        setModalOpen(true);
+    };
+
+    const handleToggleSelection = (imageId: string) => {
+        setSelectedImageIds(prev => {
+            const next = new Set(prev);
+            if (next.has(imageId)) {
+                next.delete(imageId);
+            } else {
+                next.add(imageId);
+            }
+            return next;
+        });
+    };
+
+    const handleEnterSelectionMode = () => {
+        setSelectionMode(true);
+        setSelectedImageIds(new Set());
+    };
+
+    const handleExitSelectionMode = () => {
+        setSelectionMode(false);
+        setSelectedImageIds(new Set());
+    };
+
+    const handleDownloadSelected = async () => {
+        if (selectedImages.length === 0 || isDownloading) return;
+        setIsDownloading(true);
+        try {
+            const filename = `slide-${slideNumber}-images-${Date.now()}.zip`;
+            const result = await downloadImagesAsZip(selectedImages, filename);
+            if (result.failed.length > 0) {
+                alert(`Downloaded ${result.successCount} images. ${result.failed.length} failed to download.`);
+            }
+        } catch (error) {
+            console.error('Download failed:', error);
+            alert('Failed to download images. Please try again.');
+        } finally {
+            setIsDownloading(false);
+        }
+    };
 
     const handlePrimaryAction = () => {
         if (imageMode === 'search') {
@@ -482,36 +568,90 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                         </div>
                     )}
 
-                    {searchImagesForSlide.length > 0 && (
-                        <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
-                            {searchImagesForSlide.filter(img => !failedSearchImageIds.has(img.id)).map((img) => {
+                    {visibleSearchImages.length > 0 && (
+                        <div className="flex flex-col gap-2">
+                            <div className="flex items-center justify-between">
+                                <span className="text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                                    Search Results
+                                </span>
+                                {!selectionMode ? (
+                                    <button
+                                        type="button"
+                                        onClick={handleEnterSelectionMode}
+                                        className="px-2.5 py-1 text-[11px] font-bold rounded-md bg-white border border-slate-200 text-primary hover:border-primary transition-all"
+                                    >
+                                        Select Images
+                                    </button>
+                                ) : (
+                                    <div className="flex items-center gap-2">
+                                        <span className="text-[11px] font-semibold text-slate-600">
+                                            {selectedImageIds.size} selected
+                                        </span>
+                                        <button
+                                            type="button"
+                                            onClick={handleExitSelectionMode}
+                                            className="px-2 py-1 text-[11px] font-semibold text-slate-500 hover:text-slate-700"
+                                        >
+                                            Cancel
+                                        </button>
+                                        <button
+                                            type="button"
+                                            onClick={handleDownloadSelected}
+                                            disabled={selectedImages.length === 0 || isDownloading}
+                                            className="px-2.5 py-1 text-[11px] font-bold rounded-md bg-primary text-white hover:bg-primary/90 disabled:opacity-50 disabled:cursor-not-allowed"
+                                        >
+                                            {isDownloading ? 'Downloading...' : `Download (${selectedImageIds.size})`}
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                            <div className="flex gap-2 overflow-x-auto pb-2 scrollbar-thin scrollbar-thumb-slate-200">
+                                {visibleSearchImages.map((img, index) => {
                                 const isSearchImage = img.source === 'search';
-                                const href = img.url;
-                                const imageSrc = img.url;
+                                const imageSrc = img.thumbnailUrl || img.url;
                                 const title = isSearchImage ? 'Search result' : `Generated ${new Date(img.createdAt).toLocaleTimeString()}`;
+                                const isSelected = selectedImageIds.has(img.id);
+                                const shouldUseFallbackImage = failedSearchImageIds.has(img.id);
+                                const resolvedImageSrc = shouldUseFallbackImage ? img.url : imageSrc;
                                 return (
-                                    <a
+                                    <button
                                         key={img.id}
-                                        href={href}
-                                        target="_blank"
-                                        rel="noopener noreferrer"
-                                        className="flex-shrink-0 relative group/img w-16 h-16 rounded border border-slate-200 overflow-hidden bg-white hover:border-primary transition-colors"
+                                        type="button"
+                                        onClick={() => {
+                                            if (selectionMode) {
+                                                handleToggleSelection(img.id);
+                                            } else {
+                                                handleImageClick(index);
+                                            }
+                                        }}
+                                        aria-pressed={selectionMode ? isSelected : undefined}
+                                        className={`flex-shrink-0 relative group/img w-16 h-16 rounded border overflow-hidden bg-white transition-colors ${isSelected ? 'border-primary ring-2 ring-primary/30' : 'border-slate-200 hover:border-primary'}`}
                                         title={title}
                                     >
                                         <img
-                                            src={imageSrc}
+                                            src={resolvedImageSrc}
                                             alt={isSearchImage ? 'Search result' : 'Generated'}
                                             className="w-full h-full object-cover"
                                             onError={() => {
                                                 if (isSearchImage) {
-                                                    handleSearchImageError(img.id);
+                                                    if (resolvedImageSrc !== img.url) {
+                                                        handleSearchThumbnailError(img.id);
+                                                    } else {
+                                                        handleSearchImageError(img.id);
+                                                    }
                                                 }
                                             }}
                                         />
                                         <div className="absolute inset-0 bg-black/0 group-hover/img:bg-black/10 transition-colors" />
-                                    </a>
+                                        {selectionMode && (
+                                            <div className={`absolute top-1 right-1 h-4 w-4 rounded-full border ${isSelected ? 'bg-primary border-primary text-white' : 'bg-white/80 border-white/80 text-transparent'} flex items-center justify-center`}>
+                                                <CheckIcon className="h-3 w-3" />
+                                            </div>
+                                        )}
+                                    </button>
                                 );
                             })}
+                            </div>
                         </div>
                     )}
 
@@ -610,6 +750,12 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                     </div>
                 </footer>
             )}
+            <ImageViewerModal
+                images={visibleSearchImages}
+                initialIndex={modalImageIndex}
+                open={modalOpen}
+                onClose={() => setModalOpen(false)}
+            />
         </div >
     );
 };
