@@ -41,12 +41,19 @@ interface SearchImagesRequestBody {
   slideId: string;
 }
 
+interface DownloadImagesZipRequestBody {
+  projectId: string;
+  images: Array<{ url: string; name?: string }>;
+  filename?: string;
+}
+
 type GeminiRequestBody =
   | GenerateSlidesRequestBody
   | GenerateImageRequestBody
   | ExtractTextRequestBody
   | GeneratePromptRequestBody
-  | SearchImagesRequestBody;
+  | SearchImagesRequestBody
+  | DownloadImagesZipRequestBody;
 
 export { GeminiError, ImageGenError };
 
@@ -260,4 +267,32 @@ export const searchImages = async (
   });
 };
 
+export const downloadImagesZip = async (
+  projectId: string,
+  images: Array<{ url: string; name?: string }>,
+  filename?: string
+): Promise<Blob> => {
+  const user = auth.currentUser;
+  if (!user) {
+    throw new Error("User must be authenticated to download images.");
+  }
+  const token = await user.getIdToken();
+  const apiUrl = getApiBaseUrlDynamic();
+
+  const response = await fetch(`${apiUrl}/download-images-zip`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'Authorization': `Bearer ${token}`
+    },
+    body: JSON.stringify({ projectId, images, filename })
+  });
+
+  if (!response.ok) {
+    const errorData = await response.json().catch(() => ({}));
+    throw new Error(errorData.error || response.statusText);
+  }
+
+  return response.blob();
+};
 

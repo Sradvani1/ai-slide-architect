@@ -7,6 +7,9 @@ import * as cors from 'cors';
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
+import JSZip = require('jszip');
+import { lookup } from 'dns/promises';
+import { isIP } from 'net';
 
 // Initialize Firebase Admin (must be before middleware)
 admin.initializeApp();
@@ -32,6 +35,96 @@ const app = express();
 // Middleware
 app.use(cors({ origin: true }));
 app.use(express.json());
+
+const MAX_DOWNLOAD_IMAGES = 50;
+const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const DOWNLOAD_TIMEOUT_MS = 15000;
+
+const sanitizeFilename = (filename: string): string => {
+    return filename
+        .replace(/[<>:"/\\|?*]/g, '-')
+        .replace(/\s+/g, '-')
+        .replace(/-+/g, '-')
+        .replace(/^-|-$/g, '')
+        .substring(0, 120);
+};
+
+const extensionFromMime = (mimeType: string | null) => {
+    if (!mimeType) return 'bin';
+    if (mimeType.includes('jpeg')) return 'jpg';
+    if (mimeType.includes('png')) return 'png';
+    if (mimeType.includes('webp')) return 'webp';
+    if (mimeType.includes('gif')) return 'gif';
+    return 'bin';
+};
+
+const extensionFromUrl = (url: string) => {
+    try {
+        const pathname = new URL(url).pathname;
+        const match = pathname.match(/\.([a-zA-Z0-9]+)$/);
+        return match?.[1]?.toLowerCase() || undefined;
+    } catch {
+        return undefined;
+    }
+};
+
+const isPrivateIp = (ip: string) => {
+    if (ip === '::1') return true;
+    if (ip.startsWith('127.')) return true;
+    if (ip.startsWith('10.')) return true;
+    if (ip.startsWith('192.168.')) return true;
+    if (ip.startsWith('169.254.')) return true;
+    if (ip.startsWith('172.')) {
+        const second = Number(ip.split('.')[1]);
+        if (second >= 16 && second <= 31) return true;
+    }
+    if (ip.startsWith('fc') || ip.startsWith('fd')) return true;
+    if (ip.startsWith('fe80')) return true;
+    return false;
+};
+
+const isBlockedHost = async (hostname: string) => {
+    const lowered = hostname.toLowerCase();
+    if (lowered === 'localhost' || lowered.endsWith('.local')) return true;
+    if (isIP(hostname)) {
+        return isPrivateIp(hostname);
+    }
+    try {
+        const addresses = await lookup(hostname, { all: true });
+        return addresses.some((entry) => isPrivateIp(entry.address));
+    } catch {
+        return true;
+    }
+};
+
+const fetchImageBuffer = async (url: string) => {
+    const controller = new AbortController();
+    const timeout = setTimeout(() => controller.abort(), DOWNLOAD_TIMEOUT_MS);
+    try {
+        const response = await fetch(url, { signal: controller.signal, redirect: 'follow' });
+        if (!response.ok) {
+            throw new Error(`Image fetch failed: ${response.status}`);
+        }
+        const contentType = response.headers.get('content-type');
+        if (!contentType || !contentType.startsWith('image/')) {
+            throw new Error('Unsupported content type');
+        }
+        const contentLength = response.headers.get('content-length');
+        if (contentLength && Number(contentLength) > MAX_IMAGE_BYTES) {
+            throw new Error('Image exceeds size limit');
+        }
+        const arrayBuffer = await response.arrayBuffer();
+        if (arrayBuffer.byteLength > MAX_IMAGE_BYTES) {
+            throw new Error('Image exceeds size limit');
+        }
+        return {
+            buffer: Buffer.from(arrayBuffer),
+            contentType
+        };
+    } finally {
+        clearTimeout(timeout);
+    }
+};
 
 // Routes
 // 1. Generate Slides
@@ -420,6 +513,130 @@ app.post('/search-images', verifyAuth, rateLimitMiddleware, async (req: Authenti
     } catch (error: any) {
         console.error("Search Images Error:", error);
         res.status(500).json({ error: error.message || "Image search failed" });
+    }
+});
+
+/**
+ * 9b. Download selected images as a zip (server-side).
+ */
+app.post('/download-images-zip', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+    try {
+        const { projectId, images, filename } = req.body;
+        if (!projectId) {
+            res.status(400).json({ error: "Missing required field: projectId" });
+            return;
+        }
+        if (!req.user) {
+            res.status(401).json({ error: "Unauthorized" });
+            return;
+        }
+
+        const requestedImages = Array.isArray(images) ? images : [];
+        if (requestedImages.length === 0) {
+            res.status(400).json({ error: "No images provided." });
+            return;
+        }
+
+        const userId = req.user.uid;
+        const db = admin.firestore();
+        const projectRef = db.collection('users').doc(userId).collection('projects').doc(projectId);
+        const projectDoc = await projectRef.get();
+        if (!projectDoc.exists) {
+            res.status(404).json({ error: "Project not found or unauthorized" });
+            return;
+        }
+
+        const slidesSnapshot = await projectRef.collection('slides').get();
+        const allowedUrls = new Set<string>();
+        slidesSnapshot.forEach((doc) => {
+            const slideData = doc.data() as Slide;
+            (slideData.generatedImages || []).forEach((image) => {
+                if (typeof image.url === 'string') {
+                    allowedUrls.add(image.url);
+                }
+            });
+        });
+
+        const imageList = requestedImages.slice(0, MAX_DOWNLOAD_IMAGES);
+        const zip = new JSZip();
+        const failures: string[] = [];
+        let successCount = 0;
+        const hostCache = new Map<string, boolean>();
+        const concurrency = 5;
+
+        const downloadOne = async (image: { url?: string; name?: string }, index: number) => {
+            const url = image?.url;
+            if (!url || typeof url !== 'string') {
+                failures.push(`image-${index + 1}: missing url`);
+                return;
+            }
+            if (!allowedUrls.has(url)) {
+                failures.push(`image-${index + 1}: url not allowed`);
+                return;
+            }
+            let parsed: URL;
+            try {
+                parsed = new URL(url);
+            } catch {
+                failures.push(`image-${index + 1}: invalid url`);
+                return;
+            }
+            if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+                failures.push(`image-${index + 1}: unsupported protocol`);
+                return;
+            }
+            const cacheKey = parsed.hostname.toLowerCase();
+            let blocked = hostCache.get(cacheKey);
+            if (blocked === undefined) {
+                blocked = await isBlockedHost(parsed.hostname);
+                hostCache.set(cacheKey, blocked);
+            }
+            if (blocked) {
+                failures.push(`image-${index + 1}: blocked host`);
+                return;
+            }
+            try {
+                const result = await fetchImageBuffer(url);
+                const urlExtension = extensionFromUrl(url);
+                const mimeExtension = extensionFromMime(result.contentType);
+                const extension = urlExtension || mimeExtension || 'bin';
+                const baseName = sanitizeFilename(image.name || `image-${index + 1}`);
+                zip.file(`${baseName}.${extension}`, result.buffer);
+                successCount += 1;
+            } catch (error: any) {
+                const message = error?.message || 'download failed';
+                failures.push(`image-${index + 1}: ${message}`);
+            }
+        };
+
+        const pool = new Set<Promise<void>>();
+        for (let index = 0; index < imageList.length; index += 1) {
+            const promise = downloadOne(imageList[index], index).finally(() => pool.delete(promise));
+            pool.add(promise);
+            if (pool.size >= concurrency) {
+                await Promise.race(pool);
+            }
+        }
+        await Promise.all(pool);
+
+        if (successCount === 0) {
+            res.status(400).json({ error: "No images could be downloaded." });
+            return;
+        }
+
+        if (failures.length > 0) {
+            zip.file('download-failures.txt', failures.join('\n'));
+        }
+
+        const safeName = sanitizeFilename(String(filename || 'images')).replace(/\.zip$/i, '') || 'images';
+        const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
+        res.setHeader('Content-Type', 'application/zip');
+        res.setHeader('Content-Disposition', `attachment; filename="${safeName}.zip"`);
+        res.setHeader('Cache-Control', 'no-store');
+        res.status(200).send(zipBuffer);
+    } catch (error: any) {
+        console.error("Download Images Zip Error:", error);
+        res.status(500).json({ error: "Failed to download images." });
     }
 });
 

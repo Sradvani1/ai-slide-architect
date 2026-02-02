@@ -1,11 +1,10 @@
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import type { Slide } from '../types';
 import { CopyIcon, CheckIcon, ImageIcon, PencilIcon } from './icons';
-import { generateImageFromPrompt, generatePrompt, searchImages } from '../services/geminiService';
+import { downloadImagesZip, generateImageFromPrompt, generatePrompt, searchImages } from '../services/geminiService';
 import { uploadImageToStorage } from '../services/projectService';
 import { isRetryableError } from '../utils/typeGuards';
 import { ImageViewerModal } from './ImageViewerModal';
-import { downloadImagesAsZip } from '../utils/imageDownload';
 
 interface SlideCardProps {
     slide: Slide;
@@ -373,13 +372,26 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
 
     const handleDownloadSelected = async () => {
         if (selectedImages.length === 0 || isDownloading) return;
+        if (!projectId) {
+            alert('Project is required to download images.');
+            return;
+        }
         setIsDownloading(true);
         try {
             const filename = `slide-${slideNumber}-images-${Date.now()}.zip`;
-            const result = await downloadImagesAsZip(selectedImages, filename);
-            if (result.failed.length > 0) {
-                alert(`Downloaded ${result.successCount} images. ${result.failed.length} failed to download.`);
-            }
+            const payload = selectedImages.map((image, index) => ({
+                url: image.url,
+                name: `slide-${slideNumber}-${index + 1}`
+            }));
+            const zipBlob = await downloadImagesZip(projectId, payload, filename);
+            const url = URL.createObjectURL(zipBlob);
+            const link = document.createElement('a');
+            link.href = url;
+            link.download = filename;
+            document.body.appendChild(link);
+            link.click();
+            document.body.removeChild(link);
+            URL.revokeObjectURL(url);
         } catch (error) {
             console.error('Download failed:', error);
             alert('Failed to download images. Please try again.');
