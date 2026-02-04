@@ -704,12 +704,18 @@ export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{proje
 
 
 
+// Import routes here
+import searchRoute from './routes/search';
+
+// Use routes
+app.use('/api', searchRoute);
+
 // Export the API
 export const api = functions.https.onRequest(
     {
         timeoutSeconds: 300,
         memory: '1GiB',
-        secrets: [adminUserIdSecret, apiKey, braveApiKeySecret]
+        secrets: [adminUserIdSecret, braveApiKeySecret]
     },
     app
 );
