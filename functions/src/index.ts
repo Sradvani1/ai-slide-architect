@@ -26,6 +26,7 @@ import { searchBraveImages } from './services/imageSearch';
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { createShareLink, claimShareLink, getSharePreview } from './services/shareService';
 import { Slide, ProjectData } from '@shared/types';
+import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { apiKey } from './utils/geminiClient';
@@ -136,13 +137,14 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             gradeLevel,
             subject,
             sourceMaterial,
-            numSlides,
             useWebSearch,
             additionalInstructions,
-            bulletsPerSlide,
             uploadedFileNames,
             requestId
         } = req.body;
+
+        const numSlides = Math.round(Math.min(10, Math.max(2, Number(req.body.numSlides) || DEFAULT_NUM_SLIDES)));
+        const bulletsPerSlide = Math.round(Math.min(6, Math.max(3, Number(req.body.bulletsPerSlide) || DEFAULT_BULLETS_PER_SLIDE)));
 
         // Basic validation
         if (!topic || !gradeLevel || !subject) {
@@ -191,7 +193,7 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             gradeLevel,
             subject,
             sourceMaterial || "",
-            numSlides || 5,
+            numSlides,
             useWebSearch || false,
             {
                 baseRequestId,
