@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
 import { GenerateIcon } from './icons';
 import { FileUploader } from './FileUploader';
 
@@ -36,32 +37,6 @@ const PLACEHOLDER_PAIRS = [
   { topic: "Structure of the human heart", gradeLevel: "7th Grade", subject: "Science" },
   { topic: "Renaissance art techniques", gradeLevel: "9th Grade", subject: "Arts" },
   { topic: "Laws of motion", gradeLevel: "8th Grade", subject: "Science" }
-];
-
-const GRADE_LEVELS = [
-  "1st",
-  "2nd",
-  "3rd",
-  "4th",
-  "5th",
-  "6th",
-  "7th",
-  "8th",
-  "9th",
-  "10th",
-  "11th",
-  "12th"
-];
-
-const SUBJECTS = [
-  "English Language Arts",
-  "Health",
-  "History-Social Science",
-  "Mathematics",
-  "Physical Education",
-  "Science",
-  "Visual & Performing Arts",
-  "World Languages"
 ];
 
 export const InputForm: React.FC<InputFormProps> = ({

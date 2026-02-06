@@ -97,7 +97,7 @@ body {
   }
 
   .input-field {
-    @apply bg-surface border border-[#D1D5D8] rounded-md px-3 py-2.5 focus:border-primary focus:ring-2 focus:ring-primary/10 outline-none transition-all w-full text-primary-text placeholder-secondary-text/70 shadow-sm text-sm;
+    @apply bg-surface border border-[#D1D5D8] rounded-md px-3 py-2.5 focus:border-primary focus:ring-2 focus:ring-primary/10 focus-visible:outline-none outline-none transition-all w-full text-primary-text placeholder-secondary-text/70 shadow-sm text-sm;
   }
 
   .btn-primary {

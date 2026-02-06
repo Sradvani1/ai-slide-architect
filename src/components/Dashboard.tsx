@@ -1,10 +1,11 @@
-import React, { useEffect, useState } from 'react';
+import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
 import { ProjectData, deleteProject } from '../services/projectService';
 import { collection, query, orderBy, onSnapshot, getDocs, limit, Timestamp } from 'firebase/firestore';
 import { isError, isFirestoreTimestamp } from '../utils/typeGuards';
+import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
 import { PptxIcon } from './icons';
 import { Slide } from '../types';
 
@@ -16,6 +17,17 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const navigate = useNavigate();
     const [projects, setProjects] = useState<ProjectData[]>([]);
     const [isLoading, setIsLoading] = useState(true);
+    const [filterGradeLevel, setFilterGradeLevel] = useState('');
+    const [filterSubject, setFilterSubject] = useState('');
+    const [filterSectionOpen, setFilterSectionOpen] = useState(false);
+
+    const filteredProjects = useMemo(() => {
+        return projects.filter(
+            (p) =>
+                (filterGradeLevel === '' || p.gradeLevel === filterGradeLevel) &&
+                (filterSubject === '' || p.subject === filterSubject)
+        );
+    }, [projects, filterGradeLevel, filterSubject]);
 
     useEffect(() => {
         if (!user?.uid) return;
@@ -169,8 +181,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
                 <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-6">
                     <div>
-                        <h1 className="text-3xl font-bold text-primary-text tracking-tight mb-1">Welcome back, {user.displayName ? user.displayName.split(' ')[0] : 'User'}</h1>
-                        <p className="text-[15px] text-[#627C81] font-medium">Your projects</p>
+                        <h1 className="text-3xl font-bold text-primary-text tracking-tight">Welcome back, {user.displayName ? user.displayName.split(' ')[0] : 'User'}</h1>
                     </div>
                     <button
                         onClick={() => navigate('/new')}
@@ -182,6 +193,98 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                         <span>New Project</span>
                     </button>
                 </div>
+
+                {!isLoading && projects.length > 0 && (
+                    <div className="mb-6">
+                        <div className="flex flex-wrap items-center gap-3">
+                            <button
+                                type="button"
+                                onClick={() => setFilterSectionOpen((open) => !open)}
+                                aria-expanded={filterSectionOpen}
+                                aria-controls="dashboard-filter-panel"
+                                aria-label={filterSectionOpen ? 'Hide filter options' : 'Show filter options by grade and subject'}
+                                className="inline-flex items-center gap-2 px-3 py-2 rounded-md border border-border-light bg-neutral-bg hover:bg-white hover:border-primary/30 text-sm font-semibold text-primary-text transition-colors focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 min-h-[44px]"
+                            >
+                                <span>Filter</span>
+                                {(filterGradeLevel !== '' || filterSubject !== '') && (
+                                    <span
+                                        className="inline-flex items-center justify-center min-w-[20px] h-5 px-1.5 rounded-full bg-primary/15 text-primary text-xs font-bold"
+                                        aria-label={`${filterGradeLevel !== '' && filterSubject !== '' ? '2' : '1'} filter${filterGradeLevel !== '' && filterSubject !== '' ? 's' : ''} active`}
+                                    >
+                                        {[filterGradeLevel, filterSubject].filter(Boolean).length}
+                                    </span>
+                                )}
+                                <svg
+                                    xmlns="http://www.w3.org/2000/svg"
+                                    fill="none"
+                                    viewBox="0 0 24 24"
+                                    strokeWidth={2}
+                                    stroke="currentColor"
+                                    className={`w-4 h-4 text-secondary-text transition-transform ${filterSectionOpen ? 'rotate-180' : ''}`}
+                                    aria-hidden
+                                >
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="m19.5 8.25-7.5 7.5-7.5-7.5" />
+                                </svg>
+                            </button>
+                            {filteredProjects.length === 0 && (filterGradeLevel !== '' || filterSubject !== '') && (
+                                <button
+                                    type="button"
+                                    onClick={() => {
+                                        setFilterGradeLevel('');
+                                        setFilterSubject('');
+                                    }}
+                                    aria-label="Clear grade and subject filters"
+                                    className="text-sm font-medium text-primary hover:text-primary/80 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 rounded-md px-2 py-1.5 min-h-[44px]"
+                                >
+                                    Clear filters
+                                </button>
+                            )}
+                        </div>
+                        <div
+                            id="dashboard-filter-panel"
+                            role="region"
+                            aria-label="Filter by grade and subject"
+                            className={`transition-[height,opacity] duration-200 ease-out ${filterSectionOpen ? 'opacity-100 overflow-visible' : 'opacity-0 h-0 overflow-hidden'}`}
+                        >
+                            {filterSectionOpen && (
+                                <div className="flex flex-wrap items-center gap-4 pt-4">
+                                    <div className="min-w-[120px]">
+                                        <select
+                                            value={filterGradeLevel}
+                                            onChange={(e) => {
+                                                setFilterGradeLevel(e.target.value);
+                                                (e.target as HTMLSelectElement).blur();
+                                            }}
+                                            className="input-field appearance-none w-full min-w-0"
+                                            aria-label="Filter by grade level"
+                                        >
+                                            <option value="">All grades</option>
+                                            {GRADE_LEVELS.map((grade) => (
+                                                <option key={grade} value={grade}>{grade}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                    <div className="min-w-[180px]">
+                                        <select
+                                            value={filterSubject}
+                                            onChange={(e) => {
+                                                setFilterSubject(e.target.value);
+                                                (e.target as HTMLSelectElement).blur();
+                                            }}
+                                            className="input-field appearance-none w-full min-w-0"
+                                            aria-label="Filter by subject"
+                                        >
+                                            <option value="">All subjects</option>
+                                            {SUBJECTS.map((subj) => (
+                                                <option key={subj} value={subj}>{subj}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                </div>
+                            )}
+                        </div>
+                    </div>
+                )}
 
                 {isLoading ? (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
@@ -203,6 +306,22 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             Create Project &rarr;
                         </button>
                     </div>
+                ) : filteredProjects.length === 0 ? (
+                    <div className="flex flex-col items-center justify-center py-20 bg-surface rounded-2xl border border-slate-200 shadow-sm">
+                        <h3 className="text-xl font-bold text-primary-text mb-2">No projects match the selected grade and subject</h3>
+                        <p className="text-secondary-text mb-6">Try changing the filters above or clear them to see all projects.</p>
+                        <button
+                            type="button"
+                            onClick={() => {
+                                setFilterGradeLevel('');
+                                setFilterSubject('');
+                            }}
+                            aria-label="Clear grade and subject filters"
+                            className="text-primary hover:text-primary/80 font-semibold flex items-center min-h-[44px] px-3 rounded-md focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                        >
+                            Clear filters &rarr;
+                        </button>
+                    </div>
                 ) : (
                     <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
                         {/* Create New Card (Inline Option) */}
@@ -218,7 +337,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             <span className="font-semibold text-secondary-text group-hover:text-primary transition-colors text-sm">New Project</span>
                         </Link>
 
-                        {projects.map((project) => {
+                        {filteredProjects.map((project) => {
                             const isGenerating = project.status === 'generating';
                             return (
                             <div
