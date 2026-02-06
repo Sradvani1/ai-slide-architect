@@ -1,5 +1,2 @@
-export const DEFAULT_BULLETS_PER_SLIDE = 4;
-export const DEFAULT_NUM_SLIDES = 5;
-
-// Re-export shared constants for convenience and backwards compatibility
+// Re-export shared constants only. Do not redefine defaults here—use shared/constants.ts.
 export * from '../shared/constants';
