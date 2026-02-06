@@ -77,7 +77,7 @@ const ErrorFallback: React.FC<ErrorFallbackProps> = ({ error, resetErrorBoundary
                 </div>
 
                 <div className="px-8 py-4 bg-slate-50 border-t border-slate-100 flex justify-between items-center">
-                    <span className="text-slate-400 text-xs">Error ID: {Math.random().toString(36).substr(2, 9).toUpperCase()}</span>
+                    <span className="text-slate-400 text-xs">Error ID: {Math.random().toString(36).slice(2, 11).toUpperCase()}</span>
                     <button
                         onClick={() => {
                             const text = `Error: ${error?.message}\nStack: ${error?.stack}`;
