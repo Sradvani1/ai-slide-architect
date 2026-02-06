@@ -631,9 +631,10 @@ app.post('/download-images-zip', verifyAuth, rateLimitMiddleware, async (req: Au
         }
 
         const safeName = sanitizeFilename(String(filename || 'images')).replace(/\.zip$/i, '') || 'images';
+        const headerSafeName = safeName.replace(/\\/g, '\\\\').replace(/"/g, '\\"');
         const zipBuffer = await zip.generateAsync({ type: 'nodebuffer' });
         res.setHeader('Content-Type', 'application/zip');
-        res.setHeader('Content-Disposition', `attachment; filename="${safeName}.zip"`);
+        res.setHeader('Content-Disposition', `attachment; filename="${headerSafeName}.zip"`);
         res.setHeader('Cache-Control', 'no-store');
         res.status(200).send(zipBuffer);
     } catch (error: any) {
