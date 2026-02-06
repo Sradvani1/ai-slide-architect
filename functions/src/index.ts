@@ -39,6 +39,7 @@ app.use(express.json({ limit: '500kb' }));
 
 const MAX_DOWNLOAD_IMAGES = 50;
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
+const MAX_IMAGE_BASE64_BYTES = 10 * 1024 * 1024; // 10MB decoded size
 const DOWNLOAD_TIMEOUT_MS = 15000;
 
 const sanitizeFilename = (filename: string): string => {
@@ -283,6 +284,16 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
 
         if (!imageBase64) {
             res.status(400).json({ error: "Missing image data" });
+            return;
+        }
+        if (typeof imageBase64 !== 'string') {
+            res.status(400).json({ error: "Invalid image data" });
+            return;
+        }
+        const base64Length = imageBase64.replace(/\s/g, '').length;
+        const decodedBytes = Math.ceil((base64Length * 3) / 4);
+        if (decodedBytes > MAX_IMAGE_BASE64_BYTES) {
+            res.status(400).json({ error: "Image data exceeds size limit" });
             return;
         }
 
