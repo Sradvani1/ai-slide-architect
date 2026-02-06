@@ -2,6 +2,7 @@ import { getAiClient } from '../utils/geminiClient';
 import { MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { retryWithBackoff } from '@shared/utils/retryLogic';
 import { GeminiError } from '@shared/errors';
+import { getErrorMessage } from '@shared/utils/errorMessage';
 import { recordUsage } from './usageEventsService';
 
 export async function extractTextFromImage(
@@ -53,8 +54,8 @@ export async function extractTextFromImage(
                 outputTokens
             };
 
-        } catch (error: any) {
-            console.error("Text extraction failed:", error);
+        } catch (error: unknown) {
+            console.error("Text extraction failed:", getErrorMessage(error));
             throw new GeminiError("Failed to extract text from image", 'API_ERROR', false, error);
         }
     };

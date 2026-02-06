@@ -29,6 +29,7 @@ import { Slide, ProjectData } from '@shared/types';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
+import { getErrorMessage } from '@shared/utils/errorMessage';
 import { apiKey } from './utils/geminiClient';
 
 const app = express();
@@ -204,21 +205,21 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
             additionalInstructions,
             bulletsPerSlide,
             uploadedFileNames
-        ).catch(error => {
+        ).catch((error: unknown) => {
             console.error("Background generation error:", error);
             // Update project with error status as a fallback
             projectRef.update({
                 status: 'failed',
-                generationError: error.message || "Background generation failed",
+                generationError: getErrorMessage(error) || "Background generation failed",
                 updatedAt: FieldValue.serverTimestamp()
-            }).catch(updateError => {
-                console.error("Failed to update error status in background catch:", updateError);
+            }).catch((updateError: unknown) => {
+                console.error("Failed to update error status in background catch:", getErrorMessage(updateError));
             });
         });
         return;
 
-    } catch (error: any) {
-        console.error("Generate Slides Error:", error);
+    } catch (error: unknown) {
+        console.error("Generate Slides Error:", getErrorMessage(error));
         if (error instanceof GeminiError) {
             res.status(error.code === 'RATE_LIMIT' ? 429 : 500).json({
                 error: error.message,
@@ -263,8 +264,8 @@ app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: Authent
         }, options || {});
         res.json(result);
 
-    } catch (error: any) {
-        console.error("Generate Image Error:", error);
+    } catch (error: unknown) {
+        console.error("Generate Image Error:", getErrorMessage(error));
         if (error instanceof ImageGenError) {
             const status = error.code === 'NO_IMAGE_DATA' ? 500 : 400; // Map generic bad request
             res.status(status).json({ error: error.message, code: error.code });
@@ -324,8 +325,8 @@ app.post('/extract-text', verifyAuth, rateLimitMiddleware, async (req: Authentic
         });
         res.json(result);
 
-    } catch (error: any) {
-        console.error("Extract Text Error:", error);
+    } catch (error: unknown) {
+        console.error("Extract Text Error:", getErrorMessage(error));
         res.status(500).json({ error: "Text extraction failed" });
     }
 });
@@ -346,8 +347,8 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
         await initializeModelPricing();
 
         res.json({ success: true, message: "Model pricing initialized" });
-    } catch (error: any) {
-        console.error("Initialize Pricing Error:", error);
+    } catch (error: unknown) {
+        console.error("Initialize Pricing Error:", getErrorMessage(error));
         res.status(500).json({ error: "Failed to initialize pricing" });
     }
 });
@@ -434,16 +435,16 @@ app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: 
         generateImagePromptsForSingleSlide(slideRef, projectData, slideData, {
             userId,
             projectId
-        }).catch(error => {
-            console.error(`[PROMPT_GEN] Error processing prompt for slide ${slideId}:`, error);
+        }).catch((error: unknown) => {
+            console.error(`[PROMPT_GEN] Error processing prompt for slide ${slideId}:`, getErrorMessage(error));
         });
 
         res.json({
             success: true,
             message: `Prompt generation started for slide ${slideId}.`
         });
-    } catch (error: any) {
-        console.error("Generate Prompt Error:", error);
+    } catch (error: unknown) {
+        console.error("Generate Prompt Error:", getErrorMessage(error));
         res.status(500).json({ error: "Failed to initiate prompt generation" });
     }
 });
@@ -523,9 +524,9 @@ app.post('/search-images', verifyAuth, rateLimitMiddleware, async (req: Authenti
             searchTerms: effectiveTerms,
             results: searchResults
         });
-    } catch (error: any) {
-        console.error("Search Images Error:", error);
-        res.status(500).json({ error: error.message || "Image search failed" });
+    } catch (error: unknown) {
+        console.error("Search Images Error:", getErrorMessage(error));
+        res.status(500).json({ error: getErrorMessage(error) || "Image search failed" });
     }
 });
 
@@ -616,8 +617,8 @@ app.post('/download-images-zip', verifyAuth, rateLimitMiddleware, async (req: Au
                 const baseName = sanitizeFilename(image.name || `image-${index + 1}`);
                 zip.file(`${baseName}.${extension}`, result.buffer);
                 successCount += 1;
-            } catch (error: any) {
-                const message = error?.message || 'download failed';
+            } catch (error: unknown) {
+                const message = getErrorMessage(error) || 'download failed';
                 failures.push(`image-${index + 1}: ${message}`);
             }
         };
@@ -648,8 +649,8 @@ app.post('/download-images-zip', verifyAuth, rateLimitMiddleware, async (req: Au
         res.setHeader('Content-Disposition', `attachment; filename="${headerSafeName}.zip"`);
         res.setHeader('Cache-Control', 'no-store');
         res.status(200).send(zipBuffer);
-    } catch (error: any) {
-        console.error("Download Images Zip Error:", error);
+    } catch (error: unknown) {
+        console.error("Download Images Zip Error:", getErrorMessage(error));
         res.status(500).json({ error: "Failed to download images." });
     }
 });
@@ -671,9 +672,9 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
 
         const result = await claimShareLink(token, req.user.uid);
         res.json(result);
-    } catch (error: any) {
-        console.error('Claim Share Link Error:', error);
-        const message = error?.message || 'Failed to claim share link';
+    } catch (error: unknown) {
+        console.error('Claim Share Link Error:', getErrorMessage(error));
+        const message = getErrorMessage(error) || 'Failed to claim share link';
         const status = message.includes('generating') ? 409 : (message.includes('not found') ? 404 : 500);
         res.status(status).json({ error: message });
     }
@@ -692,9 +693,9 @@ app.get('/share/preview', async (req: express.Request, res: express.Response) =>
 
         const result = await getSharePreview(token);
         res.json(result);
-    } catch (error: any) {
-        console.error('Share Preview Error:', error);
-        const message = error?.message || 'Failed to load share preview';
+    } catch (error: unknown) {
+        console.error('Share Preview Error:', getErrorMessage(error));
+        const message = getErrorMessage(error) || 'Failed to load share preview';
         const status = message.includes('not found') ? 404 : 500;
         res.status(status).json({ error: message });
     }
@@ -710,8 +711,8 @@ export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{proje
 
     try {
         await createShareLink(userId, projectId);
-    } catch (error) {
-        console.error('Share link creation on project create failed:', error);
+    } catch (error: unknown) {
+        console.error('Share link creation on project create failed:', getErrorMessage(error));
     }
 });
 

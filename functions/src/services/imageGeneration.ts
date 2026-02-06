@@ -3,6 +3,7 @@ import { getAiClient } from '../utils/geminiClient';
 import { MODEL_IMAGE_GENERATION, MODEL_SLIDE_GENERATION, STYLE_GUIDELINES } from '@shared/constants';
 import { retryWithBackoff, retryPromptGeneration } from '@shared/utils/retryLogic';
 import { ImageGenError } from '@shared/errors';
+import { getErrorMessage } from '@shared/utils/errorMessage';
 import { recordUsage } from './usageEventsService';
 import {
     buildSingleSlideImagePromptSystemInstructions,
@@ -87,9 +88,13 @@ ${STYLE_GUIDELINES}`;
                 outputTokens
             };
 
-        } catch (error: any) {
-            // Handle safety blocks
-            if (error.message?.includes('safety') || error.response?.promptFeedback?.blockReason) {
+        } catch (error: unknown) {
+            // Handle safety blocks (Gemini SDK may throw with response.promptFeedback)
+            const msg = getErrorMessage(error);
+            const blockReason = typeof error === 'object' && error !== null && 'response' in error
+                ? (error as { response?: { promptFeedback?: { blockReason?: string } } }).response?.promptFeedback?.blockReason
+                : undefined;
+            if (msg.includes('safety') || blockReason) {
                 throw new ImageGenError("Image generation blocked by safety filters", 'UNKNOWN', false);
             }
             throw error;
@@ -154,8 +159,8 @@ export async function generateImagePrompts(
                 inputTokens,
                 outputTokens
             };
-        } catch (error: any) {
-            console.error(`Error in generateImagePrompts:`, error);
+        } catch (error: unknown) {
+            console.error(`Error in generateImagePrompts:`, getErrorMessage(error));
             throw error;
         }
     };
@@ -168,8 +173,8 @@ export async function generateImagePrompts(
             totalInputTokens: promptResult.inputTokens,
             totalOutputTokens: promptResult.outputTokens
         };
-    } catch (error) {
-        console.error(`Prompt generation failed:`, error);
+    } catch (error: unknown) {
+        console.error(`Prompt generation failed:`, getErrorMessage(error));
         return {
             prompts: [],
             failed: 1,

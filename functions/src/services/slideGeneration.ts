@@ -7,6 +7,7 @@ import { validateSlideStructure } from '@shared/utils/validation';
 import { DEFAULT_BULLETS_PER_SLIDE, MODEL_SLIDE_GENERATION } from '@shared/constants';
 import { Slide, ProjectData } from '@shared/types';
 import { GeminiError } from '@shared/errors';
+import { getErrorMessage } from '@shared/utils/errorMessage';
 import { generateImagePrompts } from './imageGeneration';
 import { recordUsage } from './usageEventsService';
 
@@ -254,7 +255,7 @@ async function performSlideGeneration(
     let slides: any[];
     try {
         slides = extractFirstJsonArray(text);
-    } catch (e) {
+    } catch (e: unknown) {
         throw new GeminiError("Failed to parse JSON from model response", 'INVALID_REQUEST', false, { responseText: text });
     }
 
@@ -351,7 +352,7 @@ async function updateProjectWithRetry(
         try {
             await projectRef.update(data);
             return;
-        } catch (error) {
+        } catch (error: unknown) {
             lastError = error;
             if (attempt >= attempts) {
                 throw error;
@@ -439,12 +440,12 @@ export async function generateSlidesAndUpdateFirestore(
                     bulletsPerSlide
                 );
                 break;
-            } catch (error: any) {
+            } catch (error: unknown) {
                 if (attempt >= maxGenerationRetries) {
                     throw error;
                 }
                 const delayMs = 1000 * attempt;
-                console.warn(`Generation attempt ${attempt} failed, retrying in ${delayMs}ms...`);
+                console.warn(`Generation attempt ${attempt} failed, retrying in ${delayMs}ms...`, getErrorMessage(error));
                 await new Promise(resolve => setTimeout(resolve, delayMs));
             }
         }
@@ -504,18 +505,18 @@ export async function generateSlidesAndUpdateFirestore(
             generationCompletedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
         });
-    } catch (error: any) {
-        console.error("Generation error:", error);
+    } catch (error: unknown) {
+        console.error("Generation error:", getErrorMessage(error));
         try {
             await projectRef.update({
                 status: 'failed',
                 generationPhase: 'failed',
                 generationMessage: 'Generation failed',
-                generationError: error.message || "Generation failed",
+                generationError: getErrorMessage(error) || "Generation failed",
                 updatedAt: FieldValue.serverTimestamp()
             });
-        } catch (updateError: any) {
-            console.error("CRITICAL: Failed to update project status after generation error:", updateError);
+        } catch (updateError: unknown) {
+            console.error("CRITICAL: Failed to update project status after generation error:", getErrorMessage(updateError));
         }
 }
 }
@@ -568,11 +569,11 @@ export async function generateImagePromptsForSingleSlide(
         } else {
             throw new Error('No prompt generated');
         }
-    } catch (error: any) {
-        console.error(`[PROMPT_GEN] Error generating prompt for slide ${slideRef.id}:`, error);
+    } catch (error: unknown) {
+        console.error(`[PROMPT_GEN] Error generating prompt for slide ${slideRef.id}:`, getErrorMessage(error));
         await slideRef.update({
             promptGenerationState: 'failed',
-            promptGenerationError: error.message || 'Failed to generate prompt',
+            promptGenerationError: getErrorMessage(error) || 'Failed to generate prompt',
             updatedAt: FieldValue.serverTimestamp()
         });
     }
