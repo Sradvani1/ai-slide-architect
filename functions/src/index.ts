@@ -20,6 +20,7 @@ const braveApiKeySecret = defineSecret('BRAVE_API_KEY');
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
+import { sharePreviewRateLimit } from './middleware/sharePreviewRateLimit';
 import { generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
 import { generateImage, generateImageSearchTerms } from './services/imageGeneration';
 import { searchBraveImages } from './services/imageSearch';
@@ -682,8 +683,9 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
 
 /**
  * 11. Fetch share preview data (no auth required).
+ * Rate limited by IP to prevent abuse (token probing / DoS).
  */
-app.get('/share/preview', async (req: express.Request, res: express.Response) => {
+app.get('/share/preview', sharePreviewRateLimit, async (req: express.Request, res: express.Response) => {
     try {
         const token = typeof req.query.token === 'string' ? req.query.token : '';
         if (!token) {
