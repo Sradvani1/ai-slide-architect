@@ -6,6 +6,7 @@ export interface GeneratedImage {
     url: string;
     storagePath?: string;
     createdAt: number;
+    downloadToken?: string;
     aspectRatio?: '16:9' | '1:1';
     inputTokens?: number;
     outputTokens?: number;

@@ -269,7 +269,7 @@ export const searchImages = async (
 
 export const downloadImagesZip = async (
   projectId: string,
-  images: Array<{ url: string; name?: string }>,
+  images: Array<{ url: string; name?: string; downloadToken?: string }>,
   filename?: string
 ): Promise<Blob> => {
   const user = auth.currentUser;
@@ -295,4 +295,3 @@ export const downloadImagesZip = async (
 
   return response.blob();
 };
-

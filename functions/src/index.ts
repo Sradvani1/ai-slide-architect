@@ -20,11 +20,12 @@ const braveApiKeySecret = defineSecret('BRAVE_API_KEY');
 
 import { verifyAuth, AuthenticatedRequest } from './middleware/auth';
 import { rateLimitMiddleware } from './middleware/rateLimiter';
-import { sharePreviewRateLimit } from './middleware/sharePreviewRateLimit';
+import { createIpRateLimiter } from './middleware/ipRateLimit';
 import { generateSlidesAndUpdateFirestore, generateImagePromptsForSingleSlide } from './services/slideGeneration';
 import { generateImage, generateImageSearchTerms } from './services/imageGeneration';
 import { searchBraveImages } from './services/imageSearch';
 import { extractTextFromImage } from './services/imageTextExtraction';
+import { createDownloadTokens, resolveDownloadToken } from './services/downloadTokenService';
 import { createShareLink, claimShareLink, getSharePreview } from './services/shareService';
 import { Slide, ProjectData } from '@shared/types';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '@shared/constants';
@@ -34,6 +35,9 @@ import { getErrorMessage } from '@shared/utils/errorMessage';
 import { apiKey } from './utils/geminiClient';
 
 const app = express();
+app.disable('x-powered-by');
+// Trust first proxy so req.ip is derived from X-Forwarded-For in Firebase/Cloud Functions.
+app.set('trust proxy', 1);
 
 // CORS: in production allow only known frontend origins; in emulator allow all.
 // Add Vercel preview or other origins to the array if needed.
@@ -50,11 +54,22 @@ const ALLOWED_ORIGINS: (string | RegExp)[] = [
 const corsOrigin = process.env.FUNCTIONS_EMULATOR ? true : ALLOWED_ORIGINS;
 app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '500kb' }));
+app.use((req, res, next) => {
+    res.setHeader('X-Content-Type-Options', 'nosniff');
+    res.setHeader('X-Frame-Options', 'DENY');
+    res.setHeader('Referrer-Policy', 'no-referrer');
+    res.setHeader('Permissions-Policy', 'geolocation=(), microphone=(), camera=()');
+    res.setHeader('Strict-Transport-Security', 'max-age=15552000; includeSubDomains');
+    res.setHeader('Content-Security-Policy', "default-src 'none'; frame-ancestors 'none'; base-uri 'none'");
+    next();
+});
 
 const MAX_DOWNLOAD_IMAGES = 50;
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
 const MAX_IMAGE_BASE64_BYTES = 10 * 1024 * 1024; // 10MB decoded size
+const MAX_ZIP_BYTES = 50 * 1024 * 1024;
 const DOWNLOAD_TIMEOUT_MS = 15000;
+const DOWNLOAD_TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 
 const sanitizeFilename = (filename: string): string => {
     return filename
@@ -141,6 +156,17 @@ const fetchImageBuffer = async (url: string) => {
         clearTimeout(timeout);
     }
 };
+
+const isValidShareToken = (token: string) => {
+    return /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i.test(token);
+};
+
+const sharePreviewRateLimit = createIpRateLimiter({
+    windowMs: 60 * 1000,
+    maxRequests: 60,
+    keyPrefix: 'share_preview',
+    failOpen: true
+});
 
 // Routes
 // 1. Generate Slides
@@ -525,8 +551,21 @@ app.post('/search-images', verifyAuth, rateLimitMiddleware, async (req: Authenti
         }
 
         const searchResults = await searchBraveImages(effectiveTerms, apiKey, 50);
+        let tokenMap = new Map<string, string>();
+        try {
+            tokenMap = await createDownloadTokens(
+                searchResults.map(result => ({ url: result.url, ownerId: userId, projectId })),
+                DOWNLOAD_TOKEN_TTL_MS
+            );
+        } catch (error: unknown) {
+            console.error("Download token creation failed:", getErrorMessage(error));
+        }
+        const searchResultsWithTokens = searchResults.map(result => ({
+            ...result,
+            downloadToken: tokenMap.get(result.url)
+        }));
 
-        const mergedImages = [...(slideData.generatedImages || []), ...searchResults];
+        const mergedImages = [...(slideData.generatedImages || []), ...searchResultsWithTokens];
 
         await slideRef.update({
             generatedImages: mergedImages,
@@ -535,7 +574,7 @@ app.post('/search-images', verifyAuth, rateLimitMiddleware, async (req: Authenti
 
         res.json({
             searchTerms: effectiveTerms,
-            results: searchResults
+            results: searchResultsWithTokens
         });
     } catch (error: unknown) {
         console.error("Search Images Error:", getErrorMessage(error));
@@ -588,16 +627,40 @@ app.post('/download-images-zip', verifyAuth, rateLimitMiddleware, async (req: Au
         const zip = new JSZip();
         const failures: string[] = [];
         let successCount = 0;
+        let totalBytes = 0;
         const hostCache = new Map<string, boolean>();
         const concurrency = 5;
+        let sizeLock: Promise<void> = Promise.resolve();
+        const withSizeLock = async <T,>(fn: () => Promise<T> | T): Promise<T> => {
+            const prev = sizeLock;
+            let release!: () => void;
+            sizeLock = new Promise<void>((resolve) => {
+                release = resolve;
+            });
+            await prev;
+            try {
+                return await fn();
+            } finally {
+                release();
+            }
+        };
 
-        const downloadOne = async (image: { url?: string; name?: string }, index: number) => {
-            const url = image?.url;
-            if (!url || typeof url !== 'string') {
+        const downloadOne = async (image: { url?: string; name?: string; downloadToken?: string }, index: number) => {
+            const rawUrl = typeof image?.url === 'string' ? image.url : '';
+            let url = rawUrl;
+            let resolvedFromToken = false;
+            if (typeof image.downloadToken === 'string' && image.downloadToken.trim()) {
+                const resolved = await resolveDownloadToken(image.downloadToken, userId, projectId);
+                if (resolved) {
+                    url = resolved;
+                    resolvedFromToken = true;
+                }
+            }
+            if (!url) {
                 failures.push(`image-${index + 1}: missing url`);
                 return;
             }
-            if (!allowedUrls.has(url)) {
+            if (!allowedUrls.has(url) && !resolvedFromToken) {
                 failures.push(`image-${index + 1}: url not allowed`);
                 return;
             }
@@ -624,12 +687,19 @@ app.post('/download-images-zip', verifyAuth, rateLimitMiddleware, async (req: Au
             }
             try {
                 const result = await fetchImageBuffer(url);
-                const urlExtension = extensionFromUrl(url);
-                const mimeExtension = extensionFromMime(result.contentType);
-                const extension = urlExtension || mimeExtension || 'bin';
-                const baseName = sanitizeFilename(image.name || `image-${index + 1}`);
-                zip.file(`${baseName}.${extension}`, result.buffer);
-                successCount += 1;
+                await withSizeLock(() => {
+                    if (totalBytes + result.buffer.length > MAX_ZIP_BYTES) {
+                        failures.push(`image-${index + 1}: zip size limit exceeded`);
+                        return;
+                    }
+                    const urlExtension = extensionFromUrl(url);
+                    const mimeExtension = extensionFromMime(result.contentType);
+                    const extension = urlExtension || mimeExtension || 'bin';
+                    const baseName = sanitizeFilename(image.name || `image-${index + 1}`);
+                    zip.file(`${baseName}.${extension}`, result.buffer);
+                    successCount += 1;
+                    totalBytes += result.buffer.length;
+                });
             } catch (error: unknown) {
                 const message = getErrorMessage(error) || 'download failed';
                 failures.push(`image-${index + 1}: ${message}`);
@@ -678,6 +748,10 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
             res.status(400).json({ error: 'Missing required field: token' });
             return;
         }
+        if (!isValidShareToken(token)) {
+            res.status(400).json({ error: 'Invalid share token' });
+            return;
+        }
         if (!req.user) {
             res.status(401).json({ error: 'Unauthorized' });
             return;
@@ -702,6 +776,10 @@ app.get('/share/preview', sharePreviewRateLimit, async (req: express.Request, re
         const token = typeof req.query.token === 'string' ? req.query.token : '';
         if (!token) {
             res.status(400).json({ error: 'Missing required query param: token' });
+            return;
+        }
+        if (!isValidShareToken(token)) {
+            res.status(400).json({ error: 'Invalid share token' });
             return;
         }
 
@@ -742,4 +820,3 @@ export const api = functions.https.onRequest(
     },
     app
 );
-

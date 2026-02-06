@@ -381,7 +381,8 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
             const filename = `slide-${slideNumber}-images-${Date.now()}.zip`;
             const payload = selectedImages.map((image, index) => ({
                 url: image.url,
-                name: `slide-${slideNumber}-${index + 1}`
+                name: `slide-${slideNumber}-${index + 1}`,
+                downloadToken: image.downloadToken
             }));
             const zipBlob = await downloadImagesZip(projectId, payload, filename);
             const url = URL.createObjectURL(zipBlob);
