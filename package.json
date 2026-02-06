@@ -21,7 +21,6 @@
     "framer-motion": "^12.23.26",
     "jspdf": "^4.0.0",
     "jszip": "^3.10.1",
-    "lucide-react": "^0.559.0",
     "mammoth": "^1.11.0",
     "pdfjs-dist": "^5.4.394",
     "pptxgenjs": "^4.0.1",

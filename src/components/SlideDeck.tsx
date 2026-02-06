@@ -1,5 +1,5 @@
 import React, { useEffect, useRef, useState } from 'react';
-import { ArrowDownTrayIcon, ClipboardDocumentIcon, DocumentTextIcon, ShareIcon } from '@heroicons/react/24/outline';
+import { CopyIcon, DocumentTextIcon, DownloadIcon, ShareIcon } from './icons';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
 import { generateImageFromPrompt } from '../services/geminiService';
@@ -685,7 +685,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
                         <div className="relative z-10 flex items-center space-x-2 text-primary transition-colors">
-                            <ClipboardDocumentIcon className="h-4 w-4" aria-hidden="true" />
+                            <CopyIcon className="h-4 w-4" aria-hidden="true" />
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Notes</span>
                         </div>
                     </button>
@@ -703,7 +703,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                         <div className="absolute inset-0 bg-primary/5 opacity-0 group-hover:opacity-100 transition-opacity duration-300"></div>
 
                         <div className="relative z-10 flex items-center space-x-2 text-primary transition-colors">
-                            <ArrowDownTrayIcon className="h-4 w-4" aria-hidden="true" />
+                            <DownloadIcon className="h-4 w-4" aria-hidden="true" />
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Slides</span>
                         </div>
                     </button>
