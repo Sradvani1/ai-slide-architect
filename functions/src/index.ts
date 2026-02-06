@@ -35,8 +35,20 @@ import { apiKey } from './utils/geminiClient';
 
 const app = express();
 
-// Middleware
-app.use(cors({ origin: true }));
+// CORS: in production allow only known frontend origins; in emulator allow all.
+// Add Vercel preview or other origins to the array if needed.
+const ALLOWED_ORIGINS: (string | RegExp)[] = [
+    /^http:\/\/localhost(:\d+)?$/,       // localhost, any port
+    /^http:\/\/127\.0\.0\.1(:\d+)?$/,   // IPv4 loopback
+    /^http:\/\/\[::1\](:\d+)?$/,        // IPv6 loopback
+    'https://ai-slide-architect.vercel.app',
+    'https://slidesedu.org',
+    'https://www.slidesedu.org',
+    'https://ai-slide-architect-9de88.web.app',
+    'https://ai-slide-architect-9de88.firebaseapp.com',
+];
+const corsOrigin = process.env.FUNCTIONS_EMULATOR ? true : ALLOWED_ORIGINS;
+app.use(cors({ origin: corsOrigin }));
 app.use(express.json({ limit: '500kb' }));
 
 const MAX_DOWNLOAD_IMAGES = 50;
