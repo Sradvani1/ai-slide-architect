@@ -34,7 +34,7 @@ const app = express();
 
 // Middleware
 app.use(cors({ origin: true }));
-app.use(express.json());
+app.use(express.json({ limit: '500kb' }));
 
 const MAX_DOWNLOAD_IMAGES = 50;
 const MAX_IMAGE_BYTES = 15 * 1024 * 1024;
