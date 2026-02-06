@@ -460,9 +460,6 @@ export async function generateSlidesAndUpdateFirestore(
         generationResult.slides.forEach((slide, index) => {
             const slideId = slide.id || `slide-${Date.now()}-${index}`;
             const slideRef = slidesCollectionRef.doc(slideId);
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:275', message: 'Preparing slide for batch', data: { slideId, index, slideTitle: slide.title }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-            // #endregion
             // Destructure to explicitly exclude promptGenerationState and promptGenerationError
             // These fields should only be set when user triggers generation
             const { promptGenerationState, promptGenerationError, ...slideWithoutState } = slide;
@@ -473,20 +470,10 @@ export async function generateSlidesAndUpdateFirestore(
                 imagePrompts: [],
                 updatedAt: FieldValue.serverTimestamp()
             };
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:289', message: 'Slide data prepared', data: { slideId, hasPromptState: slideData.promptGenerationState !== undefined }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'A' }) }).catch(() => { });
-            // #endregion
             batch.set(slideRef, slideData);
         });
 
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:290', message: 'About to commit batch', data: { slideCount: generationResult.slides.length, projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-        // #endregion
         await batch.commit();
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:291', message: 'Batch committed successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'B' }) }).catch(() => { });
-        // #endregion
-
         await updateProjectWithRetry(projectRef, {
             generationProgress: 90,
             generationPhase: 'finalizing',
@@ -497,10 +484,7 @@ export async function generateSlidesAndUpdateFirestore(
         // Note: Image prompt generation is now user-triggered per slide
         // No automatic generation after slide creation
 
-        // Update: Complete (100%) - Remove direct token updates
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:305', message: 'About to update to completed', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-        // #endregion
+        // Update: Complete (100%)
         let sourcesToWrite = researchResult.sources || [];
         if (sourcesToWrite.length === 0) {
             const existingSnapshot = await projectRef.get();
@@ -520,14 +504,7 @@ export async function generateSlidesAndUpdateFirestore(
             generationCompletedAt: FieldValue.serverTimestamp(),
             updatedAt: FieldValue.serverTimestamp()
         });
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:311', message: 'Update to completed successful', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'D' }) }).catch(() => { });
-        // #endregion
-
     } catch (error: any) {
-        // #region agent log
-        fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:313', message: 'Generation error caught', data: { errorMessage: error?.message, errorStack: error?.stack, errorName: error?.name, projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-        // #endregion
         console.error("Generation error:", error);
         try {
             await projectRef.update({
@@ -537,13 +514,7 @@ export async function generateSlidesAndUpdateFirestore(
                 generationError: error.message || "Generation failed",
                 updatedAt: FieldValue.serverTimestamp()
             });
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:320', message: 'Error status updated successfully', data: { projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-            // #endregion
         } catch (updateError: any) {
-            // #region agent log
-            fetch('http://127.0.0.1:7243/ingest/6352f1d4-1b3b-4b40-b2cb-cdebc7a19877', { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ location: 'slideGeneration.ts:322', message: 'CRITICAL: Failed to update error status', data: { updateError: updateError?.message, projectId: projectRef.id }, timestamp: Date.now(), sessionId: 'debug-session', runId: 'run1', hypothesisId: 'E' }) }).catch(() => { });
-            // #endregion
             console.error("CRITICAL: Failed to update project status after generation error:", updateError);
         }
 }
