@@ -37,6 +37,7 @@ lerna-debug.log*
 # Editor directories and files
 .vscode/
 .idea/
+.cursor/settings.json
 
 # OS generated files
 .DS_Store
