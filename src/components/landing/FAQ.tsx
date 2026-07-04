@@ -75,7 +75,7 @@ export const FAQ: React.FC = () => {
                 },
                 {
                     question: "Where do the images come from?",
-                    answer: "Our AI generates unique, copyright-free images based specifically on the content of your slides. These are tailored to be age-appropriate and visually clear for the classroom."
+                    answer: "Images are found via web search based on your slide content. Click \"Search Images\" on any slide to browse real, classroom-appropriate photos from the web. You can preview, select, and download images to use in your presentation."
                 }
             ]
         },

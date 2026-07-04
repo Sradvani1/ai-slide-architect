@@ -1,6 +1,13 @@
 export const DEFAULT_BULLETS_PER_SLIDE = 4;
 export const DEFAULT_NUM_SLIDES = 5;
 
+/**
+ * Phase 1 charity mode: false = search-only images, /generate-* returns 403.
+ * Active path uses Flash text + Brave image search (~$0.001/deck marginal cost).
+ * Set true to re-enable Visual Idea UI and AI image generation.
+ */
+export const IMAGE_GENERATION_ENABLED = false;
+
 // Grade and subject options (used by InputForm and Dashboard filter)
 export const GRADE_LEVELS = [
   "1st",

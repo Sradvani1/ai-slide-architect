@@ -28,7 +28,7 @@ import { extractTextFromImage } from './services/imageTextExtraction';
 import { createDownloadTokens, resolveDownloadToken } from './services/downloadTokenService';
 import { createShareLink, claimShareLink, getSharePreview } from './services/shareService';
 import { Slide, ProjectData } from '@shared/types';
-import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '@shared/constants';
+import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE, IMAGE_GENERATION_ENABLED } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
 import { getErrorMessage } from '@shared/utils/errorMessage';
@@ -273,6 +273,13 @@ app.post('/generate-slides', verifyAuth, rateLimitMiddleware, async (req: Authen
 
 // 2. Generate Image
 app.post('/generate-image', verifyAuth, rateLimitMiddleware, async (req: AuthenticatedRequest, res: express.Response) => {
+    if (!IMAGE_GENERATION_ENABLED) {
+        res.status(403).json({
+            error: 'AI image generation is currently disabled. Use image search instead.',
+            code: 'FEATURE_DISABLED',
+        });
+        return;
+    }
     try {
         const { imagePrompt, options, projectId } = req.body;
 
@@ -397,6 +404,13 @@ app.post('/admin/initialize-pricing', verifyAuth, async (req: AuthenticatedReque
  * Handles both initial generation and retry scenarios.
  */
 app.post('/generate-prompt', verifyAuth, async (req: AuthenticatedRequest, res: express.Response) => {
+    if (!IMAGE_GENERATION_ENABLED) {
+        res.status(403).json({
+            error: 'AI image generation is currently disabled. Use image search instead.',
+            code: 'FEATURE_DISABLED',
+        });
+        return;
+    }
     try {
         const { projectId, slideId, regenerate = false, requestId } = req.body;
 

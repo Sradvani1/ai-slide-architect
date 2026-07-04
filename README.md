@@ -8,10 +8,10 @@ AI Slide Architect is an AI-driven application for creating classroom-ready slid
 -   **Grounded Research**: Optional Google Search grounding and a dedicated research report export.
 -   **Async Generation + Progress**: Background slide generation with real-time phases and retry on failure.
 -   **Customizable Inputs**: Grade level, subject, slide count (2–10), bullets per slide (3–6), and optional instructions.
--   **Image Workflow**:
-    -   Generate a visual idea per slide, edit it, and create images.
-    -   Search for real images via Brave image search.
-    -   Store generated images with the project.
+-   **Image Workflow** (search-only by default):
+    -   Search for real images via Brave web search based on slide content.
+    -   Preview, select, and download images for your presentation.
+    -   AI image generation is disabled in production (`IMAGE_GENERATION_ENABLED = false` in `shared/constants.ts`); set to `true` and redeploy to re-enable Visual Idea + generate flow.
 -   **Secure Authentication**:
     -   Google Sign-In with Firestore-backed projects and auto-save.
     -   Firebase Storage for uploads and generated image assets.
@@ -44,8 +44,8 @@ Base URL:
 
 Endpoints:
 - `POST /generate-slides` (auth) → async slide generation, returns 202 Accepted
-- `POST /generate-image` (auth) → generates an image from the current prompt
-- `POST /generate-prompt` (auth) → create or regenerate a slide’s visual idea
+- `POST /generate-image` (auth) → generates an image from the current prompt *(disabled when `IMAGE_GENERATION_ENABLED` is false — returns 403 `FEATURE_DISABLED`)*
+- `POST /generate-prompt` (auth) → create or regenerate a slide’s visual idea *(disabled when `IMAGE_GENERATION_ENABLED` is false — returns 403 `FEATURE_DISABLED`)*
 - `POST /search-images` (auth) → Brave image search for a slide
 - `POST /extract-text` (auth) → OCR for uploaded images
 - `POST /share/claim` (auth) → claim a shared deck and create a copy

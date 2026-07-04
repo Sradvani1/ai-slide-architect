@@ -2,7 +2,6 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CopyIcon, DocumentTextIcon, DownloadIcon, ShareIcon } from './icons';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
-import { generateImageFromPrompt } from '../services/geminiService';
 import type { Slide, ProjectData } from '../types';
 
 type GenerationPhase = NonNullable<ProjectData['generationPhase']>;
