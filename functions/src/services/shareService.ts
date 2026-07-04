@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
 import type { Slide, ProjectData, GeneratedImage } from '@shared/types';
 import { isPubliclyListable } from '@shared/types';
-import { incrementViewCount } from './publicDeckService';
+import { incrementViewCount, incrementRemixCount } from './publicDeckService';
 import { getOwnerDisplayName } from '../utils/ownerDisplayName';
 
 const db = admin.firestore();
@@ -228,6 +228,8 @@ export const claimShareLink = async (token: string, claimantId: string) => {
             lastClaimedAt: FieldValue.serverTimestamp()
         }, { merge: true })
     ]);
+
+    incrementRemixCount(token);
 
     return { projectId: newProjectId, alreadyClaimed: false };
 };

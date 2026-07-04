@@ -101,6 +101,28 @@ export interface PublicDeckIndex {
     remixCount: number;
 }
 
+/** Public gallery card — omits ownerId/projectId from API responses. */
+export interface GalleryDeckItem {
+    token: string;
+    title: string;
+    topic: string;
+    gradeLevel: string;
+    subject: string;
+    slideCount: number;
+    thumbnailUrl?: string;
+    ownerDisplayName: string;
+    publishedAt: number;
+    viewCount: number;
+    remixCount: number;
+}
+
+export interface GalleryResponse {
+    items: GalleryDeckItem[];
+    nextCursor: string | null;
+}
+
+export type GallerySort = 'recent' | 'popular';
+
 /** Completed and not explicitly private (missing visibility = public). */
 export function isPubliclyListable(
     project: Pick<ProjectData, 'status' | 'visibility'>

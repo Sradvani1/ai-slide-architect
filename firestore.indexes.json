@@ -1,4 +1,77 @@
 {
-    "indexes": [],
+    "indexes": [
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "publishedAt", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "viewCount", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "subject", "order": "ASCENDING" },
+                { "fieldPath": "publishedAt", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "subject", "order": "ASCENDING" },
+                { "fieldPath": "viewCount", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "gradeLevel", "order": "ASCENDING" },
+                { "fieldPath": "publishedAt", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "gradeLevel", "order": "ASCENDING" },
+                { "fieldPath": "viewCount", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "subject", "order": "ASCENDING" },
+                { "fieldPath": "gradeLevel", "order": "ASCENDING" },
+                { "fieldPath": "publishedAt", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        },
+        {
+            "collectionGroup": "publicDecks",
+            "queryScope": "COLLECTION",
+            "fields": [
+                { "fieldPath": "subject", "order": "ASCENDING" },
+                { "fieldPath": "gradeLevel", "order": "ASCENDING" },
+                { "fieldPath": "viewCount", "order": "DESCENDING" },
+                { "fieldPath": "token", "order": "DESCENDING" }
+            ]
+        }
+    ],
     "fieldOverrides": []
 }

@@ -50,7 +50,10 @@ Endpoints:
 - `POST /extract-text` (auth) → OCR for uploaded images
 - `POST /share/claim` (auth) → claim a shared deck and create a copy
 - `GET /share/preview` (public) → read-only share preview
+- `GET /gallery` (public) → paginated public deck catalog (`gradeLevel`, `subject`, `sort`, `limit`, `cursor` query params). Requires Firestore composite indexes on `publicDecks` — deploy with `firebase deploy --only firestore:indexes` before functions.
 - `POST /admin/initialize-pricing` (admin) → initialize pricing data
+
+**Public routes:** `/explore` (gallery UI), `/share/:token` (share preview). Both work without sign-in.
 
 ## 🏁 Getting Started
 

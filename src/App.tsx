@@ -5,6 +5,7 @@ import { Dashboard } from './components/Dashboard';
 import { Editor } from './components/Editor';
 import { FAQ } from './components/landing/FAQ';
 import { SharePreview } from './components/SharePreview';
+import { ExplorePage } from './components/ExplorePage';
 import { auth, db } from './firebaseConfig';
 import { User, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth';
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
@@ -83,6 +84,7 @@ function App() {
         <Routes>
           <Route path="/faq" element={<FAQ />} />
           <Route path="/share/:token" element={<SharePreview user={user} />} />
+          <Route path="/explore" element={<ExplorePage user={user} />} />
 
           {!user ? (
             <>

@@ -1,10 +1,11 @@
 import React, { useEffect, useMemo, useState } from 'react';
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { User } from 'firebase/auth';
 import { SlideDeck } from './SlideDeck';
 import { Auth } from './Auth';
 import { Modal } from './Modal';
 import { claimShareLink, fetchSharePreview } from '../services/shareService';
+import { usePageMeta } from '../hooks/usePageMeta';
 import type { Slide } from '../types';
 
 interface SharePreviewProps {
@@ -37,6 +38,23 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
 
     const shareToken = useMemo(() => token?.trim() || '', [token]);
     const isNotAvailable = error === DECK_NOT_AVAILABLE;
+
+    const pageTitle = preview
+        ? `${preview.project.title} — Grade ${preview.project.gradeLevel} ${preview.project.subject} | SlidesEdu`
+        : '';
+    const pageDescription = preview
+        ? `Free ${preview.project.subject} slide deck on ${preview.project.topic}. Created by ${preview.ownerName}. Remix and customize for your classroom.`
+        : '';
+    const pageCanonical = shareToken
+        ? `https://www.slidesedu.org/share/${shareToken}`
+        : '';
+
+    usePageMeta({
+        enabled: Boolean(preview),
+        title: pageTitle,
+        description: pageDescription,
+        canonical: pageCanonical,
+    });
 
     useEffect(() => {
         let isMounted = true;
@@ -128,6 +146,12 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                     >
                         Create your own deck
                     </button>
+                    <Link
+                        to="/explore"
+                        className="mt-4 inline-block text-sm font-medium text-secondary-text hover:text-primary transition-colors"
+                    >
+                        Browse public decks
+                    </Link>
                 </div>
             </div>
         );
@@ -176,6 +200,12 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                         >
                             Create your own deck
                         </button>
+                        <Link
+                            to="/explore"
+                            className="text-sm font-medium text-secondary-text hover:text-primary transition-colors px-1 py-2"
+                        >
+                            Browse public decks
+                        </Link>
                     </div>
                 </div>
             </div>

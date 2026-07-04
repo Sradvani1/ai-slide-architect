@@ -27,7 +27,7 @@ import { searchBraveImages } from './services/imageSearch';
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { createDownloadTokens, resolveDownloadToken } from './services/downloadTokenService';
 import { createShareLink, claimShareLink, getSharePreview, DECK_NOT_AVAILABLE } from './services/shareService';
-import { upsertPublicDeck, deletePublicDeck } from './services/publicDeckService';
+import { upsertPublicDeck, deletePublicDeck, listPublicDecks } from './services/publicDeckService';
 import { Slide, ProjectData, isPubliclyListable } from '@shared/types';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE, IMAGE_GENERATION_ENABLED } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
@@ -166,6 +166,13 @@ const sharePreviewRateLimit = createIpRateLimiter({
     windowMs: 60 * 1000,
     maxRequests: 60,
     keyPrefix: 'share_preview',
+    failOpen: true
+});
+
+const galleryRateLimit = createIpRateLimiter({
+    windowMs: 60 * 1000,
+    maxRequests: 60,
+    keyPrefix: 'gallery',
     failOpen: true
 });
 
@@ -783,7 +790,62 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
 });
 
 /**
- * 11. Fetch share preview data (no auth required).
+ * 11. Public gallery listing (no auth required).
+ * Rate limited by IP to prevent scraping.
+ */
+app.get('/gallery', galleryRateLimit, async (req: express.Request, res: express.Response) => {
+    try {
+        const gradeLevel = typeof req.query.gradeLevel === 'string' && req.query.gradeLevel.trim()
+            ? req.query.gradeLevel.trim()
+            : undefined;
+        const subject = typeof req.query.subject === 'string' && req.query.subject.trim()
+            ? req.query.subject.trim()
+            : undefined;
+        const sortParam = typeof req.query.sort === 'string' ? req.query.sort : 'recent';
+        if (sortParam !== 'recent' && sortParam !== 'popular') {
+            res.status(400).json({ error: 'Invalid sort' });
+            return;
+        }
+
+        const rawLimit = typeof req.query.limit === 'string' ? Number(req.query.limit) : 24;
+        if (!Number.isFinite(rawLimit)) {
+            res.status(400).json({ error: 'Invalid limit' });
+            return;
+        }
+        const limit = Math.min(50, Math.max(1, Math.round(rawLimit)));
+
+        const cursor = typeof req.query.cursor === 'string' && req.query.cursor.trim()
+            ? req.query.cursor.trim()
+            : undefined;
+
+        const result = await listPublicDecks({
+            gradeLevel,
+            subject,
+            sort: sortParam,
+            limit,
+            cursor,
+        });
+        res.json(result);
+    } catch (error: unknown) {
+        const message = getErrorMessage(error) || 'Failed to load gallery';
+        console.error('Gallery Error:', message);
+        if (
+            message.includes('Invalid gradeLevel') ||
+            message.includes('Invalid subject') ||
+            message.includes('Invalid sort') ||
+            message.includes('Invalid limit') ||
+            message.includes('Invalid cursor') ||
+            message.includes('Cursor sort')
+        ) {
+            res.status(400).json({ error: message });
+            return;
+        }
+        res.status(500).json({ error: 'Failed to load gallery' });
+    }
+});
+
+/**
+ * 12. Fetch share preview data (no auth required).
  * Rate limited by IP to prevent abuse (token probing / DoS).
  */
 app.get('/share/preview', sharePreviewRateLimit, async (req: express.Request, res: express.Response) => {
