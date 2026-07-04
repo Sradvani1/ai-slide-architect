@@ -20,7 +20,9 @@ service cloud.firestore {
              && data.keys().hasAll(['title', 'updatedAt', 'userId'])
              // ALLOW new status fields (optional)
              && (!data.keys().hasAny(['status']) || data.status in ['generating', 'completed', 'failed'])
-             && (!data.keys().hasAny(['generationProgress']) || (data.generationProgress is int && data.generationProgress >= 0 && data.generationProgress <= 100));
+             && (!data.keys().hasAny(['generationProgress']) || (data.generationProgress is int && data.generationProgress >= 0 && data.generationProgress <= 100))
+             && (!data.keys().hasAny(['visibility']) || data.visibility in ['public', 'private'])
+             && (!data.keys().hasAny(['publishedAt']) || data.publishedAt is timestamp);
       }
       
       // 3. Create & Update (Owner + Validation)
@@ -67,6 +69,12 @@ service cloud.firestore {
       match /claims/{userId} {
         allow read, write: if false;
       }
+    }
+
+    // Public deck gallery index (server-written only)
+    match /publicDecks/{token} {
+      allow read: if true;
+      allow write: if false;
     }
 
   }

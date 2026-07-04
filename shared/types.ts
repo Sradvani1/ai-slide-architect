@@ -81,6 +81,33 @@ export interface ProjectFile {
     extractedContent?: string;
 }
 
+export type ProjectVisibility = 'public' | 'private';
+
+/** Denormalized gallery index doc at publicDecks/{shareToken}. Server-written only. */
+export interface PublicDeckIndex {
+    token: string;
+    ownerId: string;
+    projectId: string;
+    title: string;
+    topic: string;
+    gradeLevel: string;
+    subject: string;
+    slideCount: number;
+    thumbnailUrl?: string;
+    ownerDisplayName: string;
+    publishedAt: any;   // Firestore Timestamp — set on first upsert
+    updatedAt: any;     // Firestore Timestamp
+    viewCount: number;
+    remixCount: number;
+}
+
+/** Completed and not explicitly private (missing visibility = public). */
+export function isPubliclyListable(
+    project: Pick<ProjectData, 'status' | 'visibility'>
+): boolean {
+    return project.status === 'completed' && project.visibility !== 'private';
+}
+
 /**
  * Root data structure for a project document in Firestore.
  */
@@ -118,4 +145,6 @@ export interface ProjectData {
     generationRequestId?: string;
     shareToken?: string;
     shareCreatedAt?: any;          // Firestore Timestamp
+    visibility?: ProjectVisibility; // absent = public (implicit)
+    publishedAt?: any;             // Firestore Timestamp — set by trigger on first public listing
 }

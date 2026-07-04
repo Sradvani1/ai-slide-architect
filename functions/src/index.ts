@@ -1,6 +1,6 @@
 import 'module-alias/register';
 import * as functions from 'firebase-functions';
-import { onDocumentCreated } from 'firebase-functions/v2/firestore';
+import { onDocumentCreated, onDocumentUpdated, onDocumentDeleted } from 'firebase-functions/v2/firestore';
 import { defineSecret } from 'firebase-functions/params';
 import * as express from 'express';
 import * as cors from 'cors';
@@ -26,8 +26,9 @@ import { generateImage, generateImageSearchTerms } from './services/imageGenerat
 import { searchBraveImages } from './services/imageSearch';
 import { extractTextFromImage } from './services/imageTextExtraction';
 import { createDownloadTokens, resolveDownloadToken } from './services/downloadTokenService';
-import { createShareLink, claimShareLink, getSharePreview } from './services/shareService';
-import { Slide, ProjectData } from '@shared/types';
+import { createShareLink, claimShareLink, getSharePreview, DECK_NOT_AVAILABLE } from './services/shareService';
+import { upsertPublicDeck, deletePublicDeck } from './services/publicDeckService';
+import { Slide, ProjectData, isPubliclyListable } from '@shared/types';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE, IMAGE_GENERATION_ENABLED } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
@@ -776,8 +777,8 @@ app.post('/share/claim', verifyAuth, async (req: AuthenticatedRequest, res: expr
     } catch (error: unknown) {
         console.error('Claim Share Link Error:', getErrorMessage(error));
         const message = getErrorMessage(error) || 'Failed to claim share link';
-        const status = message.includes('generating') ? 409 : (message.includes('not found') ? 404 : 500);
-        res.status(status).json({ error: message });
+        const status = message === DECK_NOT_AVAILABLE || message.includes('not found') ? 404 : 500;
+        res.status(status).json({ error: message === DECK_NOT_AVAILABLE ? DECK_NOT_AVAILABLE : message });
     }
 });
 
@@ -802,8 +803,8 @@ app.get('/share/preview', sharePreviewRateLimit, async (req: express.Request, re
     } catch (error: unknown) {
         console.error('Share Preview Error:', getErrorMessage(error));
         const message = getErrorMessage(error) || 'Failed to load share preview';
-        const status = message.includes('not found') ? 404 : 500;
-        res.status(status).json({ error: message });
+        const status = message === DECK_NOT_AVAILABLE || message.includes('not found') ? 404 : 500;
+        res.status(status).json({ error: message === DECK_NOT_AVAILABLE ? DECK_NOT_AVAILABLE : message });
     }
 });
 
@@ -819,6 +820,47 @@ export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{proje
         await createShareLink(userId, projectId);
     } catch (error: unknown) {
         console.error('Share link creation on project create failed:', getErrorMessage(error));
+    }
+});
+
+/**
+ * 13. Sync publicDecks index when project visibility or status changes.
+ */
+export const onProjectUpdate = onDocumentUpdated('users/{userId}/projects/{projectId}', async (event) => {
+    const after = event.data?.after.data() as ProjectData | undefined;
+    if (!after) return;
+
+    const { userId, projectId } = event.params;
+    const shareToken = after.shareToken;
+    if (!shareToken) return;
+
+    const projectRef = admin.firestore().collection('users').doc(userId).collection('projects').doc(projectId);
+
+    try {
+        if (isPubliclyListable(after)) {
+            await upsertPublicDeck(shareToken, userId, projectId, after);
+            if (!after.publishedAt) {
+                await projectRef.update({ publishedAt: FieldValue.serverTimestamp() });
+            }
+        } else {
+            await deletePublicDeck(shareToken);
+        }
+    } catch (error: unknown) {
+        console.error('publicDecks sync on project update failed:', getErrorMessage(error));
+    }
+});
+
+/**
+ * 14. Remove publicDecks index when a project is deleted.
+ */
+export const onProjectDeleted = onDocumentDeleted('users/{userId}/projects/{projectId}', async (event) => {
+    const before = event.data?.data() as ProjectData | undefined;
+    if (!before?.shareToken) return;
+
+    try {
+        await deletePublicDeck(before.shareToken);
+    } catch (error: unknown) {
+        console.error('publicDecks delete on project delete failed:', getErrorMessage(error));
     }
 });
 

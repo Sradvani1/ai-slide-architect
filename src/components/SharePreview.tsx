@@ -22,6 +22,8 @@ interface SharePreviewState {
     slides: Slide[];
 }
 
+const DECK_NOT_AVAILABLE = 'This deck is not available';
+
 export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
     const { token } = useParams<{ token: string }>();
     const navigate = useNavigate();
@@ -34,6 +36,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
     const [showAuthModal, setShowAuthModal] = useState(false);
 
     const shareToken = useMemo(() => token?.trim() || '', [token]);
+    const isNotAvailable = error === DECK_NOT_AVAILABLE;
 
     useEffect(() => {
         let isMounted = true;
@@ -52,9 +55,9 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                 if (isMounted) {
                     setPreview(result);
                 }
-            } catch (err: any) {
+            } catch (err: unknown) {
                 if (isMounted) {
-                    const message = err?.message || 'Failed to load shared deck.';
+                    const message = err instanceof Error ? err.message : 'Failed to load shared deck.';
                     setError(message);
                 }
             } finally {
@@ -89,15 +92,15 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
             const result = await claimShareLink(shareToken);
             navigate(`/project/${result.projectId}`);
             setShouldClaim(false);
-        } catch (err: any) {
-            const message = err?.message || 'Failed to claim this deck.';
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to claim this deck.';
             setError(message);
         } finally {
             setIsClaiming(false);
         }
     };
 
-    const handleCta = () => {
+    const handleRemix = () => {
         if (user) {
             handleClaim();
             return;
@@ -106,8 +109,29 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
         setShowAuthModal(true);
     };
 
-    const ctaLabel = user ? 'Create your copy' : 'Log in to edit and download';
-    const helperText = user ? 'Create your own copy in seconds' : 'Create your own copy in seconds';
+    if (isNotAvailable && !isLoading) {
+        return (
+            <div className="min-h-screen bg-background flex items-center justify-center px-4">
+                <div className="max-w-md text-center">
+                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8" aria-hidden="true">
+                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                        </svg>
+                    </div>
+                    <h1 className="text-2xl font-bold text-primary-text mb-2">This deck isn&apos;t available</h1>
+                    <p className="text-secondary-text mb-6">
+                        It may be private or still generating.
+                    </p>
+                    <button
+                        onClick={() => navigate('/new')}
+                        className="btn-primary px-5 py-2 text-sm font-semibold"
+                    >
+                        Create your own deck
+                    </button>
+                </div>
+            </div>
+        );
+    }
 
     return (
         <div className="min-h-screen bg-background">
@@ -115,7 +139,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div className="flex-1 min-w-0">
                         <p className="text-sm font-semibold text-primary">
-                            Preview — shared by {preview?.ownerName || 'a teacher'}
+                            Shared by {preview?.ownerName || 'a teacher'}
                         </p>
                         <h1 className="text-2xl font-bold text-primary-text mt-1 truncate">
                             {preview?.project.title || 'Shared Slide Deck'}
@@ -138,15 +162,20 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                             )}
                         </div>
                     </div>
-                    <div className="flex flex-col items-start lg:items-end gap-2">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center gap-2">
                         <button
-                            onClick={handleCta}
+                            onClick={handleRemix}
                             className="btn-primary px-5 py-2 text-sm font-semibold disabled:opacity-60 disabled:cursor-not-allowed"
-                            disabled={isClaiming}
+                            disabled={isClaiming || isLoading}
                         >
-                            {isClaiming ? 'Preparing your copy…' : ctaLabel}
+                            {isClaiming ? 'Preparing your copy…' : 'Remix this deck'}
                         </button>
-                        <p className="text-xs text-secondary-text">{helperText}</p>
+                        <button
+                            onClick={() => navigate('/new')}
+                            className="px-5 py-2 text-sm font-semibold text-primary border border-primary/30 rounded-lg hover:bg-primary/5 transition-colors"
+                        >
+                            Create your own deck
+                        </button>
                     </div>
                 </div>
             </div>
@@ -161,7 +190,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                     projectGradeLevel={preview?.project.gradeLevel}
                     projectSubject={preview?.project.subject}
                     isLoading={isLoading}
-                    error={error}
+                    error={error && !isNotAvailable ? error : null}
                     onUpdateSlide={() => undefined}
                     userId=""
                     projectId={null}

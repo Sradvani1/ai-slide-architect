@@ -501,6 +501,29 @@ export const SlideCard: React.FC<SlideCardProps> = ({ slide, slideNumber, onUpda
                 )}
             </div>
 
+            {isReadOnly && visibleSearchImages.length > 0 && (
+                <div className="px-5 py-4 border-t border-slate-100 bg-slate-50/30">
+                    <span className="text-xs font-bold text-primary uppercase tracking-wider bg-primary/10 px-2 py-0.5 rounded-full mb-3 inline-block">
+                        Images
+                    </span>
+                    <div className="flex gap-2 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-slate-200">
+                        {visibleSearchImages.map((img) => (
+                            <div
+                                key={img.id}
+                                className="flex-shrink-0 relative w-20 h-20 rounded-lg border border-slate-200 overflow-hidden bg-white"
+                            >
+                                <img
+                                    src={img.thumbnailUrl || img.url}
+                                    alt="Slide image"
+                                    className="w-full h-full object-cover"
+                                    onError={() => handleSearchThumbnailError(img.id)}
+                                />
+                            </div>
+                        ))}
+                    </div>
+                </div>
+            )}
+
             {!isReadOnly && (
                 <footer className="px-5 py-4 bg-slate-50/50 border-t border-slate-100 flex flex-col gap-3">
                     {IMAGE_GENERATION_ENABLED && slide.promptGenerationState === 'failed' && (

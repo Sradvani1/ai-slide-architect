@@ -15,7 +15,7 @@ AI Slide Architect is an AI-driven application for creating classroom-ready slid
 -   **Secure Authentication**:
     -   Google Sign-In with Firestore-backed projects and auto-save.
     -   Firebase Storage for uploads and generated image assets.
--   **Sharing & Collaboration**: Share links with preview mode and one-click “make a copy” flow.
+-   **Sharing & Collaboration**: Share links with preview mode and one-click “make a copy” flow. Completed decks are **public by default** (visible at `/share/{uuid}` with search images only; speaker notes and legacy AI images are stripped from the public preview). Owners can set a deck to **Private** in the Editor or Dashboard to hide it from public view.
 -   **Exports**:
     -   **PowerPoint (.pptx)** for full slides.
     -   **Speaker Notes (.docx)** (notes only).

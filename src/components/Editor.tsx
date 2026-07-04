@@ -7,9 +7,10 @@ import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
 import { buildShareUrl } from '../services/shareService';
-import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
+import { createProject, updateProject, updateProjectVisibility, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
-import type { Slide, ProjectFile } from '../types';
+import type { Slide, ProjectFile, ProjectVisibility } from '../types';
+import { VisibilityToggle } from './VisibilityToggle';
 
 interface EditorProps {
     user: User;
@@ -65,6 +66,8 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectData['status']>(undefined);
     const [shareToken, setShareToken] = useState<string | null>(null);
     const [showSharePanel, setShowSharePanel] = useState(false);
+    const [visibility, setVisibility] = useState<ProjectVisibility>('public');
+    const [visibilityLoading, setVisibilityLoading] = useState(false);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
 
@@ -95,6 +98,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setCurrentProjectId(project.id!);
                     setProjectStatus(project.status);
                     setShareToken(project.shareToken || null);
+                    setVisibility(project.visibility ?? 'public');
                     setGenerationStartedAtMs(toMillis(project.generationStartedAt));
 
                     // Load files if they exist
@@ -135,6 +139,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setShareCopied(false);
                 setShareToken(null);
                 setShowSharePanel(false);
+                setVisibility('public');
                 setIsLoading(false);
             }
         };
@@ -166,6 +171,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             setResearchContent(projectData.researchContent || '');
             setProjectStatus(projectData.status);
             setShareToken(projectData.shareToken || null);
+            setVisibility(projectData.visibility ?? 'public');
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
@@ -449,6 +455,27 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
     }, [shareUrl]);
 
+    const isPrivate = visibility === 'private';
+    const isCompleted = projectStatus === 'completed';
+
+    const handleVisibilityChange = useCallback(async (next: ProjectVisibility) => {
+        if (!currentProjectId || visibilityLoading) return;
+        const previous = visibility;
+        setVisibility(next);
+        setVisibilityLoading(true);
+        if (next === 'private') {
+            setShowSharePanel(false);
+        }
+        try {
+            await updateProjectVisibility(user.uid, currentProjectId, next);
+        } catch (err) {
+            console.error('Failed to update visibility:', err);
+            setVisibility(previous);
+        } finally {
+            setVisibilityLoading(false);
+        }
+    }, [currentProjectId, user.uid, visibility, visibilityLoading]);
+
     const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
         setSlides(prevSlides => {
             if (!prevSlides) return prevSlides;
@@ -583,11 +610,14 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         generationMessage={generationMessage}
                         generationStartedAtMs={generationStartedAtMs}
                         onRetry={handleRetry}
-                        onShare={handleShareLink}
-                        shareUrl={showSharePanel ? shareUrl : null}
+                        onShare={!isPrivate ? handleShareLink : undefined}
+                        shareUrl={showSharePanel && !isPrivate ? shareUrl : null}
                         shareCopied={shareCopied}
                         onCopyShare={handleCopyShareLink}
                         shareDisabled={projectStatus === 'generating' || !shareToken}
+                        visibility={isCompleted ? visibility : undefined}
+                        onVisibilityChange={isCompleted ? handleVisibilityChange : undefined}
+                        visibilityLoading={visibilityLoading}
                     />
                 </div>
             </main>

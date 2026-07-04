@@ -2,12 +2,14 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
-import { ProjectData, deleteProject } from '../services/projectService';
+import { ProjectData, deleteProject, updateProjectVisibility } from '../services/projectService';
 import { collection, query, orderBy, onSnapshot, getDocs, limit, Timestamp } from 'firebase/firestore';
 import { isError, isFirestoreTimestamp } from '../utils/typeGuards';
 import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
 import { PptxIcon } from './icons';
 import { Slide } from '../types';
+import { VisibilityToggle } from './VisibilityToggle';
+import type { ProjectVisibility } from '../types';
 
 interface DashboardProps {
     user: User;
@@ -20,6 +22,19 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const [filterGradeLevel, setFilterGradeLevel] = useState('');
     const [filterSubject, setFilterSubject] = useState('');
     const [filterSectionOpen, setFilterSectionOpen] = useState(false);
+    const [visibilityLoadingId, setVisibilityLoadingId] = useState<string | null>(null);
+
+    const handleVisibilityChange = async (projectId: string, current: ProjectVisibility | undefined, next: ProjectVisibility) => {
+        setVisibilityLoadingId(projectId);
+        try {
+            await updateProjectVisibility(user.uid, projectId, next);
+            setProjects(prev => prev.map(p => p.id === projectId ? { ...p, visibility: next } : p));
+        } catch (err) {
+            console.error('Failed to update visibility:', err);
+        } finally {
+            setVisibilityLoadingId(null);
+        }
+    };
 
     const filteredProjects = useMemo(() => {
         return projects.filter(
@@ -328,6 +343,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
                         {filteredProjects.map((project) => {
                             const isGenerating = project.status === 'generating';
+                            const isCompleted = project.status === 'completed';
                             return (
                             <div
                                 key={project.id}
@@ -344,7 +360,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                     relative flex flex-col min-h-[140px]
                                     ${isGenerating
                                         ? 'opacity-75 cursor-wait pointer-events-none'
-                                        : 'cursor-pointer'
+                                        : ''
                                     }
                                 `}
                             >
@@ -433,39 +449,51 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                         </div>
                                     </div>
                                 ) : (
-                                    <Link
-                                        to={`/project/${project.id}`}
-                                        className="w-full h-full text-left"
-                                    >
-                                        {/* Row 1: Title (Primary Focus) */}
-                                        <h3 className="font-semibold text-[20px] text-primary-text leading-tight line-clamp-2 pr-6 mb-3 group-hover/card:text-primary transition-colors">
-                                            {project.title || "Untitled Project"}
-                                        </h3>
+                                    <>
+                                        <Link
+                                            to={`/project/${project.id}`}
+                                            className="w-full flex-1 text-left block"
+                                        >
+                                            {/* Row 1: Title (Primary Focus) */}
+                                            <h3 className="font-semibold text-[20px] text-primary-text leading-tight line-clamp-2 pr-6 mb-3 group-hover/card:text-primary transition-colors">
+                                                {project.title || "Untitled Project"}
+                                            </h3>
 
-                                        {/* Row 2: Badge Row (Categorical Metadata) */}
-                                        <div className="flex items-center gap-2 mb-4">
-                                            {project.subject && (
-                                                <span className="bg-[#E8F4F8] text-[#2180EA] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
-                                                    {project.subject}
+                                            {/* Row 2: Badge Row (Categorical Metadata) */}
+                                            <div className="flex items-center gap-2 mb-4">
+                                                {project.subject && (
+                                                    <span className="bg-[#E8F4F8] text-[#2180EA] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
+                                                        {project.subject}
+                                                    </span>
+                                                )}
+                                                <span className="bg-[#F5F5F5] text-[#627C81] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
+                                                    {project.gradeLevel || 'N/A'}
                                                 </span>
-                                            )}
-                                            <span className="bg-[#F5F5F5] text-[#627C81] px-2 py-1 rounded-[12px] text-[11px] uppercase tracking-[0.5px] font-bold">
-                                                {project.gradeLevel || 'N/A'}
-                                            </span>
-                                        </div>
+                                            </div>
 
-                                        {/* Row 3: Metadata Row (Temporal/Quantitative) */}
-                                        <div className="mt-auto flex items-center text-[13px] text-[#627C81]">
-                                            <span className="flex items-center">
-                                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 mr-1.5" aria-hidden="true">
-                                                    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
-                                                </svg>
-                                                {project.slides?.length ? Math.max(0, project.slides.length - 1) : 0}
-                                            </span>
-                                            <span className="mx-2">•</span>
-                                            <span>{formatDate(project.updatedAt)}</span>
-                                        </div>
-                                    </Link>
+                                            {/* Row 3: Metadata Row (Temporal/Quantitative) */}
+                                            <div className="mt-auto flex items-center text-[13px] text-[#627C81]">
+                                                <span className="flex items-center">
+                                                    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 mr-1.5" aria-hidden="true">
+                                                        <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+                                                    </svg>
+                                                    {project.slides?.length ? Math.max(0, project.slides.length - 1) : 0}
+                                                </span>
+                                                <span className="mx-2">•</span>
+                                                <span>{formatDate(project.updatedAt)}</span>
+                                            </div>
+                                        </Link>
+                                        {isCompleted && (
+                                            <div className="mt-3">
+                                                <VisibilityToggle
+                                                    compact
+                                                    value={project.visibility ?? 'public'}
+                                                    onChange={(next) => handleVisibilityChange(project.id!, project.visibility, next)}
+                                                    loading={visibilityLoadingId === project.id}
+                                                />
+                                            </div>
+                                        )}
+                                    </>
                                 )}
                             </div>
                         );

@@ -156,6 +156,8 @@ export interface ProjectData {
     generationCompletedAt?: Timestamp;
     shareToken?: string;
     shareCreatedAt?: Timestamp;
+    visibility?: 'public' | 'private';
+    publishedAt?: Timestamp;
 }
 
 
@@ -239,6 +241,12 @@ export const updateProject = async (userId: string, projectId: string, data: Par
         throw error;
     }
 };
+
+export const updateProjectVisibility = async (
+    userId: string,
+    projectId: string,
+    visibility: 'public' | 'private'
+) => updateProject(userId, projectId, { visibility });
 
 /**
  * Updates a single slide in the subcollection using a PATCH pattern.

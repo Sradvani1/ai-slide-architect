@@ -1,33 +1,57 @@
 import * as admin from 'firebase-admin';
 import { FieldValue } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
-import type { Slide, ProjectData } from '@shared/types';
+import type { Slide, ProjectData, GeneratedImage } from '@shared/types';
+import { isPubliclyListable } from '@shared/types';
+import { incrementViewCount } from './publicDeckService';
+import { getOwnerDisplayName } from '../utils/ownerDisplayName';
 
 const db = admin.firestore();
 
-const getOwnerDisplayName = (ownerData?: { displayName?: string | null; email?: string | null }) => {
-    const name = ownerData?.displayName?.trim();
-    if (name) return name;
-    const email = ownerData?.email?.trim();
-    if (!email) return 'A teacher';
-    return email.split('@')[0] || 'A teacher';
+export const DECK_NOT_AVAILABLE = 'This deck is not available';
+
+export const assertPreviewable = (project: ProjectData): void => {
+    if (!isPubliclyListable(project)) {
+        throw new Error(DECK_NOT_AVAILABLE);
+    }
 };
 
-const sanitizeSlideForPreview = (slide: Slide): Slide => ({
-    id: slide.id,
-    sortOrder: slide.sortOrder,
-    title: slide.title,
-    content: slide.content,
-    speakerNotes: '',
-    layout: slide.layout,
-    aspectRatio: slide.aspectRatio
+const sanitizeSearchImage = (img: GeneratedImage): GeneratedImage => ({
+    id: img.id,
+    url: img.url,
+    thumbnailUrl: img.thumbnailUrl,
+    source: img.source,
+    aspectRatio: img.aspectRatio,
+    createdAt: img.createdAt,
 });
+
+const sanitizeSlideForPreview = (slide: Slide): Slide => {
+    const searchImages = (slide.generatedImages || [])
+        .filter(img => img.source === 'search')
+        .map(sanitizeSearchImage);
+
+    const sanitized: Slide = {
+        id: slide.id,
+        sortOrder: slide.sortOrder,
+        title: slide.title,
+        content: slide.content,
+        speakerNotes: '',
+        layout: slide.layout,
+        aspectRatio: slide.aspectRatio,
+    };
+
+    if (searchImages.length > 0) {
+        sanitized.generatedImages = searchImages;
+    }
+
+    return sanitized;
+};
 
 const fetchProjectWithSlides = async (ownerId: string, projectId: string) => {
     const projectRef = db.collection('users').doc(ownerId).collection('projects').doc(projectId);
     const projectSnap = await projectRef.get();
     if (!projectSnap.exists) {
-        throw new Error('Project not found');
+        throw new Error(DECK_NOT_AVAILABLE);
     }
     const projectData = projectSnap.data() as ProjectData;
     const slidesSnap = await projectRef.collection('slides').orderBy('sortOrder', 'asc').get();
@@ -79,7 +103,7 @@ export const getSharePreview = async (token: string) => {
     const shareRef = db.collection('shares').doc(token);
     const shareSnap = await shareRef.get();
     if (!shareSnap.exists) {
-        throw new Error('Share link not found');
+        throw new Error(DECK_NOT_AVAILABLE);
     }
     const shareData = shareSnap.data() as { ownerId: string; projectId: string };
 
@@ -88,8 +112,12 @@ export const getSharePreview = async (token: string) => {
         db.collection('users').doc(shareData.ownerId).get()
     ]);
 
+    assertPreviewable(projectData);
+
     const ownerData = ownerSnap.exists ? (ownerSnap.data() as { displayName?: string; email?: string }) : undefined;
     const ownerName = getOwnerDisplayName(ownerData);
+
+    incrementViewCount(token);
 
     return {
         ownerName,
@@ -105,7 +133,16 @@ export const getSharePreview = async (token: string) => {
 
 const copyProjectToUser = async (projectData: ProjectData, slides: Slide[], claimantId: string) => {
     const projectRef = db.collection('users').doc(claimantId).collection('projects').doc();
-    const { userId: _userId, createdAt: _createdAt, updatedAt: _updatedAt, ...rest } = projectData as ProjectData & {
+    const {
+        userId: _userId,
+        createdAt: _createdAt,
+        updatedAt: _updatedAt,
+        visibility: _visibility,
+        publishedAt: _publishedAt,
+        shareToken: _shareToken,
+        shareCreatedAt: _shareCreatedAt,
+        ...rest
+    } = projectData as ProjectData & {
         userId?: string;
         createdAt?: unknown;
         updatedAt?: unknown;
@@ -161,7 +198,7 @@ export const claimShareLink = async (token: string, claimantId: string) => {
     const shareRef = db.collection('shares').doc(token);
     const shareSnap = await shareRef.get();
     if (!shareSnap.exists) {
-        throw new Error('Share link not found');
+        throw new Error(DECK_NOT_AVAILABLE);
     }
     const shareData = shareSnap.data() as { ownerId: string; projectId: string };
 
@@ -176,9 +213,7 @@ export const claimShareLink = async (token: string, claimantId: string) => {
 
     const { projectData, slides } = await fetchProjectWithSlides(shareData.ownerId, shareData.projectId);
 
-    if (projectData.status === 'generating') {
-        throw new Error('Project is still generating');
-    }
+    assertPreviewable(projectData);
 
     const newProjectId = await copyProjectToUser(projectData, slides, claimantId);
 
