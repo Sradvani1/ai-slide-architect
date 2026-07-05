@@ -149,11 +149,18 @@ export interface SharePreviewResponse {
     thumbnailUrl?: string;
 }
 
-/** Completed decks are always public and listable in the gallery. */
+/** Completed decks are shareable/remixable at /share/{token}. */
 export function isPubliclyListable(
     project: Pick<ProjectData, 'status'>
 ): boolean {
     return project.status === 'completed';
+}
+
+/** Only originals appear in Explore; remix copies stay off the gallery index. */
+export function isGalleryListable(
+    project: Pick<ProjectData, 'status' | 'remixedFrom'>
+): boolean {
+    return isPubliclyListable(project) && !project.remixedFrom?.shareToken;
 }
 
 /**

@@ -14,7 +14,7 @@ import { randomUUID } from 'node:crypto';
 import { initializeApp } from 'firebase-admin/app';
 import { getFirestore, FieldValue, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
 import type { Slide, ProjectData } from '../shared/types.ts';
-import { isPubliclyListable } from '../shared/types.ts';
+import { isGalleryListable } from '../shared/types.ts';
 import { getOwnerDisplayName } from '../functions/src/utils/ownerDisplayName.ts';
 
 const PROJECT_ID = process.env.GCLOUD_PROJECT ?? 'ai-slide-architect-9de88';
@@ -25,6 +25,8 @@ const STORAGE_AUDIT_SAMPLE_SIZE = 20;
 interface Stats {
     scanned: number;
     skipped_already: number;
+    skipped_remix: number;
+    purged_remix: number;
     tokens_created: number;
     updated: number;
     errors: number;
@@ -63,6 +65,10 @@ const upsertPublicDeckLocal = async (
     projectId: string,
     projectData: ProjectData
 ) => {
+    if (!isGalleryListable(projectData)) {
+        return;
+    }
+
     const projectRef = db.collection('users').doc(ownerId).collection('projects').doc(projectId);
     const slidesSnap = await projectRef.collection('slides').orderBy('sortOrder', 'asc').get();
     const slides = slidesSnap.docs.map(doc => doc.data() as Slide);
@@ -199,7 +205,7 @@ const verifyAndHealOrphans = async (
         const projects = await userDoc.ref.collection('projects').where('status', '==', 'completed').get();
         for (const proj of projects.docs) {
             const data = proj.data() as ProjectData;
-            if (!isPubliclyListable(data) || !data.shareToken) continue;
+            if (!isGalleryListable(data) || !data.shareToken) continue;
 
             const indexSnap = await db.collection('publicDecks').doc(data.shareToken).get();
             if (indexSnap.exists && indexSnap.data()?.projectId === proj.id) continue;
@@ -219,6 +225,37 @@ const verifyAndHealOrphans = async (
     return { orphans, healed };
 };
 
+/** Remove gallery index rows for remix copies (Explore is originals-only). */
+const purgeRemixGalleryEntries = async (
+    db: Firestore,
+    isDryRun: boolean
+): Promise<number> => {
+    let purged = 0;
+
+    const usersSnap = await db.collection('users').get();
+    for (const userDoc of usersSnap.docs) {
+        const projects = await userDoc.ref.collection('projects').get();
+
+        for (const proj of projects.docs) {
+            const data = proj.data() as ProjectData;
+            if (!data.remixedFrom?.shareToken || !data.shareToken) continue;
+
+            const indexSnap = await db.collection('publicDecks').doc(data.shareToken).get();
+            if (!indexSnap.exists) continue;
+
+            purged++;
+            if (verbose) {
+                console.log(`[purge] remix index: user=${userDoc.id} project=${proj.id} token=${data.shareToken}`);
+            }
+            if (!isDryRun) {
+                await indexSnap.ref.delete();
+            }
+        }
+    }
+
+    return purged;
+};
+
 const run = async () => {
     initializeApp({ projectId: PROJECT_ID });
     const db = getFirestore();
@@ -226,6 +263,8 @@ const run = async () => {
     const stats: Stats = {
         scanned: 0,
         skipped_already: 0,
+        skipped_remix: 0,
+        purged_remix: 0,
         tokens_created: 0,
         updated: 0,
         errors: 0,
@@ -234,6 +273,7 @@ const run = async () => {
     };
 
     if (verifyOnly) {
+        stats.purged_remix = await purgeRemixGalleryEntries(db, dryRun);
         stats.verify = await verifyAndHealOrphans(db, dryRun);
         console.log(JSON.stringify({ dryRun, verifyOnly, ...stats }, null, 2));
         const unhealed = stats.verify.orphans - (dryRun ? 0 : stats.verify.healed);
@@ -254,6 +294,20 @@ const run = async () => {
 
             stats.scanned++;
             let data = proj.data() as ProjectData;
+
+            if (!isGalleryListable(data)) {
+                if (data.remixedFrom?.shareToken && data.shareToken) {
+                    const indexSnap = await db.collection('publicDecks').doc(data.shareToken).get();
+                    if (indexSnap.exists) {
+                        stats.purged_remix++;
+                        if (!dryRun) {
+                            await indexSnap.ref.delete();
+                        }
+                    }
+                }
+                stats.skipped_remix++;
+                continue;
+            }
 
             let shareToken = data.shareToken;
             if (!shareToken) {
@@ -312,6 +366,7 @@ const run = async () => {
         }
     }
 
+    stats.purged_remix += await purgeRemixGalleryEntries(db, dryRun);
     stats.verify = await verifyAndHealOrphans(db, dryRun);
 
     console.log(JSON.stringify({ dryRun, verifyOnly, batchSize, limit: limit ?? null, ...stats }, null, 2));

@@ -31,7 +31,7 @@ import { upsertPublicDeck, deletePublicDeck, listPublicDecks } from './services/
 import { generateSitemapXml } from './services/sitemapService';
 import { submitGalleryReport } from './services/galleryReportService';
 import { buildCrawlerHtml, buildCrawlerNotFoundHtml, resolveOgImage } from './utils/sharePageMeta';
-import { Slide, ProjectData, isPubliclyListable } from '@shared/types';
+import { Slide, ProjectData, isGalleryListable } from '@shared/types';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE, IMAGE_GENERATION_ENABLED } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
 import { GeminiError, ImageGenError } from '@shared/errors';
@@ -1010,7 +1010,7 @@ export const onProjectUpdate = onDocumentUpdated('users/{userId}/projects/{proje
     const projectRef = admin.firestore().collection('users').doc(userId).collection('projects').doc(projectId);
 
     try {
-        if (isPubliclyListable(after)) {
+        if (isGalleryListable(after)) {
             await upsertPublicDeck(shareToken, userId, projectId, after);
             if (!after.publishedAt) {
                 await projectRef.update({ publishedAt: FieldValue.serverTimestamp() });

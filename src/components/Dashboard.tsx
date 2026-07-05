@@ -493,12 +493,15 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                     </div>
                                 )}
                                 {projectIsRemix && project.status !== 'generating' && project.status !== 'failed' && (
-                                    <div className="absolute top-3 left-3 z-10 bg-violet-50 text-violet-700 px-2 py-1 rounded-md text-[10px] font-bold uppercase tracking-wider border border-violet-200 flex items-center gap-1">
-                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3" aria-hidden="true">
+                                    <span
+                                        className="absolute bottom-3 right-3 z-10 flex h-7 w-7 items-center justify-center rounded-full bg-violet-50 text-violet-600 border border-violet-200/80 shadow-sm"
+                                        title="Remix"
+                                        aria-label="Remix"
+                                    >
+                                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
                                             <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
                                         </svg>
-                                        Remix
-                                    </div>
+                                    </span>
                                 )}
                                 {/* Delete Action (Top Right) */}
                                 {project.status !== 'generating' && (
@@ -552,7 +555,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                             className="w-full flex-1 text-left block"
                                         >
                                             {/* Row 1: Title (Primary Focus) */}
-                                            <h3 className={`font-semibold text-[20px] text-primary-text leading-tight line-clamp-2 pr-6 group-hover/card:text-primary transition-colors ${projectIsRemix ? 'mb-1' : 'mb-3'}`}>
+                                            <h3 className="font-semibold text-[20px] text-primary-text leading-tight line-clamp-2 pr-6 mb-3 group-hover/card:text-primary transition-colors">
                                                 {project.title || "Untitled Project"}
                                             </h3>
                                             {projectIsRemix && project.remixedFrom?.sourceTitle && (
@@ -574,7 +577,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                             </div>
 
                                             {/* Row 3: Metadata Row (Temporal/Quantitative) */}
-                                            <div className="mt-auto flex items-center text-[13px] text-[#627C81]">
+                                            <div className={`mt-auto flex items-center text-[13px] text-[#627C81] ${projectIsRemix ? 'pr-9' : ''}`}>
                                                 <span className="flex items-center">
                                                     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-3.5 h-3.5 mr-1.5" aria-hidden="true">
                                                         <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m2.25 0H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />

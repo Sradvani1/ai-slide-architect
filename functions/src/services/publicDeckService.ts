@@ -1,6 +1,7 @@
 import * as admin from 'firebase-admin';
 import { FieldValue, Timestamp } from 'firebase-admin/firestore';
 import type { Slide, ProjectData, PublicDeckIndex, GalleryDeckItem, GalleryResponse, GallerySort } from '@shared/types';
+import { isGalleryListable } from '@shared/types';
 import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
 import { getOwnerDisplayName } from '../utils/ownerDisplayName';
 
@@ -143,6 +144,10 @@ export const upsertPublicDeck = async (
     projectId: string,
     projectData: ProjectData
 ) => {
+    if (!isGalleryListable(projectData)) {
+        return;
+    }
+
     const projectRef = db.collection('users').doc(ownerId).collection('projects').doc(projectId);
     const slidesSnap = await projectRef.collection('slides').orderBy('sortOrder', 'asc').get();
     const slides = slidesSnap.docs.map(doc => doc.data() as Slide);

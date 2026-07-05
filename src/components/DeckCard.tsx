@@ -29,6 +29,14 @@ export const DeckCard: React.FC<DeckCardProps> = ({ deck }) => {
                             {deck.slideCount} {deck.slideCount === 1 ? 'slide' : 'slides'}
                         </span>
                     )}
+                    {deck.remixCount > 0 && (
+                        <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full bg-violet-50 text-violet-700 text-xs font-semibold border border-violet-200/80">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3 h-3" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                            </svg>
+                            {deck.remixCount} {deck.remixCount === 1 ? 'remix' : 'remixes'}
+                        </span>
+                    )}
                     {deck.viewCount > 0 && (
                         <span className="text-xs text-secondary-text">
                             {deck.viewCount} {deck.viewCount === 1 ? 'view' : 'views'}
