@@ -51,7 +51,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
         ? `${preview.project.title} — Grade ${preview.project.gradeLevel} ${preview.project.subject} | SlidesEdu`
         : '';
     const pageDescription = preview
-        ? `Free ${preview.project.subject} slide deck on ${preview.project.topic}. Created by ${preview.ownerName}. Remix and customize for your classroom.`
+        ? `Free ${preview.project.subject} slide deck on ${preview.project.topic}. Remix and customize for your classroom.`
         : '';
     const pageCanonical = shareToken
         ? `https://www.slidesedu.org/share/${shareToken}`
@@ -74,7 +74,6 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
         description: pageDescription,
         url: pageCanonical,
         image: ogImage,
-        author: { '@type': 'Person', name: preview.ownerName },
         educationalLevel: preview.project.gradeLevel,
         about: preview.project.topic,
         inLanguage: 'en',
@@ -234,10 +233,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
             <div className="sticky top-0 z-20 border-b border-slate-200/70 bg-white/90 backdrop-blur">
                 <div className="max-w-6xl mx-auto px-4 sm:px-6 py-4 flex flex-col lg:flex-row lg:items-center lg:justify-between gap-4">
                     <div className="flex-1 min-w-0">
-                        <p className="text-sm font-semibold text-primary">
-                            Shared by {preview?.ownerName || 'a teacher'}
-                        </p>
-                        <h1 className="text-2xl font-bold text-primary-text mt-1 truncate">
+                        <h1 className="text-2xl font-bold text-primary-text truncate">
                             {preview?.project.title || 'Shared Slide Deck'}
                         </h1>
                         <div className="text-xs text-secondary-text mt-2 flex flex-wrap gap-2">

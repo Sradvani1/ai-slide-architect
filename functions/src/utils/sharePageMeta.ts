@@ -33,7 +33,6 @@ export const buildSharePageJsonLd = (
     description,
     url: canonical,
     image: ogImage,
-    author: { '@type': 'Person', name: preview.ownerName },
     educationalLevel: preview.project.gradeLevel,
     about: preview.project.topic,
     inLanguage: 'en',
@@ -47,7 +46,7 @@ export const buildCrawlerHtml = (
     ogImage: string
 ): string => {
     const title = `${preview.project.title} — Grade ${preview.project.gradeLevel} ${preview.project.subject} | SlidesEdu`;
-    const description = `Free ${preview.project.subject} slide deck on ${preview.project.topic}. Created by ${preview.ownerName}. Remix and customize for your classroom.`;
+    const description = `Free ${preview.project.subject} slide deck on ${preview.project.topic}. Remix and customize for your classroom.`;
     const jsonLd = buildSharePageJsonLd(preview, canonical, ogImage, description);
 
     return `<!DOCTYPE html>
