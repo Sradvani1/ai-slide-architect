@@ -18,8 +18,13 @@ service cloud.firestore {
          let visibilityOk = resource == null
              ? !data.keys().hasAny(['visibility'])
              : !data.diff(resource.data).affectedKeys().hasAny(['visibility']);
+         // remixedFrom is set by server on remix claim only
+         let remixOk = resource == null
+             ? !data.keys().hasAny(['remixedFrom'])
+             : !data.diff(resource.data).affectedKeys().hasAny(['remixedFrom']);
          // DENY forbidden legacy fields and root slides array
          return visibilityOk
+             && remixOk
              && !data.keys().hasAny(['slides', 'imagePrompt', 'prompts', 'legacy'])
              // REQUIRE essential metadata fields
              && data.keys().hasAll(['title', 'updatedAt', 'userId'])

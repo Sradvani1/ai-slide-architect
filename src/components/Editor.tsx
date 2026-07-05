@@ -1,7 +1,7 @@
 import React, { useState, useCallback, useEffect } from 'react';
 import { doc, onSnapshot, serverTimestamp, getDoc, updateDoc, deleteField, collection, query, orderBy } from 'firebase/firestore';
 import { db } from '../firebaseConfig'; // Added db
-import { useNavigate, useParams } from 'react-router-dom';
+import { Link, useNavigate, useParams } from 'react-router-dom';
 import { User } from 'firebase/auth';
 import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
@@ -11,7 +11,7 @@ import { createProject, updateProject, updateSlide, getProject, uploadFileToStor
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import { ANALYTICS_EVENTS } from '@shared/constants';
 import { logAnalyticsEvent, logDeckPublishedOnce } from '../utils/analytics';
-import type { Slide, ProjectFile } from '../types';
+import type { Slide, ProjectFile, RemixSource } from '../types';
 
 interface EditorProps {
     user: User;
@@ -67,6 +67,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectData['status']>(undefined);
     const [shareToken, setShareToken] = useState<string | null>(null);
     const [showSharePanel, setShowSharePanel] = useState(false);
+    const [remixedFrom, setRemixedFrom] = useState<RemixSource | undefined>(undefined);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
     const prevStatusRef = React.useRef<ProjectData['status'] | undefined>(undefined);
@@ -100,6 +101,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setCurrentProjectId(project.id!);
                     setProjectStatus(project.status);
                     setShareToken(project.shareToken || null);
+                    setRemixedFrom(project.remixedFrom);
                     setGenerationStartedAtMs(toMillis(project.generationStartedAt));
 
                     // Load files if they exist
@@ -140,6 +142,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setShareCopied(false);
                 setShareToken(null);
                 setShowSharePanel(false);
+                setRemixedFrom(undefined);
                 setIsLoading(false);
             }
         };
@@ -193,6 +196,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             setResearchContent(projectData.researchContent || '');
             setProjectStatus(projectData.status);
             setShareToken(projectData.shareToken || null);
+            setRemixedFrom(projectData.remixedFrom);
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
@@ -555,15 +559,26 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 `}
             >
                 <div className="p-6 border-b border-border-light flex justify-between items-center bg-white sticky top-0 z-10">
-                    <button
-                        onClick={() => navigate('/')}
-                        className="flex items-center space-x-2 text-secondary-text hover:text-primary transition-colors group"
-                    >
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 group-hover:-translate-x-1 transition-transform">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
-                        </svg>
-                        <span className="font-bold text-sm">Dashboard</span>
-                    </button>
+                    <div className="flex items-center gap-4">
+                        <button
+                            onClick={() => navigate('/')}
+                            className="flex items-center space-x-2 text-secondary-text hover:text-primary transition-colors group"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-5 h-5 group-hover:-translate-x-1 transition-transform">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M10.5 19.5L3 12m0 0l7.5-7.5M3 12h18" />
+                            </svg>
+                            <span className="font-bold text-sm">Dashboard</span>
+                        </button>
+                        <Link
+                            to="/explore"
+                            className="flex items-center space-x-1.5 text-secondary-text hover:text-primary transition-colors text-sm font-semibold"
+                        >
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-4 h-4" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M12 21a9.004 9.004 0 0 0 8.716-6.747M12 21a9.004 9.004 0 0 1-8.716-6.747M12 21c2.485 0 4.5-4.03 4.5-9S14.485 3 12 3m0 18c-2.485 0-4.5-4.03-4.5-9S9.515 3 12 3m0 0a8.997 8.997 0 0 1 7.843 4.582M12 3a8.997 8.997 0 0 0-7.843 4.582m15.686 0A11.953 11.953 0 0 1 12 10.5c-2.998 0-5.74-1.1-7.843-2.918m15.686 0A8.959 8.959 0 0 1 21 12c0 .778-.099 1.533-.284 2.253m0 0A17.919 17.919 0 0 1 12 16.5a17.92 17.92 0 0 1-8.716-2.247m0 0A8.966 8.966 0 0 1 3 12c0-1.064.208-2.082.584-3m0 0A11.953 11.953 0 0 1 12 4.5" />
+                            </svg>
+                            <span>Explore</span>
+                        </Link>
+                    </div>
 
                     <button
                         onClick={() => setIsSidebarOpen(false)}
@@ -606,6 +621,26 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             {/* Main Content */}
             <main id="main-content" className="flex-1 overflow-y-auto w-full relative scrollbar-thin scrollbar-thumb-slate-300 scrollbar-track-transparent h-full">
                 <div className="container mx-auto px-4 py-8 md:p-8 max-w-7xl pt-20 md:pt-8">
+                    {remixedFrom?.shareToken && (
+                        <div className="mb-6 flex flex-col sm:flex-row sm:items-center gap-3 rounded-xl border border-violet-200 bg-violet-50/80 px-4 py-3">
+                            <span className="inline-flex items-center gap-1.5 self-start rounded-md bg-violet-100 px-2.5 py-1 text-xs font-bold uppercase tracking-wide text-violet-700 border border-violet-200">
+                                <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" className="w-3.5 h-3.5" aria-hidden="true">
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M16.023 9.348h4.992v-.001M2.985 19.644v-4.992m0 0h4.992m-4.993 0 3.181 3.183a8.25 8.25 0 0 0 13.803-3.7M4.031 9.865a8.25 8.25 0 0 1 13.803-3.7l3.181 3.182" />
+                                </svg>
+                                Remix
+                            </span>
+                            <p className="text-sm text-primary-text">
+                                Based on{' '}
+                                <Link
+                                    to={`/share/${remixedFrom.shareToken}`}
+                                    className="font-semibold text-primary hover:underline"
+                                >
+                                    {remixedFrom.sourceTitle}
+                                </Link>
+                                . Customize it for your classroom.
+                            </p>
+                        </div>
+                    )}
                     <SlideDeck
                         slides={slides}
                         sources={sources}

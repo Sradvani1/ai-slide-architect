@@ -236,7 +236,7 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ user }) => {
                 <div className="mb-8">
                     <h1 className="text-3xl font-bold text-primary-text">Explore</h1>
                     <p className="text-secondary-text mt-2">
-                        Browse free slide decks for teachers
+                        Discover free slide decks from teachers — preview and remix for your classroom.
                     </p>
                 </div>
 
@@ -286,10 +286,10 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ user }) => {
                             </h2>
                             <p className="text-secondary-text mb-6">{emptyCopy.subtext}</p>
                             <Link
-                                to="/"
+                                to={user ? '/new' : '/'}
                                 className="btn-primary inline-block px-5 py-2 text-sm font-semibold"
                             >
-                                Create your deck
+                                {user ? 'Create a deck' : 'Get started'}
                             </Link>
                         </div>
                     ) : (

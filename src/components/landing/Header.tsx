@@ -27,7 +27,7 @@ export const Header: React.FC<HeaderProps> = ({ onSignIn, user, title }) => {
                 </div>
                 <div className="flex items-center gap-6">
                     {showExploreLink && (
-                        <Link to="/explore" className="text-sm font-medium text-secondary-text hover:text-primary transition-colors hidden sm:block">
+                        <Link to="/explore" className="text-sm font-medium text-secondary-text hover:text-primary transition-colors">
                             Explore
                         </Link>
                     )}

@@ -157,6 +157,11 @@ export interface ProjectData {
     shareToken?: string;
     shareCreatedAt?: Timestamp;
     publishedAt?: Timestamp;
+    remixedFrom?: {
+        shareToken: string;
+        sourceTitle: string;
+        remixedAt?: Timestamp;
+    };
 }
 
 

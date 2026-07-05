@@ -81,6 +81,13 @@ export interface ProjectFile {
     extractedContent?: string;
 }
 
+/** Source deck when this project was created via remix (POST /share/claim). Server-written only. */
+export interface RemixSource {
+    shareToken: string;
+    sourceTitle: string;
+    remixedAt?: any;
+}
+
 /** Denormalized gallery index doc at publicDecks/{shareToken}. Server-written only. */
 export interface PublicDeckIndex {
     token: string;
@@ -187,4 +194,5 @@ export interface ProjectData {
     shareToken?: string;
     shareCreatedAt?: any;          // Firestore Timestamp
     publishedAt?: any;             // Firestore Timestamp — set by trigger on first gallery listing
+    remixedFrom?: RemixSource;     // set by server on remix claim only
 }

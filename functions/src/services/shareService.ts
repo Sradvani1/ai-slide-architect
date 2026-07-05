@@ -134,7 +134,12 @@ export const getSharePreview = async (token: string) => {
     };
 };
 
-const copyProjectToUser = async (projectData: ProjectData, slides: Slide[], claimantId: string) => {
+const copyProjectToUser = async (
+    projectData: ProjectData,
+    slides: Slide[],
+    claimantId: string,
+    remix?: { shareToken: string; sourceTitle: string }
+) => {
     const projectRef = db.collection('users').doc(claimantId).collection('projects').doc();
     const {
         userId: _userId,
@@ -143,6 +148,7 @@ const copyProjectToUser = async (projectData: ProjectData, slides: Slide[], clai
         publishedAt: _publishedAt,
         shareToken: _shareToken,
         shareCreatedAt: _shareCreatedAt,
+        remixedFrom: _remixedFrom,
         ...rest
     } = projectData as ProjectData & {
         userId?: string;
@@ -159,6 +165,13 @@ const copyProjectToUser = async (projectData: ProjectData, slides: Slide[], clai
         generationMessage: null,
         generationError: null,
         generationRequestId: null,
+        ...(remix ? {
+            remixedFrom: {
+                shareToken: remix.shareToken,
+                sourceTitle: remix.sourceTitle,
+                remixedAt: FieldValue.serverTimestamp(),
+            },
+        } : {}),
         createdAt: FieldValue.serverTimestamp(),
         updatedAt: FieldValue.serverTimestamp()
     });
@@ -217,7 +230,10 @@ export const claimShareLink = async (token: string, claimantId: string) => {
 
     assertPreviewable(projectData);
 
-    const newProjectId = await copyProjectToUser(projectData, slides, claimantId);
+    const newProjectId = await copyProjectToUser(projectData, slides, claimantId, {
+        shareToken: token,
+        sourceTitle: projectData.title,
+    });
 
     await Promise.all([
         claimRef.set({
