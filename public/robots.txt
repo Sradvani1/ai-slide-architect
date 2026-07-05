@@ -2,3 +2,5 @@ User-agent: *
 Allow: /
 Allow: /explore
 Allow: /share/
+
+Sitemap: https://www.slidesedu.org/sitemap.xml

@@ -13,6 +13,12 @@ export const Footer: React.FC = () => {
                         <p className="text-xs text-secondary-text mt-1">
                             © {new Date().getFullYear()} SlidesEdu. All rights reserved.
                         </p>
+                        <p className="text-xs text-secondary-text mt-2">
+                            Public decks are shared by teachers.{' '}
+                            <Link to="/faq#public-decks" className="hover:text-primary transition-colors">
+                                Learn about privacy →
+                            </Link>
+                        </p>
                     </div>
                     <div className="flex gap-6">
                         <Link to="/explore" className="text-sm text-secondary-text hover:text-primary transition-colors">

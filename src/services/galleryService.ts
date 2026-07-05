@@ -1,5 +1,11 @@
-import type { GalleryResponse, GallerySort } from '../types';
+import type { GalleryResponse, GallerySort, GalleryReportReason } from '../types';
 import { getApiBaseUrlDynamic } from '../utils/apiBaseUrl';
+
+export interface SubmitGalleryReportParams {
+    token: string;
+    reason: GalleryReportReason;
+    details?: string;
+}
 
 export interface FetchGalleryParams {
     gradeLevel?: string;
@@ -32,4 +38,23 @@ export const fetchGallery = async (params: FetchGalleryParams = {}): Promise<Gal
     }
 
     return response.json();
+};
+
+export const submitGalleryReport = async (params: SubmitGalleryReportParams): Promise<void> => {
+    const apiUrl = getApiBaseUrlDynamic();
+    const response = await fetch(`${apiUrl}/gallery/report`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(params),
+    });
+
+    if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        const message = typeof errorData.error === 'string'
+            ? errorData.error
+            : response.status === 429
+                ? 'Too many requests'
+                : response.statusText;
+        throw new Error(message);
+    }
 };

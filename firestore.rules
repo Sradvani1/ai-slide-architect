@@ -77,5 +77,10 @@ service cloud.firestore {
       allow write: if false;
     }
 
+    // Gallery reports (server-written only)
+    match /galleryReports/{id} {
+      allow read, write: if false;
+    }
+
   }
 }

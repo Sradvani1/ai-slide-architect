@@ -3,7 +3,7 @@ import { FieldValue } from 'firebase-admin/firestore';
 import * as crypto from 'crypto';
 import type { Slide, ProjectData, GeneratedImage } from '@shared/types';
 import { isPubliclyListable } from '@shared/types';
-import { incrementViewCount, incrementRemixCount } from './publicDeckService';
+import { deriveThumbnailUrl, incrementViewCount, incrementRemixCount } from './publicDeckService';
 import { getOwnerDisplayName } from '../utils/ownerDisplayName';
 
 const db = admin.firestore();
@@ -119,6 +119,8 @@ export const getSharePreview = async (token: string) => {
 
     incrementViewCount(token);
 
+    const thumbnailUrl = deriveThumbnailUrl(slides);
+
     return {
         ownerName,
         project: {
@@ -127,7 +129,8 @@ export const getSharePreview = async (token: string) => {
             gradeLevel: projectData.gradeLevel,
             subject: projectData.subject,
         },
-        slides: slides.map(sanitizeSlideForPreview)
+        slides: slides.map(sanitizeSlideForPreview),
+        ...(thumbnailUrl ? { thumbnailUrl } : {}),
     };
 };
 

@@ -51,6 +51,9 @@ Endpoints:
 - `POST /share/claim` (auth) → claim a shared deck and create a copy
 - `GET /share/preview` (public) → read-only share preview
 - `GET /gallery` (public) → paginated public deck catalog (`gradeLevel`, `subject`, `sort`, `limit`, `cursor` query params). Requires Firestore composite indexes on `publicDecks` — deploy with `firebase deploy --only firestore:indexes` before functions.
+- `GET /sitemap.xml` (public) → dynamic XML sitemap for SEO
+- `GET /share/crawler` (public) → bot-friendly HTML with OG tags and JSON-LD
+- `POST /gallery/report` (public) → report a problematic public deck (rate limited)
 - `POST /admin/initialize-pricing` (admin) → initialize pricing data
 
 **Public routes:** `/explore` (gallery UI), `/share/:token` (share preview). Both work without sign-in.
@@ -159,6 +162,20 @@ This repo deploys the frontend separately from the backend Functions.
     ```
 
 Your frontend will call the Functions API URL you configure via `VITE_PRODUCTION_API_URL`.
+
+## 🌐 Charity Platform & Launch
+
+SlidesEdu operates as a free educational charity platform with a public deck gallery. See **[docs/CHARITY_PLATFORM.md](docs/CHARITY_PLATFORM.md)** for the full visibility model, gallery architecture, deploy order, and Search Console checklist.
+
+**Backfill legacy decks** (requires service account — see [scripts/SETUP-SERVICE-ACCOUNT.md](scripts/SETUP-SERVICE-ACCOUNT.md)):
+
+```bash
+npm run backfill-public-decks -- --dry-run   # preview counts, no writes
+npm run backfill-public-decks                # set visibility public + trigger index
+sleep 30 && npm run backfill-public-decks -- --verify-only   # expect orphans=0
+```
+
+**Vercel env vars** (production): set both `VITE_PRODUCTION_API_URL` (frontend API calls) and `PRODUCTION_API_URL` (Edge Middleware bot OG proxy) to the same Cloud Run URL.
 
 ## 📄 License
 

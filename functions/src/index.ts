@@ -28,6 +28,9 @@ import { extractTextFromImage } from './services/imageTextExtraction';
 import { createDownloadTokens, resolveDownloadToken } from './services/downloadTokenService';
 import { createShareLink, claimShareLink, getSharePreview, DECK_NOT_AVAILABLE } from './services/shareService';
 import { upsertPublicDeck, deletePublicDeck, listPublicDecks } from './services/publicDeckService';
+import { generateSitemapXml } from './services/sitemapService';
+import { submitGalleryReport } from './services/galleryReportService';
+import { buildCrawlerHtml, buildCrawlerNotFoundHtml, resolveOgImage } from './utils/sharePageMeta';
 import { Slide, ProjectData, isPubliclyListable } from '@shared/types';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE, IMAGE_GENERATION_ENABLED } from '@shared/constants';
 import { initializeModelPricing } from './utils/initializePricing';
@@ -173,6 +176,13 @@ const galleryRateLimit = createIpRateLimiter({
     windowMs: 60 * 1000,
     maxRequests: 60,
     keyPrefix: 'gallery',
+    failOpen: true
+});
+
+const galleryReportRateLimit = createIpRateLimiter({
+    windowMs: 60 * 60 * 1000,
+    maxRequests: 5,
+    keyPrefix: 'gallery_report',
     failOpen: true
 });
 
@@ -871,7 +881,108 @@ app.get('/share/preview', sharePreviewRateLimit, async (req: express.Request, re
 });
 
 /**
- * 12. Create a persistent share link when a project is created.
+ * 13. Dynamic sitemap for SEO (no auth required).
+ */
+app.get('/sitemap.xml', galleryRateLimit, async (_req: express.Request, res: express.Response) => {
+    try {
+        const xml = await generateSitemapXml();
+        res.set('Content-Type', 'application/xml; charset=utf-8');
+        res.set('Cache-Control', 'public, max-age=3600');
+        res.status(200).send(xml);
+    } catch (error: unknown) {
+        console.error('Sitemap Error:', getErrorMessage(error));
+        res.status(500).send('Failed to generate sitemap');
+    }
+});
+
+/**
+ * 14. Crawler-friendly share page HTML with OG + JSON-LD (no auth required).
+ */
+app.get('/share/crawler', sharePreviewRateLimit, async (req: express.Request, res: express.Response) => {
+    try {
+        const token = typeof req.query.token === 'string' ? req.query.token : '';
+        if (!token) {
+            res.status(400).send('Missing required query param: token');
+            return;
+        }
+        if (!isValidShareToken(token)) {
+            res.status(400).send('Invalid share token');
+            return;
+        }
+
+        const preview = await getSharePreview(token);
+        const canonical = `https://www.slidesedu.org/share/${token}`;
+        const ogImage = resolveOgImage(preview.thumbnailUrl);
+        const html = buildCrawlerHtml(preview, canonical, ogImage);
+
+        res.set('Content-Type', 'text/html; charset=utf-8');
+        res.status(200).send(html);
+    } catch (error: unknown) {
+        console.error('Share Crawler Error:', getErrorMessage(error));
+        const message = getErrorMessage(error) || 'Failed to load share preview';
+        const status = message === DECK_NOT_AVAILABLE || message.includes('not found') ? 404 : 500;
+        if (status === 404) {
+            res.set('Content-Type', 'text/html; charset=utf-8');
+            res.status(404).send(buildCrawlerNotFoundHtml());
+            return;
+        }
+        res.status(status).send(message);
+    }
+});
+
+/**
+ * 15. Report a public deck (no auth required).
+ */
+app.post('/gallery/report', galleryReportRateLimit, async (req: express.Request, res: express.Response) => {
+    try {
+        const { token, reason, details } = req.body as {
+            token?: string;
+            reason?: string;
+            details?: string;
+        };
+
+        if (!token || typeof token !== 'string') {
+            res.status(400).json({ error: 'Missing required field: token' });
+            return;
+        }
+        if (!isValidShareToken(token)) {
+            res.status(400).json({ error: 'Invalid share token' });
+            return;
+        }
+        if (!reason || typeof reason !== 'string') {
+            res.status(400).json({ error: 'Missing required field: reason' });
+            return;
+        }
+
+        const ip = typeof req.ip === 'string' && req.ip.length > 0
+            ? req.ip
+            : (typeof req.headers['x-forwarded-for'] === 'string'
+                ? req.headers['x-forwarded-for'].split(',')[0]?.trim()
+                : 'unknown') || 'unknown';
+        const ipHash = crypto.createHash('sha256').update(ip).digest('hex');
+        const userAgent = typeof req.headers['user-agent'] === 'string'
+            ? req.headers['user-agent']
+            : '';
+
+        await submitGalleryReport(token, reason, typeof details === 'string' ? details : undefined, ipHash, userAgent);
+        res.status(201).json({ ok: true });
+    } catch (error: unknown) {
+        const message = getErrorMessage(error) || 'Failed to submit report';
+        console.error('Gallery Report Error:', message);
+        if (message === 'Invalid reason' || message === 'Details too long') {
+            res.status(400).json({ error: message });
+            return;
+        }
+        if (message === 'Deck not found') {
+            res.status(404).json({ error: message });
+            return;
+        }
+        res.status(500).json({ error: 'Failed to submit report' });
+    }
+});
+
+/**
+ * 16. Create a persistent share link when a project is created.
  */
 export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{projectId}', async (event) => {
     const { userId, projectId } = event.params;

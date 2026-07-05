@@ -4,6 +4,10 @@
     "outputDirectory": "dist",
     "rewrites": [
         {
+            "source": "/sitemap.xml",
+            "destination": "https://api-osqb5umzra-uc.a.run.app/sitemap.xml"
+        },
+        {
             "source": "/(.*)",
             "destination": "/index.html"
         }

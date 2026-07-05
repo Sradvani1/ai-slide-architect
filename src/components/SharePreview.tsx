@@ -4,39 +4,44 @@ import type { User } from 'firebase/auth';
 import { SlideDeck } from './SlideDeck';
 import { Auth } from './Auth';
 import { Modal } from './Modal';
+import { Footer } from './landing/Footer';
 import { claimShareLink, fetchSharePreview } from '../services/shareService';
+import { submitGalleryReport } from '../services/galleryService';
 import { usePageMeta } from '../hooks/usePageMeta';
 import { logAnalyticsEvent } from '../utils/analytics';
 import { ANALYTICS_EVENTS } from '@shared/constants';
-import type { Slide } from '../types';
+import type { GalleryReportReason, SharePreviewResponse } from '../types';
 
 interface SharePreviewProps {
     user: User | null;
 }
 
-interface SharePreviewState {
-    ownerName: string;
-    project: {
-        title: string;
-        topic: string;
-        gradeLevel: string;
-        subject: string;
-    };
-    slides: Slide[];
-}
-
 const DECK_NOT_AVAILABLE = 'This deck is not available';
+const DEFAULT_OG_IMAGE = 'https://www.slidesedu.org/og-image.png';
+
+const REPORT_REASONS: { value: GalleryReportReason; label: string }[] = [
+    { value: 'inappropriate', label: 'Inappropriate content' },
+    { value: 'copyright', label: 'Copyright concern' },
+    { value: 'inaccurate', label: 'Inaccurate information' },
+    { value: 'other', label: 'Other' },
+];
 
 export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
     const { token } = useParams<{ token: string }>();
     const navigate = useNavigate();
 
-    const [preview, setPreview] = useState<SharePreviewState | null>(null);
+    const [preview, setPreview] = useState<SharePreviewResponse | null>(null);
     const [isLoading, setIsLoading] = useState(true);
     const [error, setError] = useState<string | null>(null);
     const [isClaiming, setIsClaiming] = useState(false);
     const [shouldClaim, setShouldClaim] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const [showReportForm, setShowReportForm] = useState(false);
+    const [reportReason, setReportReason] = useState<GalleryReportReason>('inappropriate');
+    const [reportDetails, setReportDetails] = useState('');
+    const [isReporting, setIsReporting] = useState(false);
+    const [reportSuccess, setReportSuccess] = useState(false);
+    const [reportError, setReportError] = useState<string | null>(null);
     const loggedViewForToken = useRef<string | null>(null);
 
     const shareToken = useMemo(() => token?.trim() || '', [token]);
@@ -51,15 +56,47 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
     const pageCanonical = shareToken
         ? `https://www.slidesedu.org/share/${shareToken}`
         : '';
+    const ogImage = preview?.thumbnailUrl ?? DEFAULT_OG_IMAGE;
+
+    const openGraph = useMemo(() => preview ? {
+        title: pageTitle,
+        description: pageDescription,
+        image: ogImage,
+        url: pageCanonical,
+    } : undefined, [preview, pageTitle, pageDescription, ogImage, pageCanonical]);
+
+    const jsonLd = useMemo(() => preview ? {
+        // keep in sync with functions/src/utils/sharePageMeta.ts buildSharePageJsonLd()
+        '@context': 'https://schema.org',
+        '@type': ['LearningResource', 'CreativeWork'],
+        '@id': pageCanonical,
+        name: preview.project.title,
+        description: pageDescription,
+        url: pageCanonical,
+        image: ogImage,
+        author: { '@type': 'Person', name: preview.ownerName },
+        educationalLevel: preview.project.gradeLevel,
+        about: preview.project.topic,
+        inLanguage: 'en',
+        isAccessibleForFree: true,
+        provider: { '@type': 'Organization', name: 'SlidesEdu', url: 'https://www.slidesedu.org' },
+    } : undefined, [preview, pageDescription, pageCanonical, ogImage]);
 
     usePageMeta({
         enabled: Boolean(preview),
         title: pageTitle,
         description: pageDescription,
         canonical: pageCanonical,
+        openGraph,
+        jsonLd,
     });
 
     useEffect(() => {
+        setShowReportForm(false);
+        setReportSuccess(false);
+        setReportError(null);
+        setReportDetails('');
+
         let isMounted = true;
         const loadPreview = async () => {
             if (!shareToken) {
@@ -137,32 +174,57 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
         setShowAuthModal(true);
     };
 
+    const handleReportSubmit = async (e: React.FormEvent) => {
+        e.preventDefault();
+        if (!shareToken || isReporting) return;
+
+        setIsReporting(true);
+        setReportError(null);
+        try {
+            await submitGalleryReport({
+                token: shareToken,
+                reason: reportReason,
+                details: reportDetails.trim() || undefined,
+            });
+            setReportSuccess(true);
+            setShowReportForm(false);
+        } catch (err: unknown) {
+            const message = err instanceof Error ? err.message : 'Failed to submit report.';
+            setReportError(message);
+        } finally {
+            setIsReporting(false);
+        }
+    };
+
     if (isNotAvailable && !isLoading) {
         return (
-            <div className="min-h-screen bg-background flex items-center justify-center px-4">
-                <div className="max-w-md text-center">
-                    <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
-                        <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8" aria-hidden="true">
-                            <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
-                        </svg>
+            <div className="min-h-screen bg-background flex flex-col">
+                <div className="flex-1 flex items-center justify-center px-4">
+                    <div className="max-w-md text-center">
+                        <div className="w-16 h-16 mx-auto mb-4 rounded-full bg-slate-100 flex items-center justify-center text-slate-400">
+                            <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className="w-8 h-8" aria-hidden="true">
+                                <path strokeLinecap="round" strokeLinejoin="round" d="M16.5 10.5V6.75a4.5 4.5 0 1 0-9 0v3.75m-.75 11.25h10.5a2.25 2.25 0 0 0 2.25-2.25v-6.75a2.25 2.25 0 0 0-2.25-2.25H6.75a2.25 2.25 0 0 0-2.25 2.25v6.75a2.25 2.25 0 0 0 2.25 2.25Z" />
+                            </svg>
+                        </div>
+                        <h1 className="text-2xl font-bold text-primary-text mb-2">This deck isn&apos;t available</h1>
+                        <p className="text-secondary-text mb-6">
+                            It may be private or still generating.
+                        </p>
+                        <button
+                            onClick={() => navigate('/new')}
+                            className="btn-primary px-5 py-2 text-sm font-semibold"
+                        >
+                            Create your own deck
+                        </button>
+                        <Link
+                            to="/explore"
+                            className="mt-4 inline-block text-sm font-medium text-secondary-text hover:text-primary transition-colors"
+                        >
+                            Browse public decks
+                        </Link>
                     </div>
-                    <h1 className="text-2xl font-bold text-primary-text mb-2">This deck isn&apos;t available</h1>
-                    <p className="text-secondary-text mb-6">
-                        It may be private or still generating.
-                    </p>
-                    <button
-                        onClick={() => navigate('/new')}
-                        className="btn-primary px-5 py-2 text-sm font-semibold"
-                    >
-                        Create your own deck
-                    </button>
-                    <Link
-                        to="/explore"
-                        className="mt-4 inline-block text-sm font-medium text-secondary-text hover:text-primary transition-colors"
-                    >
-                        Browse public decks
-                    </Link>
                 </div>
+                <Footer />
             </div>
         );
     }
@@ -236,7 +298,82 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                     projectId={null}
                     readOnly={true}
                 />
+
+                {preview && !isLoading && (
+                    <div className="mt-8 border-t border-subtle pt-6">
+                        {reportSuccess ? (
+                            <p className="text-sm text-secondary-text">
+                                Thanks — we&apos;ll review this report.
+                            </p>
+                        ) : showReportForm ? (
+                            <form onSubmit={handleReportSubmit} className="max-w-md space-y-4">
+                                <h2 className="text-sm font-semibold text-primary-text">Report this deck</h2>
+                                <div>
+                                    <label htmlFor="report-reason" className="block text-sm text-secondary-text mb-1">
+                                        Reason
+                                    </label>
+                                    <select
+                                        id="report-reason"
+                                        value={reportReason}
+                                        onChange={(e) => setReportReason(e.target.value as GalleryReportReason)}
+                                        className="w-full rounded-lg border border-subtle px-3 py-2 text-sm bg-white text-primary-text"
+                                    >
+                                        {REPORT_REASONS.map(({ value, label }) => (
+                                            <option key={value} value={value}>{label}</option>
+                                        ))}
+                                    </select>
+                                </div>
+                                <div>
+                                    <label htmlFor="report-details" className="block text-sm text-secondary-text mb-1">
+                                        Details (optional)
+                                    </label>
+                                    <textarea
+                                        id="report-details"
+                                        value={reportDetails}
+                                        onChange={(e) => setReportDetails(e.target.value.slice(0, 500))}
+                                        rows={3}
+                                        maxLength={500}
+                                        className="w-full rounded-lg border border-subtle px-3 py-2 text-sm bg-white text-primary-text resize-y"
+                                        placeholder="Tell us more about your concern"
+                                    />
+                                </div>
+                                {reportError && (
+                                    <p className="text-sm text-red-600" role="alert">{reportError}</p>
+                                )}
+                                <div className="flex gap-3">
+                                    <button
+                                        type="submit"
+                                        disabled={isReporting}
+                                        className="btn-primary px-4 py-2 text-sm font-semibold disabled:opacity-60"
+                                    >
+                                        {isReporting ? 'Submitting…' : 'Submit report'}
+                                    </button>
+                                    <button
+                                        type="button"
+                                        onClick={() => {
+                                            setShowReportForm(false);
+                                            setReportError(null);
+                                        }}
+                                        className="text-sm text-secondary-text hover:text-primary transition-colors px-2 py-2"
+                                    >
+                                        Cancel
+                                    </button>
+                                </div>
+                            </form>
+                        ) : (
+                            <button
+                                type="button"
+                                onClick={() => setShowReportForm(true)}
+                                className="text-sm text-secondary-text hover:text-primary transition-colors underline-offset-2 hover:underline"
+                            >
+                                Report this deck
+                            </button>
+                        )}
+                    </div>
+                )}
             </main>
+
+            <Footer />
 
             <Modal
                 open={showAuthModal}

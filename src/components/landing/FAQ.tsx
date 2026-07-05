@@ -1,4 +1,5 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 import { Header } from './Header';
 import { Footer } from './Footer';
 import { Auth } from '../Auth';
@@ -7,13 +8,15 @@ import { Modal } from '../Modal';
 interface FAQItemProps {
     question: string;
     answer: React.ReactNode;
+    id?: string;
+    defaultOpen?: boolean;
 }
 
-const FAQItem: React.FC<FAQItemProps> = ({ question, answer }) => {
-    const [isOpen, setIsOpen] = useState(false);
+const FAQItem: React.FC<FAQItemProps> = ({ question, answer, id, defaultOpen = false }) => {
+    const [isOpen, setIsOpen] = useState(defaultOpen);
 
     return (
-        <div className="glass-card mb-4 overflow-hidden border border-subtle">
+        <div id={id} className="glass-card mb-4 overflow-hidden border border-subtle">
             <button
                 onClick={() => setIsOpen(!isOpen)}
                 className="w-full flex items-center justify-between p-6 text-left focus:outline-none"
@@ -39,6 +42,16 @@ const FAQItem: React.FC<FAQItemProps> = ({ question, answer }) => {
 
 export const FAQ: React.FC = () => {
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const location = useLocation();
+
+    useEffect(() => {
+        if (!location.hash) return;
+        const id = location.hash.replace('#', '');
+        const el = document.getElementById(id);
+        if (el) {
+            el.scrollIntoView({ behavior: 'smooth', block: 'start' });
+        }
+    }, [location.hash]);
 
     const handleSignIn = () => {
         setShowAuthModal(true);
@@ -59,6 +72,11 @@ export const FAQ: React.FC = () => {
                 {
                     question: "Do I need an account?",
                     answer: "Yes, you'll need to sign in with Google to save your projects and access them later. This ensures your work is always backed up and secure."
+                },
+                {
+                    question: "Who can see my public deck?",
+                    id: "public-decks",
+                    answer: "Completed decks are public by default — anyone with the link can view them in the gallery and at /share/{token}. Speaker notes and private images are never shown on public pages. You can set a deck to Private anytime in the Editor or Dashboard to remove it from the gallery."
                 }
             ]
         },
@@ -121,7 +139,13 @@ export const FAQ: React.FC = () => {
                             </h2>
                             <div className="space-y-4">
                                 {category.items.map((item, i) => (
-                                    <FAQItem key={i} question={item.question} answer={item.answer} />
+                                    <FAQItem
+                                        key={i}
+                                        id={'id' in item ? item.id : undefined}
+                                        defaultOpen={'id' in item && item.id === 'public-decks' && location.hash === '#public-decks'}
+                                        question={item.question}
+                                        answer={item.answer}
+                                    />
                                 ))}
                             </div>
                         </section>

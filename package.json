@@ -10,7 +10,8 @@
     "lint": "eslint . --ext ts,tsx --report-unused-disable-directives --max-warnings 0",
     "preview": "vite preview",
     "verify-legacy": "npx ts-node --esm src/utils/verify_no_legacy.ts",
-    "init-pricing": "node scripts/init-pricing.cjs"
+    "init-pricing": "node scripts/init-pricing.cjs",
+    "backfill-public-decks": "tsx scripts/backfill-public-decks.ts"
   },
   "dependencies": {
     "@google/genai": "^1.29.0",

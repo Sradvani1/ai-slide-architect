@@ -1,17 +1,6 @@
 import { auth } from '../firebaseConfig';
-import type { Slide } from '../types';
+import type { SharePreviewResponse } from '../types';
 import { getApiBaseUrlDynamic } from '../utils/apiBaseUrl';
-
-interface SharePreviewResponse {
-    ownerName: string;
-    project: {
-        title: string;
-        topic: string;
-        gradeLevel: string;
-        subject: string;
-    };
-    slides: Slide[];
-}
 
 const authenticatedRequest = async <T>(endpoint: string, body: Record<string, unknown>): Promise<T> => {
     const user = auth.currentUser;

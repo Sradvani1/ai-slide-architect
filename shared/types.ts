@@ -123,6 +123,27 @@ export interface GalleryResponse {
 
 export type GallerySort = 'recent' | 'popular';
 
+export type GalleryReportReason = 'inappropriate' | 'copyright' | 'inaccurate' | 'other';
+
+export interface GalleryReportRequest {
+    token: string;
+    reason: GalleryReportReason;
+    details?: string;
+}
+
+/** Public share preview API response (GET /share/preview). */
+export interface SharePreviewResponse {
+    ownerName: string;
+    project: {
+        title: string;
+        topic: string;
+        gradeLevel: string;
+        subject: string;
+    };
+    slides: Slide[];
+    thumbnailUrl?: string;
+}
+
 /** Completed and not explicitly private (missing visibility = public). */
 export function isPubliclyListable(
     project: Pick<ProjectData, 'status' | 'visibility'>

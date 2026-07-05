@@ -126,7 +126,7 @@ export const listPublicDecks = async (params: ListPublicDecksParams): Promise<Ga
     return { items, nextCursor };
 };
 
-const deriveThumbnailUrl = (slides: Slide[]): string | undefined => {
+export const deriveThumbnailUrl = (slides: Slide[]): string | undefined => {
     const sorted = [...slides].sort((a, b) => a.sortOrder - b.sortOrder);
     for (const slide of sorted) {
         const searchImage = (slide.generatedImages || []).find(img => img.source === 'search');
