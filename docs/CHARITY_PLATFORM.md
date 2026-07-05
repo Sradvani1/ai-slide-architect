@@ -6,23 +6,21 @@ SlidesEdu is a free educational slide builder for teachers and students. This do
 
 Provide free, classroom-ready slide decks that teachers can discover, view, remix, and customize — funded as a charitable initiative with no ads or payments in v1.
 
-## Visibility Model
+## Sharing Model
+
+SlidesEdu is a **public utility**. All completed decks are shared automatically — there is no private option.
 
 | State | Behavior |
 | ----- | -------- |
-| **Completed + no visibility field** | Public by default (legacy decks) |
-| **Completed + `visibility: 'public'`** | Listed in gallery and shareable |
-| **Completed + `visibility: 'private'`** | Hidden from gallery; share preview returns 404 |
-| **Generating / failed** | Not publicly listable |
+| **Completed** | Listed in Explore, shareable at `/share/{token}`, remixable |
+| **Generating / failed** | Not shareable until generation completes |
 
 Public previews strip speaker notes and non-search images. Only Brave-sourced search images appear on share pages.
-
-Owners toggle visibility in the Editor or Dashboard (Private removes the deck from `publicDecks` via Firestore trigger).
 
 ## Gallery Architecture
 
 - **Index collection:** `publicDecks/{shareToken}` — server-written only (deny client writes in Firestore rules)
-- **Sync trigger:** `onProjectUpdate` upserts or deletes index when visibility/status changes
+- **Sync trigger:** `onProjectUpdate` upserts or deletes index when status changes
 - **API:** `GET /gallery` — paginated, filterable by grade/subject, sort by recent or popular
 - **Frontend:** `/explore` grid + landing Featured section (`limit=6&sort=recent`)
 
@@ -37,7 +35,7 @@ Owners toggle visibility in the Editor or Dashboard (Private removes the deck fr
 | Phase | Scope | Status |
 | ----- | ----- | ------ |
 | 1 | Cost floor — disable image gen | Shipped |
-| 2 | Public-by-default sharing, visibility toggle | Shipped |
+| 2 | Always-public sharing (no private option) | Shipped |
 | 3 | Explore gallery, `publicDecks` index, triggers | Shipped |
 | 4 | Explore-first landing, FeaturedDecks, analytics | Shipped |
 | 5 | Seed legacy decks, sitemap, SEO, report flow, docs | **This phase** |
@@ -91,7 +89,7 @@ npm run backfill-public-decks -- --verbose          # per-deck logging
 
 **Idempotency:** Skips when `publicDecks/{shareToken}` exists with matching `projectId`. Re-runs are safe.
 
-**Rollback:** Owners set Private, or admin deletes erroneous `publicDecks` docs. Re-run script after fix.
+**Rollback:** Admin deletes erroneous `publicDecks` docs. Re-run script after fix.
 
 ### Search Console (Manual)
 

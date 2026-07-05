@@ -997,7 +997,7 @@ export const onProjectCreate = onDocumentCreated('users/{userId}/projects/{proje
 });
 
 /**
- * 13. Sync publicDecks index when project visibility or status changes.
+ * 13. Sync publicDecks index when project status changes.
  */
 export const onProjectUpdate = onDocumentUpdated('users/{userId}/projects/{projectId}', async (event) => {
     const after = event.data?.after.data() as ProjectData | undefined;

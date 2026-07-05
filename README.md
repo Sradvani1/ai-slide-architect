@@ -15,7 +15,7 @@ AI Slide Architect is an AI-driven application for creating classroom-ready slid
 -   **Secure Authentication**:
     -   Google Sign-In with Firestore-backed projects and auto-save.
     -   Firebase Storage for uploads and generated image assets.
--   **Sharing & Collaboration**: Share links with preview mode and one-click “make a copy” flow. Completed decks are **public by default** (visible at `/share/{uuid}` with search images only; speaker notes and legacy AI images are stripped from the public preview). Owners can set a deck to **Private** in the Editor or Dashboard to hide it from public view.
+-   **Sharing & Collaboration**: Share links with preview mode and one-click “make a copy” flow. **All completed decks are public** — visible at `/share/{uuid}` and listed in Explore. Speaker notes and legacy AI images are stripped from the public preview.
 -   **Exports**:
     -   **PowerPoint (.pptx)** for full slides.
     -   **Speaker Notes (.docx)** (notes only).
@@ -165,13 +165,13 @@ Your frontend will call the Functions API URL you configure via `VITE_PRODUCTION
 
 ## 🌐 Charity Platform & Launch
 
-SlidesEdu operates as a free educational charity platform with a public deck gallery. See **[docs/CHARITY_PLATFORM.md](docs/CHARITY_PLATFORM.md)** for the full visibility model, gallery architecture, deploy order, and Search Console checklist.
+SlidesEdu operates as a free educational charity platform with a public deck gallery. See **[docs/CHARITY_PLATFORM.md](docs/CHARITY_PLATFORM.md)** for the sharing model, gallery architecture, deploy order, and Search Console checklist.
 
 **Backfill legacy decks** (requires service account — see [scripts/SETUP-SERVICE-ACCOUNT.md](scripts/SETUP-SERVICE-ACCOUNT.md)):
 
 ```bash
 npm run backfill-public-decks -- --dry-run   # preview counts, no writes
-npm run backfill-public-decks                # set visibility public + trigger index
+npm run backfill-public-decks                # re-index completed decks + strip legacy visibility field
 sleep 30 && npm run backfill-public-decks -- --verify-only   # expect orphans=0
 ```
 

@@ -83,7 +83,7 @@ export const buildCrawlerNotFoundHtml = (): string => `<!DOCTYPE html>
 </head>
 <body>
   <h1>This deck isn&apos;t available</h1>
-  <p>It may be private or still generating.</p>
+  <p>It may still be generating or no longer available.</p>
 </body>
 </html>`;
 

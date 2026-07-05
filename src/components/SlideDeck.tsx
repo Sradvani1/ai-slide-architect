@@ -2,8 +2,7 @@ import React, { useEffect, useRef, useState } from 'react';
 import { CopyIcon, DocumentTextIcon, DownloadIcon, ShareIcon } from './icons';
 import { Document, Packer, Paragraph, HeadingLevel, TextRun, ExternalHyperlink } from 'docx';
 import { SlideCard, cleanText } from './SlideCard';
-import { VisibilityToggle } from './VisibilityToggle';
-import type { Slide, ProjectData, ProjectVisibility } from '../types';
+import type { Slide, ProjectData } from '../types';
 
 type GenerationPhase = NonNullable<ProjectData['generationPhase']>;
 
@@ -33,9 +32,6 @@ interface SlideDeckProps {
     onCopyShare?: () => void;
     shareDisabled?: boolean;
     readOnly?: boolean;
-    visibility?: ProjectVisibility;
-    onVisibilityChange?: (visibility: ProjectVisibility) => void;
-    visibilityLoading?: boolean;
 }
 
 const WelcomeMessage: React.FC = () => (
@@ -374,9 +370,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
     onCopyShare,
     shareDisabled = false,
     readOnly = false,
-    visibility,
-    onVisibilityChange,
-    visibilityLoading = false,
 }) => {
     const [isExporting, setIsExporting] = useState(false);
     const [isDownloadingReport, setIsDownloadingReport] = useState(false);
@@ -644,17 +637,7 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
 
     return (
         <div className="flex flex-col h-full animate-fade-in">
-            <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-6 pt-4 gap-4">
-                {onVisibilityChange && visibility !== undefined && (
-                    <div className="w-full sm:w-auto sm:max-w-sm">
-                        <VisibilityToggle
-                            value={visibility}
-                            onChange={onVisibilityChange}
-                            loading={visibilityLoading}
-                        />
-                    </div>
-                )}
-                <div className="flex flex-wrap items-center justify-end gap-2 w-full sm:w-auto sm:ml-auto">
+            <div className="flex flex-wrap items-center justify-end gap-2 mb-6 pt-4">
                     {onShare && (
                         <button
                             onClick={handleShareToggle}
@@ -722,7 +705,6 @@ export const SlideDeck: React.FC<SlideDeckProps> = ({
                             <span className="font-semibold tracking-wide text-[13px] font-[600]">Slides</span>
                         </div>
                     </button>
-                </div>
             </div>
 
             {shareUrl && isShareVisible && (

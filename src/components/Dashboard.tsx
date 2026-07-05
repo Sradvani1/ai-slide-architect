@@ -2,16 +2,12 @@ import React, { useEffect, useMemo, useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { User, signOut } from 'firebase/auth';
 import { auth, db } from '../firebaseConfig';
-import { ProjectData, deleteProject, updateProjectVisibility } from '../services/projectService';
+import { ProjectData, deleteProject } from '../services/projectService';
 import { collection, query, orderBy, onSnapshot, getDocs, limit, Timestamp } from 'firebase/firestore';
 import { isError, isFirestoreTimestamp } from '../utils/typeGuards';
 import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
-import { isPubliclyListable } from '@shared/types';
-import { logDeckPublishedOnce } from '../utils/analytics';
 import { PptxIcon } from './icons';
 import { Slide } from '../types';
-import { VisibilityToggle } from './VisibilityToggle';
-import type { ProjectVisibility } from '../types';
 
 interface DashboardProps {
     user: User;
@@ -24,32 +20,12 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const [filterGradeLevel, setFilterGradeLevel] = useState('');
     const [filterSubject, setFilterSubject] = useState('');
     const [filterSectionOpen, setFilterSectionOpen] = useState(false);
-    const [visibilityLoadingId, setVisibilityLoadingId] = useState<string | null>(null);
 
     const isNewUser = sessionStorage.getItem('slidesedu_is_new_user') === '1';
     const firstName = user.displayName ? user.displayName.split(' ')[0] : 'User';
     const welcomeHeading = isNewUser
         ? `Welcome, ${firstName}`
         : `Welcome back, ${firstName}`;
-
-    const handleVisibilityChange = async (projectId: string, current: ProjectVisibility | undefined, next: ProjectVisibility) => {
-        setVisibilityLoadingId(projectId);
-        try {
-            await updateProjectVisibility(user.uid, projectId, next);
-            setProjects(prev => prev.map(p => p.id === projectId ? { ...p, visibility: next } : p));
-            const project = projects.find(p => p.id === projectId);
-            if (project && next === 'public' && isPubliclyListable({ status: 'completed', visibility: next })) {
-                logDeckPublishedOnce(projectId, {
-                    grade_level: project.gradeLevel,
-                    subject: project.subject,
-                });
-            }
-        } catch (err) {
-            console.error('Failed to update visibility:', err);
-        } finally {
-            setVisibilityLoadingId(null);
-        }
-    };
 
     const filteredProjects = useMemo(() => {
         return projects.filter(
@@ -362,7 +338,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
                         {filteredProjects.map((project) => {
                             const isGenerating = project.status === 'generating';
-                            const isCompleted = project.status === 'completed';
                             return (
                             <div
                                 key={project.id}
@@ -502,16 +477,6 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                                                 <span>{formatDate(project.updatedAt)}</span>
                                             </div>
                                         </Link>
-                                        {isCompleted && (
-                                            <div className="mt-3">
-                                                <VisibilityToggle
-                                                    compact
-                                                    value={project.visibility ?? 'public'}
-                                                    onChange={(next) => handleVisibilityChange(project.id!, project.visibility, next)}
-                                                    loading={visibilityLoadingId === project.id}
-                                                />
-                                            </div>
-                                        )}
                                     </>
                                 )}
                             </div>

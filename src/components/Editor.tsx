@@ -7,13 +7,11 @@ import { InputForm } from './InputForm';
 import { SlideDeck } from './SlideDeck';
 import { generateSlidesFromDocument } from '../services/geminiService';
 import { buildShareUrl } from '../services/shareService';
-import { createProject, updateProject, updateProjectVisibility, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
+import { createProject, updateProject, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
 import { ANALYTICS_EVENTS } from '@shared/constants';
-import { isPubliclyListable } from '@shared/types';
 import { logAnalyticsEvent, logDeckPublishedOnce } from '../utils/analytics';
-import type { Slide, ProjectFile, ProjectVisibility } from '../types';
-import { VisibilityToggle } from './VisibilityToggle';
+import type { Slide, ProjectFile } from '../types';
 
 interface EditorProps {
     user: User;
@@ -69,8 +67,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [projectStatus, setProjectStatus] = useState<ProjectData['status']>(undefined);
     const [shareToken, setShareToken] = useState<string | null>(null);
     const [showSharePanel, setShowSharePanel] = useState(false);
-    const [visibility, setVisibility] = useState<ProjectVisibility>('public');
-    const [visibilityLoading, setVisibilityLoading] = useState(false);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
     const prevStatusRef = React.useRef<ProjectData['status'] | undefined>(undefined);
@@ -104,7 +100,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     setCurrentProjectId(project.id!);
                     setProjectStatus(project.status);
                     setShareToken(project.shareToken || null);
-                    setVisibility(project.visibility ?? 'public');
                     setGenerationStartedAtMs(toMillis(project.generationStartedAt));
 
                     // Load files if they exist
@@ -145,7 +140,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                 setShareCopied(false);
                 setShareToken(null);
                 setShowSharePanel(false);
-                setVisibility('public');
                 setIsLoading(false);
             }
         };
@@ -185,7 +179,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                     subject: projectData.subject,
                     slide_count: slidesCountRef.current,
                 });
-                if (isPubliclyListable({ status: 'completed', visibility: projectData.visibility ?? 'public' })) {
+                if (projectData.status === 'completed') {
                     logDeckPublishedOnce(projectId, {
                         grade_level: projectData.gradeLevel,
                         subject: projectData.subject,
@@ -199,7 +193,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             setResearchContent(projectData.researchContent || '');
             setProjectStatus(projectData.status);
             setShareToken(projectData.shareToken || null);
-            setVisibility(projectData.visibility ?? 'public');
 
             // Handle timeout detection (10 mins)
             if (projectData.status === 'generating' && projectData.generationStartedAt) {
@@ -496,33 +489,6 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
     }, [shareUrl]);
 
-    const isPrivate = visibility === 'private';
-    const isCompleted = projectStatus === 'completed';
-
-    const handleVisibilityChange = useCallback(async (next: ProjectVisibility) => {
-        if (!currentProjectId || visibilityLoading) return;
-        const previous = visibility;
-        setVisibility(next);
-        setVisibilityLoading(true);
-        if (next === 'private') {
-            setShowSharePanel(false);
-        }
-        try {
-            await updateProjectVisibility(user.uid, currentProjectId, next);
-            if (next === 'public' && projectStatus === 'completed' && isPubliclyListable({ status: 'completed', visibility: next })) {
-                logDeckPublishedOnce(currentProjectId, {
-                    grade_level: gradeLevel,
-                    subject,
-                });
-            }
-        } catch (err) {
-            console.error('Failed to update visibility:', err);
-            setVisibility(previous);
-        } finally {
-            setVisibilityLoading(false);
-        }
-    }, [currentProjectId, user.uid, visibility, visibilityLoading, projectStatus, gradeLevel, subject]);
-
     const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
         setSlides(prevSlides => {
             if (!prevSlides) return prevSlides;
@@ -658,14 +624,11 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         generationMessage={generationMessage}
                         generationStartedAtMs={generationStartedAtMs}
                         onRetry={handleRetry}
-                        onShare={!isPrivate ? handleShareLink : undefined}
-                        shareUrl={showSharePanel && !isPrivate ? shareUrl : null}
+                        onShare={handleShareLink}
+                        shareUrl={showSharePanel ? shareUrl : null}
                         shareCopied={shareCopied}
                         onCopyShare={handleCopyShareLink}
                         shareDisabled={projectStatus === 'generating' || !shareToken}
-                        visibility={isCompleted ? visibility : undefined}
-                        onVisibilityChange={isCompleted ? handleVisibilityChange : undefined}
-                        visibilityLoading={visibilityLoading}
                     />
                 </div>
             </main>

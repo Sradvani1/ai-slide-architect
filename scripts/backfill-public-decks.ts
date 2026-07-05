@@ -1,6 +1,6 @@
 /**
  * Backfill legacy completed decks into publicDecks via project doc updates.
- * Primary path: set visibility='public' + updatedAt → onProjectUpdate trigger upserts index.
+ * Primary path: touch updatedAt on completed projects → onProjectUpdate trigger upserts index.
  * --verify-only: heal orphans via local upsertPublicDeckLocal (keep in sync with publicDeckService.upsertPublicDeck).
  *
  * Usage:
@@ -24,7 +24,6 @@ const STORAGE_AUDIT_SAMPLE_SIZE = 20;
 
 interface Stats {
     scanned: number;
-    skipped_private: number;
     skipped_already: number;
     tokens_created: number;
     updated: number;
@@ -226,7 +225,6 @@ const run = async () => {
 
     const stats: Stats = {
         scanned: 0,
-        skipped_private: 0,
         skipped_already: 0,
         tokens_created: 0,
         updated: 0,
@@ -256,11 +254,6 @@ const run = async () => {
 
             stats.scanned++;
             let data = proj.data() as ProjectData;
-
-            if (data.visibility === 'private') {
-                stats.skipped_private++;
-                continue;
-            }
 
             let shareToken = data.shareToken;
             if (!shareToken) {
@@ -297,8 +290,8 @@ const run = async () => {
 
             if (!dryRun) {
                 await proj.ref.update({
-                    visibility: 'public',
                     updatedAt: FieldValue.serverTimestamp(),
+                    visibility: FieldValue.delete(),
                 });
             }
 

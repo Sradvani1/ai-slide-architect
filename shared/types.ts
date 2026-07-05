@@ -81,8 +81,6 @@ export interface ProjectFile {
     extractedContent?: string;
 }
 
-export type ProjectVisibility = 'public' | 'private';
-
 /** Denormalized gallery index doc at publicDecks/{shareToken}. Server-written only. */
 export interface PublicDeckIndex {
     token: string;
@@ -144,11 +142,11 @@ export interface SharePreviewResponse {
     thumbnailUrl?: string;
 }
 
-/** Completed and not explicitly private (missing visibility = public). */
+/** Completed decks are always public and listable in the gallery. */
 export function isPubliclyListable(
-    project: Pick<ProjectData, 'status' | 'visibility'>
+    project: Pick<ProjectData, 'status'>
 ): boolean {
-    return project.status === 'completed' && project.visibility !== 'private';
+    return project.status === 'completed';
 }
 
 /**
@@ -188,6 +186,5 @@ export interface ProjectData {
     generationRequestId?: string;
     shareToken?: string;
     shareCreatedAt?: any;          // Firestore Timestamp
-    visibility?: ProjectVisibility; // absent = public (implicit)
-    publishedAt?: any;             // Firestore Timestamp — set by trigger on first public listing
+    publishedAt?: any;             // Firestore Timestamp — set by trigger on first gallery listing
 }

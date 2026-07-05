@@ -207,7 +207,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                         </div>
                         <h1 className="text-2xl font-bold text-primary-text mb-2">This deck isn&apos;t available</h1>
                         <p className="text-secondary-text mb-6">
-                            It may be private or still generating.
+                            It may still be generating or no longer available.
                         </p>
                         <button
                             onClick={() => navigate('/new')}

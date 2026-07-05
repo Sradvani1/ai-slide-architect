@@ -74,9 +74,9 @@ export const FAQ: React.FC = () => {
                     answer: "Yes, you'll need to sign in with Google to save your projects and access them later. This ensures your work is always backed up and secure."
                 },
                 {
-                    question: "Who can see my public deck?",
+                    question: "Who can see my deck?",
                     id: "public-decks",
-                    answer: "Completed decks are public by default — anyone with the link can view them in the gallery and at /share/{token}. Speaker notes and private images are never shown on public pages. You can set a deck to Private anytime in the Editor or Dashboard to remove it from the gallery."
+                    answer: "All completed decks are public and shared — anyone can view them in Explore and at /share/{token}. Speaker notes and AI-generated images are never shown on public pages."
                 }
             ]
         },

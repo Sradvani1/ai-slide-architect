@@ -14,9 +14,9 @@ export const Footer: React.FC = () => {
                             © {new Date().getFullYear()} SlidesEdu. All rights reserved.
                         </p>
                         <p className="text-xs text-secondary-text mt-2">
-                            Public decks are shared by teachers.{' '}
+                            All completed decks are shared publicly.{' '}
                             <Link to="/faq#public-decks" className="hover:text-primary transition-colors">
-                                Learn about privacy →
+                                Learn how sharing works →
                             </Link>
                         </p>
                     </div>

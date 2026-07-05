@@ -14,14 +14,18 @@ service cloud.firestore {
       // Project Validation Function
       function isValidProject() {
          let data = request.resource.data;
+         // Block client writes to legacy visibility field (decks are always public)
+         let visibilityOk = resource == null
+             ? !data.keys().hasAny(['visibility'])
+             : !data.diff(resource.data).affectedKeys().hasAny(['visibility']);
          // DENY forbidden legacy fields and root slides array
-         return !data.keys().hasAny(['slides', 'imagePrompt', 'prompts', 'legacy'])
+         return visibilityOk
+             && !data.keys().hasAny(['slides', 'imagePrompt', 'prompts', 'legacy'])
              // REQUIRE essential metadata fields
              && data.keys().hasAll(['title', 'updatedAt', 'userId'])
              // ALLOW new status fields (optional)
              && (!data.keys().hasAny(['status']) || data.status in ['generating', 'completed', 'failed'])
              && (!data.keys().hasAny(['generationProgress']) || (data.generationProgress is int && data.generationProgress >= 0 && data.generationProgress <= 100))
-             && (!data.keys().hasAny(['visibility']) || data.visibility in ['public', 'private'])
              && (!data.keys().hasAny(['publishedAt']) || data.publishedAt is timestamp);
       }
       

@@ -140,7 +140,6 @@ const copyProjectToUser = async (projectData: ProjectData, slides: Slide[], clai
         userId: _userId,
         createdAt: _createdAt,
         updatedAt: _updatedAt,
-        visibility: _visibility,
         publishedAt: _publishedAt,
         shareToken: _shareToken,
         shareCreatedAt: _shareCreatedAt,
