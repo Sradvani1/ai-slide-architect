@@ -10,8 +10,9 @@
  *
  * Requires GOOGLE_APPLICATION_CREDENTIALS (see scripts/SETUP-SERVICE-ACCOUNT.md).
  */
-import * as admin from 'firebase-admin';
-import { FieldValue } from 'firebase-admin/firestore';
+import { randomUUID } from 'node:crypto';
+import { initializeApp } from 'firebase-admin/app';
+import { getFirestore, FieldValue, type Firestore, type DocumentReference } from 'firebase-admin/firestore';
 import type { Slide, ProjectData } from '../shared/types.ts';
 import { isPubliclyListable } from '../shared/types.ts';
 import { getOwnerDisplayName } from '../functions/src/utils/ownerDisplayName.ts';
@@ -25,6 +26,7 @@ interface Stats {
     scanned: number;
     skipped_private: number;
     skipped_already: number;
+    tokens_created: number;
     updated: number;
     errors: number;
     verify: { orphans: number; healed: number };
@@ -56,7 +58,7 @@ const deriveThumbnailUrl = (slides: Slide[]): string | undefined => {
 };
 
 const upsertPublicDeckLocal = async (
-    db: admin.firestore.Firestore,
+    db: Firestore,
     token: string,
     ownerId: string,
     projectId: string,
@@ -108,6 +110,49 @@ const upsertPublicDeckLocal = async (
     }
 };
 
+// keep in sync with shareService.createShareLink
+const createShareLinkLocal = async (
+    db: Firestore,
+    ownerId: string,
+    projectId: string,
+    existingToken?: string
+): Promise<string> => {
+    const projectRef = db.collection('users').doc(ownerId).collection('projects').doc(projectId);
+
+    if (existingToken) {
+        const shareRef = db.collection('shares').doc(existingToken);
+        const shareSnap = await shareRef.get();
+        if (!shareSnap.exists) {
+            await shareRef.set({
+                token: existingToken,
+                ownerId,
+                projectId,
+                createdAt: FieldValue.serverTimestamp(),
+                lastClaimedAt: null,
+                claimCount: 0,
+            });
+        }
+        return existingToken;
+    }
+
+    const token = randomUUID();
+    await db.collection('shares').doc(token).set({
+        token,
+        ownerId,
+        projectId,
+        createdAt: FieldValue.serverTimestamp(),
+        lastClaimedAt: null,
+        claimCount: 0,
+    });
+
+    await projectRef.update({
+        shareToken: token,
+        shareCreatedAt: FieldValue.serverTimestamp(),
+    });
+
+    return token;
+};
+
 const classifyImageUrl = (url: string): 'brave-external' | 'firebasestorage' | 'other' => {
     if (url.includes('firebasestorage.googleapis.com') || url.includes('storage.googleapis.com')) {
         return 'firebasestorage';
@@ -119,7 +164,7 @@ const classifyImageUrl = (url: string): 'brave-external' | 'firebasestorage' | '
 };
 
 const auditSlideImageUrls = async (
-    projectRef: admin.firestore.DocumentReference,
+    projectRef: DocumentReference,
     stats: Stats
 ): Promise<void> => {
     const slidesSnap = await projectRef.collection('slides').get();
@@ -144,7 +189,7 @@ const auditSlideImageUrls = async (
 };
 
 const verifyAndHealOrphans = async (
-    db: admin.firestore.Firestore,
+    db: Firestore,
     isDryRun: boolean
 ): Promise<{ orphans: number; healed: number }> => {
     let orphans = 0;
@@ -176,13 +221,14 @@ const verifyAndHealOrphans = async (
 };
 
 const run = async () => {
-    admin.initializeApp({ projectId: PROJECT_ID });
-    const db = admin.firestore();
+    initializeApp({ projectId: PROJECT_ID });
+    const db = getFirestore();
 
     const stats: Stats = {
         scanned: 0,
         skipped_private: 0,
         skipped_already: 0,
+        tokens_created: 0,
         updated: 0,
         errors: 0,
         verify: { orphans: 0, healed: 0 },
@@ -209,20 +255,36 @@ const run = async () => {
             }
 
             stats.scanned++;
-            const data = proj.data() as ProjectData;
+            let data = proj.data() as ProjectData;
 
             if (data.visibility === 'private') {
                 stats.skipped_private++;
                 continue;
             }
 
-            if (!data.shareToken) {
-                console.error(`[error] missing shareToken: user=${userDoc.id} project=${proj.id}`);
-                stats.errors++;
-                continue;
+            let shareToken = data.shareToken;
+            if (!shareToken) {
+                try {
+                    if (!dryRun) {
+                        shareToken = await createShareLinkLocal(db, userDoc.id, proj.id);
+                    }
+                    stats.tokens_created++;
+                    if (verbose) {
+                        console.log(`[token] share link: user=${userDoc.id} project=${proj.id} token=${shareToken ?? '(dry-run)'}`);
+                    }
+                } catch (err) {
+                    console.error(`[error] createShareLink failed: user=${userDoc.id} project=${proj.id}`, err);
+                    stats.errors++;
+                    continue;
+                }
+                if (dryRun) {
+                    stats.updated++;
+                    writesQueued++;
+                    continue;
+                }
             }
 
-            const indexSnap = await db.collection('publicDecks').doc(data.shareToken).get();
+            const indexSnap = await db.collection('publicDecks').doc(shareToken!).get();
             if (indexSnap.exists && indexSnap.data()?.projectId === proj.id) {
                 stats.skipped_already++;
                 continue;
@@ -245,7 +307,7 @@ const run = async () => {
             processedSincePause++;
 
             if (verbose) {
-                console.log(`[update] user=${userDoc.id} project=${proj.id} token=${data.shareToken}`);
+                console.log(`[update] user=${userDoc.id} project=${proj.id} token=${shareToken}`);
             }
 
             if (processedSincePause >= batchSize) {

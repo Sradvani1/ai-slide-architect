@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { Hero } from './landing/Hero';
 import { Features } from './landing/Features';
-import { FeaturedDecks } from './landing/FeaturedDecks';
 import { HowRemixWorks } from './landing/HowRemixWorks';
 import { UseCases } from './landing/UseCases';
 import { Footer } from './landing/Footer';
@@ -33,7 +32,6 @@ export const LandingPage: React.FC = () => {
 
             <main id="main-content">
                 <Hero onCreateOwn={handleGetStarted} />
-                <FeaturedDecks onCreateDeck={handleGetStarted} />
                 <HowRemixWorks />
                 <Features />
                 <UseCases />
