@@ -1,6 +1,7 @@
 import React, { useEffect, useRef, useState } from 'react';
 import { auth } from '../firebaseConfig';
 import { GoogleAuthProvider, signInWithCredential, sendSignInLinkToEmail } from 'firebase/auth';
+import { setPendingAuthMethod, clearPendingAuthMethod } from '../utils/analytics';
 
 declare global {
     interface Window {
@@ -65,8 +66,10 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                             throw new Error('No credential received from Google.');
                         }
                         const credential = GoogleAuthProvider.credential(response.credential);
+                        setPendingAuthMethod('google');
                         await signInWithCredential(auth, credential);
                     } catch (error: unknown) {
+                        clearPendingAuthMethod();
                         const errorMessage = error instanceof Error ? error.message : 'Authentication failed';
                         setMessage({ type: 'error', text: errorMessage });
                     }
@@ -142,10 +145,10 @@ export function Auth({ isModal = false, onClose, continueUrl }: AuthProps) {
                     id={isModal ? 'auth-dialog-title' : undefined}
                     className="text-2xl sm:text-3xl font-semibold text-center mb-4 sm:mb-6 text-[#32B8C6]"
                 >
-                    Welcome Back
+                    Welcome to SlidesEdu
                 </h1>
                 <p className="text-[#A7A9A9] text-center mb-6 sm:mb-8">
-                    Sign in to start creating slides
+                    Sign in to create, share, and remix slide decks
                 </p>
 
                 {message && (

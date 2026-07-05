@@ -1,4 +1,4 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { Link, useNavigate, useParams } from 'react-router-dom';
 import type { User } from 'firebase/auth';
 import { SlideDeck } from './SlideDeck';
@@ -6,6 +6,8 @@ import { Auth } from './Auth';
 import { Modal } from './Modal';
 import { claimShareLink, fetchSharePreview } from '../services/shareService';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { logAnalyticsEvent } from '../utils/analytics';
+import { ANALYTICS_EVENTS } from '@shared/constants';
 import type { Slide } from '../types';
 
 interface SharePreviewProps {
@@ -35,6 +37,7 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
     const [isClaiming, setIsClaiming] = useState(false);
     const [shouldClaim, setShouldClaim] = useState(false);
     const [showAuthModal, setShowAuthModal] = useState(false);
+    const loggedViewForToken = useRef<string | null>(null);
 
     const shareToken = useMemo(() => token?.trim() || '', [token]);
     const isNotAvailable = error === DECK_NOT_AVAILABLE;
@@ -72,6 +75,10 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
                 const result = await fetchSharePreview(shareToken);
                 if (isMounted) {
                     setPreview(result);
+                    if (loggedViewForToken.current !== shareToken) {
+                        loggedViewForToken.current = shareToken;
+                        logAnalyticsEvent(ANALYTICS_EVENTS.DECK_VIEWED, { token: shareToken });
+                    }
                 }
             } catch (err: unknown) {
                 if (isMounted) {
@@ -108,6 +115,9 @@ export const SharePreview: React.FC<SharePreviewProps> = ({ user }) => {
         setError(null);
         try {
             const result = await claimShareLink(shareToken);
+            if (!result.alreadyClaimed) {
+                logAnalyticsEvent(ANALYTICS_EVENTS.DECK_REMIXED, { token: shareToken });
+            }
             navigate(`/project/${result.projectId}`);
             setShouldClaim(false);
         } catch (err: unknown) {

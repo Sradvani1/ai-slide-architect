@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
+import { GRADE_LEVELS, SUBJECTS, QUICK_START_EXAMPLE } from '@shared/constants';
 import { GenerateIcon } from './icons';
 import { FileUploader } from './FileUploader';
 
@@ -24,19 +24,20 @@ interface InputFormProps {
   setBulletsPerSlide: (num: number) => void;
   additionalInstructions: string;
   setAdditionalInstructions: (text: string) => void;
+  showQuickStart?: boolean;
 }
 
 const PLACEHOLDER_PAIRS = [
-  { topic: "The process of photosynthesis", gradeLevel: "9th Grade", subject: "Science" },
-  { topic: "Causes of the American Civil War", gradeLevel: "8th Grade", subject: "Social Studies" },
-  { topic: "Themes in 'To Kill a Mockingbird'", gradeLevel: "10th Grade", subject: "Language Arts" },
-  { topic: "Properties of chemical bonds", gradeLevel: "11th Grade", subject: "Science" },
-  { topic: "Concept of linear equations", gradeLevel: "7th Grade", subject: "Math" },
-  { topic: "Impact of climate change", gradeLevel: "12th Grade", subject: "Science" },
-  { topic: "Principles of supply and demand", gradeLevel: "12th Grade", subject: "Social Studies" },
-  { topic: "Structure of the human heart", gradeLevel: "7th Grade", subject: "Science" },
-  { topic: "Renaissance art techniques", gradeLevel: "9th Grade", subject: "Arts" },
-  { topic: "Laws of motion", gradeLevel: "8th Grade", subject: "Science" }
+  { topic: "The process of photosynthesis", gradeLevel: "9th", subject: "Science" },
+  { topic: "Causes of the American Civil War", gradeLevel: "8th", subject: "History-Social Science" },
+  { topic: "Themes in 'To Kill a Mockingbird'", gradeLevel: "10th", subject: "English Language Arts" },
+  { topic: "Properties of chemical bonds", gradeLevel: "11th", subject: "Science" },
+  { topic: "Concept of linear equations", gradeLevel: "7th", subject: "Mathematics" },
+  { topic: "Impact of climate change", gradeLevel: "12th", subject: "Science" },
+  { topic: "Principles of supply and demand", gradeLevel: "12th", subject: "History-Social Science" },
+  { topic: "Structure of the human heart", gradeLevel: "7th", subject: "Science" },
+  { topic: "Renaissance art techniques", gradeLevel: "9th", subject: "Visual & Performing Arts" },
+  { topic: "Laws of motion", gradeLevel: "8th", subject: "Science" }
 ];
 
 export const InputForm: React.FC<InputFormProps> = ({
@@ -60,6 +61,7 @@ export const InputForm: React.FC<InputFormProps> = ({
   setBulletsPerSlide,
   additionalInstructions,
   setAdditionalInstructions,
+  showQuickStart = false,
 }) => {
   const [placeholders, setPlaceholders] = useState(PLACEHOLDER_PAIRS[0]);
   const [isDescriptionOpen, setIsDescriptionOpen] = useState(false);
@@ -67,6 +69,12 @@ export const InputForm: React.FC<InputFormProps> = ({
   useEffect(() => {
     setPlaceholders(PLACEHOLDER_PAIRS[Math.floor(Math.random() * PLACEHOLDER_PAIRS.length)]);
   }, []);
+
+  const handleQuickStart = () => {
+    setTopic(QUICK_START_EXAMPLE.topic);
+    setGradeLevel(QUICK_START_EXAMPLE.gradeLevel);
+    setSubject(QUICK_START_EXAMPLE.subject);
+  };
 
   return (
     <div className="flex flex-col space-y-6">
@@ -250,7 +258,17 @@ export const InputForm: React.FC<InputFormProps> = ({
         </div>
       </div>
 
-      <div className="pt-2">
+      <div className="pt-2 space-y-3">
+        {showQuickStart && (
+          <button
+            type="button"
+            onClick={handleQuickStart}
+            disabled={isLoading}
+            className="w-full text-primary border border-primary/30 rounded-lg hover:bg-primary/5 px-6 py-2.5 text-sm font-semibold min-h-[44px] transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+          >
+            Try an example
+          </button>
+        )}
         <button
           onClick={onSubmit}
           disabled={isLoading || !topic || !gradeLevel || !subject}

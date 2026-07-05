@@ -11,6 +11,8 @@ import { User, isSignInWithEmailLink, signInWithEmailLink } from 'firebase/auth'
 import { doc, getDoc, setDoc, serverTimestamp } from 'firebase/firestore';
 
 import { ErrorBoundary } from './components/ErrorBoundary';
+import { logAnalyticsEvent, consumePendingAuthMethod, setPendingAuthMethod, clearPendingAuthMethod } from './utils/analytics';
+import { ANALYTICS_EVENTS } from '@shared/constants';
 
 function App() {
   const [user, setUser] = useState<User | null>(null);
@@ -30,9 +32,11 @@ function App() {
       }
 
       try {
+        setPendingAuthMethod('email_link');
         await signInWithEmailLink(auth, email, window.location.href);
         window.localStorage.removeItem('emailForSignIn');
       } catch (error) {
+        clearPendingAuthMethod();
         console.error('Email link sign-in failed:', error);
       }
     };
@@ -40,11 +44,14 @@ function App() {
     completeEmailLinkSignIn();
 
     const unsubscribe = auth.onAuthStateChanged(async (user) => {
+      const method = user ? consumePendingAuthMethod() : null;
+
       if (user) {
         const userRef = doc(db, 'users', user.uid);
         const userSnap = await getDoc(userRef);
+        const isNewUser = !userSnap.exists();
 
-        if (!userSnap.exists()) {
+        if (isNewUser) {
           await setDoc(userRef, {
             email: user.email,
             displayName: user.displayName,
@@ -52,7 +59,19 @@ function App() {
             createdAt: serverTimestamp(),
           });
         }
+
+        if (method) {
+          if (isNewUser) {
+            sessionStorage.setItem('slidesedu_is_new_user', '1');
+            logAnalyticsEvent(ANALYTICS_EVENTS.SIGN_UP, { method });
+          } else {
+            logAnalyticsEvent(ANALYTICS_EVENTS.LOGIN, { method });
+          }
+        }
+      } else {
+        sessionStorage.removeItem('slidesedu_is_new_user');
       }
+
       setUser(user);
       setIsAuthLoading(false);
     });

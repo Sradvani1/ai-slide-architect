@@ -6,6 +6,8 @@ import { ProjectData, deleteProject, updateProjectVisibility } from '../services
 import { collection, query, orderBy, onSnapshot, getDocs, limit, Timestamp } from 'firebase/firestore';
 import { isError, isFirestoreTimestamp } from '../utils/typeGuards';
 import { GRADE_LEVELS, SUBJECTS } from '@shared/constants';
+import { isPubliclyListable } from '@shared/types';
+import { logDeckPublishedOnce } from '../utils/analytics';
 import { PptxIcon } from './icons';
 import { Slide } from '../types';
 import { VisibilityToggle } from './VisibilityToggle';
@@ -24,11 +26,24 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
     const [filterSectionOpen, setFilterSectionOpen] = useState(false);
     const [visibilityLoadingId, setVisibilityLoadingId] = useState<string | null>(null);
 
+    const isNewUser = sessionStorage.getItem('slidesedu_is_new_user') === '1';
+    const firstName = user.displayName ? user.displayName.split(' ')[0] : 'User';
+    const welcomeHeading = isNewUser
+        ? `Welcome, ${firstName}`
+        : `Welcome back, ${firstName}`;
+
     const handleVisibilityChange = async (projectId: string, current: ProjectVisibility | undefined, next: ProjectVisibility) => {
         setVisibilityLoadingId(projectId);
         try {
             await updateProjectVisibility(user.uid, projectId, next);
             setProjects(prev => prev.map(p => p.id === projectId ? { ...p, visibility: next } : p));
+            const project = projects.find(p => p.id === projectId);
+            if (project && next === 'public' && isPubliclyListable({ status: 'completed', visibility: next })) {
+                logDeckPublishedOnce(projectId, {
+                    grade_level: project.gradeLevel,
+                    subject: project.subject,
+                });
+            }
         } catch (err) {
             console.error('Failed to update visibility:', err);
         } finally {
@@ -185,7 +200,7 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
 
                 <div className="flex flex-col md:flex-row justify-between items-end mb-8 gap-6">
                     <div>
-                        <h1 className="text-3xl font-bold text-primary-text tracking-tight">Welcome back, {user.displayName ? user.displayName.split(' ')[0] : 'User'}</h1>
+                        <h1 className="text-3xl font-bold text-primary-text tracking-tight">{welcomeHeading}</h1>
                     </div>
                     <button
                         onClick={() => navigate('/new')}
@@ -302,7 +317,11 @@ export const Dashboard: React.FC<DashboardProps> = ({ user }) => {
                             <PptxIcon className="w-8 h-8" />
                         </div>
                         <h3 className="text-xl font-bold text-primary-text mb-2">No projects yet</h3>
-                        <p className="text-secondary-text mb-6">Start your first AI-powered presentation today.</p>
+                        <p className="text-secondary-text mb-6">
+                            {isNewUser
+                                ? 'Start with a topic and grade level — your deck will appear in Explore when ready.'
+                                : 'Start your first AI-powered presentation today.'}
+                        </p>
                         <button
                             onClick={() => navigate('/new')}
                             className="text-primary hover:text-primary/80 font-semibold flex items-center"

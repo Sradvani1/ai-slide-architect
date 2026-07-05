@@ -24,6 +24,23 @@ export const GRADE_LEVELS = [
   "12th",
 ];
 
+export const ANALYTICS_EVENTS = {
+  SIGN_UP: 'sign_up',
+  LOGIN: 'login',
+  PROJECT_CREATED: 'project_created',
+  GENERATION_COMPLETED: 'generation_completed',
+  DECK_PUBLISHED: 'deck_published',
+  DECK_VIEWED: 'deck_viewed',
+  DECK_REMIXED: 'deck_remixed',
+  EXPLORE_VIEWED: 'explore_viewed',
+} as const;
+
+export const QUICK_START_EXAMPLE = {
+  topic: 'The process of photosynthesis',
+  gradeLevel: '7th',
+  subject: 'Science',
+} as const;
+
 export const SUBJECTS = [
   "English Language Arts",
   "Health",

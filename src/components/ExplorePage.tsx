@@ -9,6 +9,8 @@ import { Auth } from './Auth';
 import { Modal } from './Modal';
 import { fetchGallery } from '../services/galleryService';
 import { usePageMeta } from '../hooks/usePageMeta';
+import { logAnalyticsEvent } from '../utils/analytics';
+import { ANALYTICS_EVENTS } from '@shared/constants';
 import type { GalleryDeckItem, GallerySort } from '../types';
 
 interface ExplorePageProps {
@@ -76,6 +78,10 @@ export const ExplorePage: React.FC<ExplorePageProps> = ({ user }) => {
         description: 'Browse free classroom slide decks by grade and subject. Remix and customize for your students.',
         canonical: 'https://www.slidesedu.org/explore',
     });
+
+    useEffect(() => {
+        logAnalyticsEvent(ANALYTICS_EVENTS.EXPLORE_VIEWED);
+    }, []);
 
     useEffect(() => {
         const rawGrade = searchParams.get('gradeLevel');

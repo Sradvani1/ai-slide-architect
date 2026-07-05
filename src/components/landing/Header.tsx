@@ -1,5 +1,5 @@
 import React from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useLocation } from 'react-router-dom';
 import type { User } from 'firebase/auth';
 
 interface HeaderProps {
@@ -9,6 +9,9 @@ interface HeaderProps {
 }
 
 export const Header: React.FC<HeaderProps> = ({ onSignIn, user, title }) => {
+    const { pathname } = useLocation();
+    const showExploreLink = pathname !== '/explore';
+
     return (
         <header className="w-full border-b border-subtle bg-surface sticky top-0 z-40 backdrop-blur-md bg-surface/80">
             <div className="max-w-6xl mx-auto px-4 py-4 flex items-center justify-between">
@@ -23,6 +26,11 @@ export const Header: React.FC<HeaderProps> = ({ onSignIn, user, title }) => {
                     )}
                 </div>
                 <div className="flex items-center gap-6">
+                    {showExploreLink && (
+                        <Link to="/explore" className="text-sm font-medium text-secondary-text hover:text-primary transition-colors hidden sm:block">
+                            Explore
+                        </Link>
+                    )}
                     <Link to="/faq" className="text-sm font-medium text-secondary-text hover:text-primary transition-colors hidden sm:block">
                         FAQ
                     </Link>

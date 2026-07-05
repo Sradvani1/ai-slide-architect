@@ -9,6 +9,9 @@ import { generateSlidesFromDocument } from '../services/geminiService';
 import { buildShareUrl } from '../services/shareService';
 import { createProject, updateProject, updateProjectVisibility, updateSlide, getProject, uploadFileToStorage, ProjectData } from '../services/projectService';
 import { DEFAULT_NUM_SLIDES, DEFAULT_BULLETS_PER_SLIDE } from '../constants';
+import { ANALYTICS_EVENTS } from '@shared/constants';
+import { isPubliclyListable } from '@shared/types';
+import { logAnalyticsEvent, logDeckPublishedOnce } from '../utils/analytics';
 import type { Slide, ProjectFile, ProjectVisibility } from '../types';
 import { VisibilityToggle } from './VisibilityToggle';
 
@@ -70,6 +73,9 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
     const [visibilityLoading, setVisibilityLoading] = useState(false);
 
     const saveTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
+    const prevStatusRef = React.useRef<ProjectData['status'] | undefined>(undefined);
+    const prevStatusInitializedRef = React.useRef(false);
+    const slidesCountRef = React.useRef(0);
 
     // Close sidebar automatically when slides are generated on mobile
     useEffect(() => {
@@ -166,6 +172,28 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
             if (!isMounted) return;
 
             const projectData = snapshot.data() as ProjectData;
+            const prevStatus = prevStatusRef.current;
+            const nextStatus = projectData.status;
+
+            if (!prevStatusInitializedRef.current) {
+                prevStatusRef.current = nextStatus;
+                prevStatusInitializedRef.current = true;
+            } else if (prevStatus === 'generating' && nextStatus === 'completed') {
+                logAnalyticsEvent(ANALYTICS_EVENTS.GENERATION_COMPLETED, {
+                    project_id: projectId,
+                    grade_level: projectData.gradeLevel,
+                    subject: projectData.subject,
+                    slide_count: slidesCountRef.current,
+                });
+                if (isPubliclyListable({ status: 'completed', visibility: projectData.visibility ?? 'public' })) {
+                    logDeckPublishedOnce(projectId, {
+                        grade_level: projectData.gradeLevel,
+                        subject: projectData.subject,
+                    });
+                }
+            }
+            prevStatusRef.current = nextStatus;
+
             setProjectTitle(projectData.title || '');
             setProjectTopic(projectData.topic || '');
             setResearchContent(projectData.researchContent || '');
@@ -211,19 +239,25 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
         return () => {
             isMounted = false;
+            prevStatusInitializedRef.current = false;
+            prevStatusRef.current = undefined;
             unsubscribe();
         };
     }, [projectId, user, navigate, currentProjectId]);
 
     // Firestore listener for real-time updates to slides subcollection
     useEffect(() => {
-        if (!projectId || !user) return;
+        if (!projectId || !user) {
+            slidesCountRef.current = 0;
+            return;
+        }
 
         const slidesRef = collection(db, 'users', user.uid, 'projects', projectId, 'slides');
         const q = query(slidesRef, orderBy('sortOrder', 'asc'));
 
         const unsubscribe = onSnapshot(q, (snapshot) => {
             const updatedSlides = snapshot.docs.map(doc => doc.data() as Slide);
+            slidesCountRef.current = updatedSlides.length;
             setSlides(updatedSlides);
         }, (error: unknown) => {
             console.error("Slides listener error:", error);
@@ -287,6 +321,13 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
 
                 setCurrentProjectId(newProjectId);
                 setProjectStatus('generating');
+
+                logAnalyticsEvent(ANALYTICS_EVENTS.PROJECT_CREATED, {
+                    project_id: newProjectId,
+                    grade_level: gradeLevel,
+                    subject,
+                });
+                sessionStorage.removeItem('slidesedu_is_new_user');
 
                 // 2. Upload files first (if any)
                 const uploadedProjectFiles: ProjectFile[] = [];
@@ -468,13 +509,19 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
         }
         try {
             await updateProjectVisibility(user.uid, currentProjectId, next);
+            if (next === 'public' && projectStatus === 'completed' && isPubliclyListable({ status: 'completed', visibility: next })) {
+                logDeckPublishedOnce(currentProjectId, {
+                    grade_level: gradeLevel,
+                    subject,
+                });
+            }
         } catch (err) {
             console.error('Failed to update visibility:', err);
             setVisibility(previous);
         } finally {
             setVisibilityLoading(false);
         }
-    }, [currentProjectId, user.uid, visibility, visibilityLoading]);
+    }, [currentProjectId, user.uid, visibility, visibilityLoading, projectStatus, gradeLevel, subject]);
 
     const handleUpdateSlide = (index: number, patch: Partial<Slide>) => {
         setSlides(prevSlides => {
@@ -585,6 +632,7 @@ export const Editor: React.FC<EditorProps> = ({ user }) => {
                         setBulletsPerSlide={setBulletsPerSlide}
                         additionalInstructions={additionalInstructions}
                         setAdditionalInstructions={setAdditionalInstructions}
+                        showQuickStart={!projectId}
                     />
                 </div>
             </aside>
